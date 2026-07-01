@@ -62,7 +62,10 @@ class SystemControllerTest {
 
         // The exit happens on a daemon thread after a short delay, once the response has
         // already been flushed - so we wait (bounded) rather than asserting synchronously.
-        verify(processExiter, timeout(3000)).exit(any(ConfigurableApplicationContext.class), eq(0));
+        // 30 s bound: loaded Windows CI runners have been observed to need >3 s for the
+        // 250 ms-delayed daemon thread to get scheduled; the verify returns as soon as the
+        // call happens, so the long bound costs nothing on a healthy run.
+        verify(processExiter, timeout(30_000)).exit(any(ConfigurableApplicationContext.class), eq(0));
     }
 
     @Test
