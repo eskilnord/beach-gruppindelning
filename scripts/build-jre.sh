@@ -194,6 +194,11 @@ echo "Modules: $JLINK_MODULES"
 
 echo "jlink output: $JRE_OUTPUT_DIR ($(du -sh "$JRE_OUTPUT_DIR" | cut -f1))"
 
+# jlink copies legal/** notices as read-only (444); tauri-build's resource copy
+# preserves permissions and then fails to overwrite them on a rebuild. Make the
+# runtime tree owner-writable so repeated `tauri build`/`tauri dev` runs work.
+chmod -R u+w "$JRE_OUTPUT_DIR"
+
 # ---------------------------------------------------------------------------
 # 4. macOS ad-hoc signing — BEFORE anything else uses the runtime (ADR-003: sign
 #    individual binaries here, never post-dmg --deep).

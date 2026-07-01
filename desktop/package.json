@@ -1,0 +1,12 @@
+{
+  "name": "gruppindelning-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tauri v2 desktop shell for Gruppindelning: spawns and supervises the bundled Java backend (docs/design/01-architecture.md §4).",
+  "scripts": {
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11"
+  }
+}
