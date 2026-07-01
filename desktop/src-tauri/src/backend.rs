@@ -450,6 +450,9 @@ fn capture_output_and_await_ready(
                 return Err(format!("backend did not print GP_READY within {timeout:?}"));
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
+                // Give the stderr reader thread a moment to flush the child's dying
+                // words into the log buffer before the caller drains it.
+                thread::sleep(Duration::from_millis(300));
                 return Err("backend process exited before printing GP_READY".to_string());
             }
         }

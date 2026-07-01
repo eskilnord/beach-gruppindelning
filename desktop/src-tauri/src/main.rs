@@ -61,6 +61,19 @@ fn main() {
             }
             Err(failure) => {
                 println!("SMOKE_FAIL {}", failure.reason);
+                // Diagnostics for CI: the captured child output is the only way to see
+                // WHY the backend died on a runner we can't inspect interactively.
+                eprintln!("---- captured backend output ({} lines) ----", failure.log_lines.len());
+                for line in &failure.log_lines {
+                    eprintln!("{line}");
+                }
+                eprintln!("---- backend log path: {} ----", failure.log_path);
+                if let Ok(log) = std::fs::read_to_string(&failure.log_path) {
+                    let tail: Vec<&str> = log.lines().rev().take(50).collect();
+                    for line in tail.iter().rev() {
+                        eprintln!("{line}");
+                    }
+                }
                 state.kill_child_if_any();
                 std::process::exit(1);
             }
