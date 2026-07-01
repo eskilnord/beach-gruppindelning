@@ -1,0 +1,30 @@
+# Default profile: how the packaged app runs, spawned by the Tauri shell.
+# --server.port=0 (random free port), loopback-only bind, quiet stdout so the GP_READY
+# handshake line (docs/design/01-architecture.md §4) is trivial to parse.
+spring:
+  application:
+    name: backend
+  main:
+    banner-mode: "off"
+server:
+  port: 0
+  address: 127.0.0.1
+logging:
+  level:
+    root: INFO
+
+---
+# dev profile: `npm run dev` runs this on a fixed port with a fixed token so the frontend
+# (Vite on :5173) can talk to it without going through the Tauri handshake.
+spring:
+  config:
+    activate:
+      on-profile: dev
+  main:
+    banner-mode: console
+server:
+  port: 4517
+  address: 127.0.0.1
+logging:
+  level:
+    root: INFO
