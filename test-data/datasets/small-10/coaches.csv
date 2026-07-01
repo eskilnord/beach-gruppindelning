@@ -1,0 +1,3 @@
+id,first_name,last_name,coach_level,can_coach_min,can_coach_max,available_time_slot_ids,unavailable_time_slot_ids,max_groups_per_day,max_groups_per_week,also_plays_participant_id
+c01,Gustav,Persson,480,300,650,t01;t02,,2,5,
+c02,Anna,Åkesson,750,550,950,t01;t02,,2,5,

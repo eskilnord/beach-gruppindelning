@@ -1,0 +1,11 @@
+id,first_name,last_name,email,ranking_points,previous_group_name,previous_group_level,manual_level_score,priority,unavailable_time_slot_ids,preferred_time_slot_ids,wants_with_ids,must_with_ids,not_with_ids,wants_coach_id,new_to_club,needs_review
+p001,Sofia,Jönsson,sofia.jonsson1@example.se,325,,,,3,,,,,,,0,0
+p002,Daniel,Svensson,daniel.svensson1@example.se,418,,,,3,,,,,,,0,0
+p003,Signe,Olsson,signe.olsson1@example.se,458,,,,3,,,p004,,,,0,0
+p004,Hanna,Åkesson,hanna.akesson1@example.se,552,,,,3,,,p003,,,,0,0
+p005,Sölve,Larsson,solve.larsson1@example.se,595,,,,3,,,,,,,0,0
+p006,Ulla,Lundgren,ulla.lundgren1@example.se,625,,,,3,,,,,,,0,0
+p007,Johan,Johansson,johan.johansson1@example.se,710,,,,3,,,,,,,0,0
+p008,Karin,Hansson,karin.hansson1@example.se,809,,,,3,,,,,,,0,0
+p009,Daniel,Söderberg,daniel.soderberg1@example.se,863,,,,3,,,,,,,0,0
+p010,Nils,Johansson,nils.johansson1@example.se,920,,,,3,,,,,,,0,0
