@@ -2,7 +2,9 @@ package se.klubb.groupplanner.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -10,6 +12,8 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * Verifies the token-gated health handshake endpoint (docs/design/01-architecture.md §4). GP_TOKEN
@@ -19,6 +23,16 @@ import org.springframework.http.ResponseEntity;
 class HealthEndpointTest {
 
     private static final String VALID_TOKEN = "test-secret-token";
+
+    // A fresh, isolated app data dir per test class (never the real platform default — see
+    // AppDataDirResolverTest and backend/docs/m1-notes.md).
+    @TempDir
+    static Path dataDir;
+
+    @DynamicPropertySource
+    static void appDataDir(DynamicPropertyRegistry registry) {
+        registry.add("app.data-dir", () -> dataDir.toString());
+    }
 
     @Autowired
     private TestRestTemplate restTemplate;

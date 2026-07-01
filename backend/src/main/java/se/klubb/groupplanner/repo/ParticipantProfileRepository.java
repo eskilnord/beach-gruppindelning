@@ -1,0 +1,120 @@
+package se.klubb.groupplanner.repo;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.stereotype.Repository;
+import se.klubb.groupplanner.domain.ParticipantProfile;
+
+/**
+ * {@code participant_profile} CRUD via {@link JdbcClient} (ADR-004).
+ *
+ * <p>Never selects/exposes {@code imported_comment}/{@code internal_note} for anything other than
+ * this row's own read/write path — callers building solver input or snapshots must not reuse this
+ * repository's mapping for those purposes without re-reading the confidentiality rules in
+ * CLAUDE.md.
+ */
+@Repository
+public class ParticipantProfileRepository {
+
+    private final JdbcClient jdbcClient;
+
+    public ParticipantProfileRepository(JdbcClient jdbcClient) {
+        this.jdbcClient = jdbcClient;
+    }
+
+    public List<ParticipantProfile> findByActivityPlanId(String activityPlanId) {
+        return jdbcClient.sql("SELECT * FROM participant_profile WHERE activity_plan_id = :activityPlanId ORDER BY id")
+                .param("activityPlanId", activityPlanId)
+                .query(ParticipantProfileRepository::mapRow)
+                .list();
+    }
+
+    public Optional<ParticipantProfile> findById(String id) {
+        return jdbcClient.sql("SELECT * FROM participant_profile WHERE id = :id")
+                .param("id", id)
+                .query(ParticipantProfileRepository::mapRow)
+                .optional();
+    }
+
+    public ParticipantProfile insert(ParticipantProfile profile) {
+        jdbcClient.sql("""
+                        INSERT INTO participant_profile
+                            (id, person_id, activity_plan_id, ranking_points, ranking_source,
+                             previous_group_name, previous_group_level, estimated_level, level_confidence,
+                             manual_level_score, imported_comment, internal_note, manual_review_flag, waitlisted)
+                        VALUES
+                            (:id, :personId, :activityPlanId, :rankingPoints, :rankingSource,
+                             :previousGroupName, :previousGroupLevel, :estimatedLevel, :levelConfidence,
+                             :manualLevelScore, :importedComment, :internalNote, :manualReviewFlag, :waitlisted)
+                        """)
+                .param("id", profile.id())
+                .param("personId", profile.personId())
+                .param("activityPlanId", profile.activityPlanId())
+                .param("rankingPoints", profile.rankingPoints())
+                .param("rankingSource", profile.rankingSource())
+                .param("previousGroupName", profile.previousGroupName())
+                .param("previousGroupLevel", profile.previousGroupLevel())
+                .param("estimatedLevel", profile.estimatedLevel())
+                .param("levelConfidence", profile.levelConfidence())
+                .param("manualLevelScore", profile.manualLevelScore())
+                .param("importedComment", profile.importedComment())
+                .param("internalNote", profile.internalNote())
+                .param("manualReviewFlag", profile.manualReviewFlag() ? 1 : 0)
+                .param("waitlisted", profile.waitlisted() ? 1 : 0)
+                .update();
+        return profile;
+    }
+
+    public ParticipantProfile update(ParticipantProfile profile) {
+        jdbcClient.sql("""
+                        UPDATE participant_profile
+                        SET ranking_points = :rankingPoints, ranking_source = :rankingSource,
+                            previous_group_name = :previousGroupName, previous_group_level = :previousGroupLevel,
+                            estimated_level = :estimatedLevel, level_confidence = :levelConfidence,
+                            manual_level_score = :manualLevelScore, imported_comment = :importedComment,
+                            internal_note = :internalNote, manual_review_flag = :manualReviewFlag,
+                            waitlisted = :waitlisted
+                        WHERE id = :id
+                        """)
+                .param("id", profile.id())
+                .param("rankingPoints", profile.rankingPoints())
+                .param("rankingSource", profile.rankingSource())
+                .param("previousGroupName", profile.previousGroupName())
+                .param("previousGroupLevel", profile.previousGroupLevel())
+                .param("estimatedLevel", profile.estimatedLevel())
+                .param("levelConfidence", profile.levelConfidence())
+                .param("manualLevelScore", profile.manualLevelScore())
+                .param("importedComment", profile.importedComment())
+                .param("internalNote", profile.internalNote())
+                .param("manualReviewFlag", profile.manualReviewFlag() ? 1 : 0)
+                .param("waitlisted", profile.waitlisted() ? 1 : 0)
+                .update();
+        return profile;
+    }
+
+    public boolean deleteById(String id) {
+        int rows = jdbcClient.sql("DELETE FROM participant_profile WHERE id = :id").param("id", id).update();
+        return rows > 0;
+    }
+
+    private static ParticipantProfile mapRow(ResultSet rs, int rowNum) throws SQLException {
+        return new ParticipantProfile(
+                rs.getString("id"),
+                rs.getString("person_id"),
+                rs.getString("activity_plan_id"),
+                NullableColumns.nullableDouble(rs, "ranking_points"),
+                rs.getString("ranking_source"),
+                rs.getString("previous_group_name"),
+                NullableColumns.nullableDouble(rs, "previous_group_level"),
+                NullableColumns.nullableDouble(rs, "estimated_level"),
+                NullableColumns.nullableDouble(rs, "level_confidence"),
+                NullableColumns.nullableDouble(rs, "manual_level_score"),
+                rs.getString("imported_comment"),
+                rs.getString("internal_note"),
+                rs.getInt("manual_review_flag") != 0,
+                rs.getInt("waitlisted") != 0);
+    }
+}

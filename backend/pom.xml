@@ -21,12 +21,44 @@
 
   <properties>
     <java.version>21</java.version>
+    <!-- Spring Boot 3.5.16 manages flyway-core at 11.7.2 (pre-dates the flyway-database-nc-sqlite
+         module split). SQLite is only officially supported from Flyway 12.3.0+ via the separate
+         flyway-database-nc-sqlite artifact (verified on repo1.maven.org 2026-07-01/02: flyway-core
+         and flyway-database-nc-sqlite are released in lockstep). Overriding here is intentional and
+         documented in backend/docs/m1-notes.md. -->
+    <flyway.version>12.10.0</flyway.version>
   </properties>
 
   <dependencies>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-jdbc</artifactId>
+    </dependency>
+
+    <!-- ADR-004: SQLite via JdbcClient + Flyway, no JPA/Hibernate ever. -->
+    <dependency>
+      <groupId>org.xerial</groupId>
+      <artifactId>sqlite-jdbc</artifactId>
+      <!-- Latest 3.53.x patch on Maven Central as of 2026-07-02 (repo1.maven.org
+           maven-metadata.xml release/latest both 3.53.2.0). -->
+      <version>3.53.2.0</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-core</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-database-nc-sqlite</artifactId>
+      <!-- Not part of the Spring Boot BOM; must track flyway.version explicitly. -->
+      <version>${flyway.version}</version>
     </dependency>
 
     <dependency>

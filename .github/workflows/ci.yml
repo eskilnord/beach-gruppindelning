@@ -218,6 +218,12 @@ jobs:
         with:
           workspaces: desktop/src-tauri -> target
 
+      # tauri-build's build script hard-requires every bundle.resources path to exist,
+      # but resources/ is gitignored build output (jre + backend.jar land there at
+      # package time) — create it empty so cargo check/clippy can compile.
+      - name: create gitignored resources dir expected by tauri-build
+        run: mkdir -p desktop/src-tauri/resources
+
       - name: cargo check
         working-directory: desktop/src-tauri
         run: cargo check --all-targets --locked
