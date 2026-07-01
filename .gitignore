@@ -1,0 +1,29 @@
+# ── Confidentiality firewall (deny-by-default; see CLAUDE.md) ─────────────
+# No spreadsheets ever — real registration data is confidential.
+*.xlsx
+*.xls
+*.xlsm
+~$*
+# CSV denied by default; anonymized generated fixtures are explicitly allowed.
+*.csv
+!test-data/datasets/**/*.csv
+
+# ── Build output ──────────────────────────────────────────────────────────
+target/
+dist/
+node_modules/
+desktop/src-tauri/resources/
+desktop/src-tauri/target/
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# ── Local state ───────────────────────────────────────────────────────────
+*.db
+*.db-wal
+*.db-shm
+.DS_Store
+*.log
+.env
+.env.*
+.idea/
+.vscode/
