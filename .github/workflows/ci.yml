@@ -1,0 +1,227 @@
+name: CI
+
+# Every PR + every push to main (docs/design/01-architecture.md §7 / docs/plan.md M0 exit
+# criteria). Four jobs: a fast confidentiality gate everything else waits on, the backend
+# test suite on both target OSes, a packaged-runtime smoke test (fat jar + jlink JRE, no
+# Tauri bundling) on both OSes, and a Rust/config check for the Tauri shell itself.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------------------
+  # Fast fail-fast gate (CLAUDE.md "Confidentiality — absolute rules"): blocks spreadsheets,
+  # stray CSVs, personnummer-shaped strings, and generated test-data drift. Everything else
+  # `needs` this so a confidentiality violation never burns mac/windows runner minutes.
+  # ---------------------------------------------------------------------------------------
+  confidentiality:
+    name: confidentiality guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Confidentiality scan (full tree)
+        run: bash scripts/check-no-confidential.sh tree
+
+      - name: Test-data generator drift check
+        run: python3 test-data/generator/generate.py --check
+
+  # ---------------------------------------------------------------------------------------
+  # Backend test suite (Boot 3.5 + Timefold 1.33 + SQLite/Flyway) on both shipping OSes.
+  # `./mvnw verify` includes the golden-score regression test — divergence between mac/win
+  # fails CI by construction (docs/design/01-architecture.md §7).
+  # ---------------------------------------------------------------------------------------
+  backend:
+    name: backend (${{ matrix.os }})
+    needs: confidentiality
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: mvnw verify (macOS)
+        if: runner.os != 'Windows'
+        working-directory: backend
+        run: ./mvnw verify
+
+      - name: mvnw verify (Windows)
+        if: runner.os == 'Windows'
+        working-directory: backend
+        shell: pwsh
+        # PowerShell `run:` steps do NOT fail automatically just because a native .exe/.cmd
+        # exits non-zero (no bash-style implicit `set -e`) — $LASTEXITCODE must be checked
+        # explicitly, exactly like scripts/package.ps1 already does for mvnw.cmd.
+        run: |
+          $ErrorActionPreference = "Stop"
+          .\mvnw.cmd verify
+          if ($LASTEXITCODE -ne 0) { throw "mvnw verify failed with exit code $LASTEXITCODE" }
+
+  # ---------------------------------------------------------------------------------------
+  # Packaged-runtime smoke (docs/design/01-architecture.md §7 `desktop-smoke`): builds the
+  # real fat jar + the real jlinked JRE (same scripts a release build uses), then boots
+  # `resources/jre/bin/java -jar resources/backend/backend.jar` exactly as the Tauri shell
+  # would and asserts the GP_READY handshake + /api/health + graceful shutdown. This is what
+  # catches a missing jlink module (scripts/jre.env drift) before it ever reaches an
+  # installable artifact — no Tauri/Rust toolchain needed for this job at all.
+  # ---------------------------------------------------------------------------------------
+  packaged-smoke:
+    name: packaged-smoke (${{ matrix.os }})
+    needs: confidentiality
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # scripts/build-jre.sh / .ps1 download the pinned Temurin jmods (scripts/jre.env) from
+      # Adoptium whenever the local JDK isn't an exact match for TEMURIN_VERSION — true on
+      # every CI runner, since actions/setup-java's Temurin 21 build won't be byte-identical
+      # to the pinned patch. Caching .cache/jdks keyed on jre.env's hash avoids re-downloading
+      # ~180MB of jmods on every run; the key naturally busts when the pin changes.
+      - name: Cache downloaded jlink jmods
+        uses: actions/cache@v6
+        with:
+          path: .cache/jdks
+          key: jdks-${{ runner.os }}-${{ hashFiles('scripts/jre.env') }}
+
+      - name: Build backend fat jar (macOS)
+        if: runner.os != 'Windows'
+        working-directory: backend
+        run: ./mvnw -q package -DskipTests
+
+      - name: Build backend fat jar (Windows)
+        if: runner.os == 'Windows'
+        working-directory: backend
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          .\mvnw.cmd -q package -DskipTests
+          if ($LASTEXITCODE -ne 0) { throw "mvnw package failed with exit code $LASTEXITCODE" }
+
+      # Standalone jdeps drift gate (mac only as an explicit, separately-named step for a
+      # clear CI failure signal). There is no standalone scripts/check-jre-modules.ps1 —
+      # build-jre.ps1 inlines the identical check as its own step 4 (see that file's
+      # comments) and runs it automatically below since backend.jar already exists by then,
+      # so the Windows leg gets equivalent coverage without a separate invocation.
+      - name: Check jlink module drift (jdeps vs scripts/jre.env)
+        if: runner.os != 'Windows'
+        run: bash scripts/check-jre-modules.sh
+
+      - name: Build jlinked JRE (macOS)
+        if: runner.os != 'Windows'
+        run: bash scripts/build-jre.sh
+
+      - name: Build jlinked JRE incl. module-drift check (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        # Invoked in-process (`&`, not a nested `pwsh -File` subprocess) so that
+        # build-jre.ps1's own `throw` on failure terminates this step's pwsh process
+        # directly, with no separate $LASTEXITCODE re-check needed.
+        run: |
+          $ErrorActionPreference = "Stop"
+          & "scripts/build-jre.ps1"
+
+      - name: Copy backend.jar into Tauri resources (macOS)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p desktop/src-tauri/resources/backend
+          cp backend/target/backend.jar desktop/src-tauri/resources/backend/backend.jar
+
+      - name: Copy backend.jar into Tauri resources (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        # $ErrorActionPreference = "Stop" matters here: New-Item/Copy-Item are cmdlets whose
+        # errors are non-terminating by default, so without it a failed copy would still
+        # exit 0.
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path desktop/src-tauri/resources/backend | Out-Null
+          Copy-Item backend/target/backend.jar desktop/src-tauri/resources/backend/backend.jar -Force
+
+      - name: Smoke test packaged runtime (macOS)
+        if: runner.os != 'Windows'
+        run: bash scripts/smoke-backend.sh
+
+      - name: Smoke test packaged runtime (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        # In-process invocation again: smoke-backend.ps1's `Fail` helper calls `exit 1`,
+        # which terminates the whole enclosing pwsh process (this step) directly, whether
+        # called via `&` or as the literal entry point — no extra check needed.
+        run: |
+          $ErrorActionPreference = "Stop"
+          & "scripts/smoke-backend.ps1"
+
+  # ---------------------------------------------------------------------------------------
+  # Rust/config check for the Tauri shell crate (`desktop/src-tauri`). Runs on macOS since
+  # that is where most shell development happens and where system WebKit/Security framework
+  # headers are already present; a Linux leg would additionally need libwebkit2gtk-4.1-dev +
+  # friends and isn't one of the two shipping OSes, so it is deliberately not added here.
+  # ---------------------------------------------------------------------------------------
+  shell-check:
+    name: shell-check (desktop Rust + Tauri config)
+    needs: confidentiality
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      # Only installs @tauri-apps/cli (desktop/package.json's sole devDependency) — no
+      # frontend build exists yet at M0 (tauri.conf.json's frontendDist points at the static
+      # desktop/ui placeholder, which is already committed). Installed defensively before the
+      # cargo steps below in case a future tauri-build version shells out to the CLI for
+      # schema/config validation; `cargo check`/`clippy` have not been observed to require it
+      # today, but the dependency is tiny and this keeps CI in lockstep with local dev setup
+      # (scripts/package.sh also assumes `desktop/node_modules` is already installed).
+      - name: npm ci (desktop) — installs the Tauri CLI
+        working-directory: desktop
+        run: npm ci
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: cargo check
+        working-directory: desktop/src-tauri
+        run: cargo check --all-targets --locked
+
+      - name: cargo clippy
+        working-directory: desktop/src-tauri
+        run: cargo clippy --all-targets --locked -- -D warnings
