@@ -55,10 +55,13 @@ while IFS= read -r f; do
       ;;
   esac
 
-  # Content check: Swedish personnummer (YYMMDD-XXXX / YYYYMMDD-XXXX, dash or plus)
-  content="$(file_content "$f")"
-  [ -z "$content" ] && continue
-  if printf '%s' "$content" | grep -qE '(^|[^0-9])[0-9]{6}([0-9]{2})?[-+][0-9]{4}([^0-9]|$)'; then
+  # Content check: Swedish personnummer (YYMMDD-XXXX / YYYYMMDD-XXXX, dash or plus).
+  # Skip binary files (icons, images, jars) — grep -I treats null-byte files as no-match,
+  # and piping them through $(...) spews null-byte warnings.
+  case "$f" in
+    *.png|*.ico|*.icns|*.jpg|*.jpeg|*.gif|*.woff|*.woff2|*.ttf|*.jar) continue ;;
+  esac
+  if file_content "$f" | grep -qIE '(^|[^0-9])[0-9]{6}([0-9]{2})?[-+][0-9]{4}([^0-9]|$)'; then
     echo "BLOCKED: possible personnummer in: $f"
     FAIL=1
   fi
