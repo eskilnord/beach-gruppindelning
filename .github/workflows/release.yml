@@ -271,6 +271,39 @@ jobs:
           $installedExe = ($candidates | Select-Object -First 1).FullName
           Write-Host "Found installed exe: $installedExe"
 
+          # --- Diagnostics: pinpoint where backend.jar breaks (source tree vs installed).
+          # First real Windows run failed with ClassNotFoundException: JarLauncher from the
+          # INSTALLED app while the identical source-tree jar passed ci.yml's packaged-smoke.
+          $installDir = Split-Path -Parent $installedExe
+          $sourceJar = "desktop/src-tauri/resources/backend/backend.jar"
+          $installedJar = Join-Path $installDir "resources\backend\backend.jar"
+          Write-Host "--- jar diagnostics ---"
+          Write-Host "install dir listing (2 levels):"
+          Get-ChildItem -Path $installDir -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 40 -ExpandProperty FullName
+          foreach ($j in @($sourceJar, $installedJar)) {
+              if (Test-Path $j) {
+                  $h = Get-FileHash -Algorithm SHA256 $j
+                  $len = (Get-Item $j).Length
+                  Write-Host "$j : $len bytes, sha256=$($h.Hash)"
+              } else {
+                  Write-Host "$j : MISSING"
+              }
+          }
+          if (Test-Path $installedJar) {
+              $jarTool = Join-Path $env:JAVA_HOME "bin\jar.exe"
+              & $jarTool tf $installedJar 2>&1 | Select-String -Pattern "JarLauncher|MANIFEST" | Select-Object -First 5 | ForEach-Object { Write-Host "installed jar entry: $_" }
+              Write-Host "--- direct java -jar of the INSTALLED jar with the INSTALLED jre ---"
+              $installedJava = Join-Path $installDir "resources\jre\bin\java.exe"
+              Write-Host "using java: $installedJava (exists: $(Test-Path $installedJava))"
+              $env:GP_TOKEN = "diag"
+              $diagOut = & $installedJava -jar $installedJar --server.port=0 2>&1 | Select-Object -First 10
+              $diagOut | ForEach-Object { Write-Host "[direct] $_" }
+              Remove-Item Env:GP_TOKEN -ErrorAction SilentlyContinue
+              # kill any lingering backend from the direct run
+              Get-Process -Name java -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          }
+          Write-Host "--- end jar diagnostics ---"
+
           # --- Windows GUI-subsystem stdout caveat -----------------------------------------
           # desktop/src-tauri/src/main.rs has:
           #   #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
