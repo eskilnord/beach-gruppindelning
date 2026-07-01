@@ -61,6 +61,18 @@
       <version>${flyway.version}</version>
     </dependency>
 
+    <!-- Exposes GET /v3/api-docs (OpenAPI JSON) by scanning @RestControllers, zero extra config.
+         No UI (swagger-ui) starter added: only the JSON spec is needed, for the frontend's
+         `npm run typegen` step. Latest 2.x release on Maven Central as of 2026-07-02 per
+         repo1.maven.org maven-metadata.xml (<latest>/<release> both 2.8.17); the 3.x line targets
+         Spring Boot 4 / Spring Framework 7, which this app does not use (see the Spring Boot
+         parent version comment above; ADR-002). -->
+    <dependency>
+      <groupId>org.springdoc</groupId>
+      <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
+      <version>2.8.17</version>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>

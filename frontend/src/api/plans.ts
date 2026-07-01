@@ -1,0 +1,77 @@
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "./client";
+import type { ActivityPlan, CreateActivityPlanRequest, UpdateActivityPlanRequest } from "./types";
+
+const plansForSeasonKey = (seasonId: string) => ["seasons", seasonId, "plans"] as const;
+const planKey = (id: string) => ["plans", id] as const;
+
+export function usePlansForSeason(seasonId: string | undefined) {
+  return useQuery({
+    queryKey: plansForSeasonKey(seasonId ?? ""),
+    queryFn: () => api.get<ActivityPlan[]>(`/api/seasons/${seasonId}/plans`),
+    enabled: seasonId !== undefined,
+  });
+}
+
+export function usePlan(id: string | undefined) {
+  return useQuery({
+    queryKey: planKey(id ?? ""),
+    queryFn: () => api.get<ActivityPlan>(`/api/plans/${id}`),
+    enabled: id !== undefined,
+  });
+}
+
+export function useCreatePlan(seasonId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateActivityPlanRequest) =>
+      api.post<ActivityPlan>(`/api/seasons/${seasonId}/plans`, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: plansForSeasonKey(seasonId) });
+    },
+  });
+}
+
+export function useUpdatePlan(id: string, seasonId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: UpdateActivityPlanRequest) => api.patch<ActivityPlan>(`/api/plans/${id}`, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: planKey(id) });
+      void queryClient.invalidateQueries({ queryKey: plansForSeasonKey(seasonId) });
+    },
+  });
+}
+
+/**
+ * "Senaste planer" on the Startvy needs activity plans across ALL seasons, but M1's REST surface
+ * only exposes per-season listing (docs/design/02-product-data-ui.md §8 correction note: no global
+ * plans endpoint). Fan out one query per season id and merge client-side rather than adding a new
+ * backend endpoint (out of scope for M2 — see milestone brief).
+ */
+export function useRecentPlans(seasonIds: string[], limit = 5) {
+  const results = useQueries({
+    queries: seasonIds.map((seasonId) => ({
+      queryKey: plansForSeasonKey(seasonId),
+      queryFn: () => api.get<ActivityPlan[]>(`/api/seasons/${seasonId}/plans`),
+    })),
+  });
+
+  const isLoading = results.some((result) => result.isLoading);
+  const plans = results.flatMap((result) => result.data ?? []);
+  const recent = [...plans]
+    .sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))
+    .slice(0, limit);
+
+  return { plans: recent, isLoading };
+}
+
+export function useDeletePlan(seasonId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/api/plans/${id}`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: plansForSeasonKey(seasonId) });
+    },
+  });
+}

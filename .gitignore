@@ -17,6 +17,10 @@ desktop/src-tauri/target/
 desktop/src-tauri/gen/schemas/
 *.jar
 !.mvn/wrapper/maven-wrapper.jar
+*.tsbuildinfo
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
 
 # ── Caches ────────────────────────────────────────────────────────────────
 .cache/

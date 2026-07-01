@@ -1,0 +1,24 @@
+{
+  "name": "gruppindelning",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gruppindelning monorepo root: npm workspaces for frontend + desktop (backend/ is a separate Maven project, not an npm workspace). See CLAUDE.md dev commands.",
+  "workspaces": [
+    "frontend",
+    "desktop"
+  ],
+  "scripts": {
+    "dev:backend": "cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev",
+    "dev:web": "npm --workspace frontend run dev",
+    "dev": "concurrently -k \"npm:dev:backend\" \"npm:dev:web\"",
+    "dev:desktop": "npm --workspace desktop run tauri dev",
+    "typegen": "npm --workspace frontend run typegen",
+    "test:backend": "cd backend && ./mvnw verify",
+    "test:web": "npm --workspace frontend run test",
+    "test:e2e": "npm --workspace frontend run e2e",
+    "package": "bash scripts/package.sh"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
+  }
+}
