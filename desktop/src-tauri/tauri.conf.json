@@ -1,10 +1,11 @@
 {
   "$schema": "./node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Gruppindelning",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "se.klubb.groupplanner",
   "build": {
-    "frontendDist": "../ui"
+    "beforeBuildCommand": "cd .. && npm run build --workspace frontend",
+    "frontendDist": "../../frontend/dist"
   },
   "app": {
     "withGlobalTauri": true,

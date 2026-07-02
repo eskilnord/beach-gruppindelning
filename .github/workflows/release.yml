@@ -119,14 +119,16 @@ jobs:
           New-Item -ItemType Directory -Force -Path desktop/src-tauri/resources/backend | Out-Null
           Copy-Item backend/target/backend.jar desktop/src-tauri/resources/backend/backend.jar -Force
 
-      - name: npm ci (desktop) (macOS)
+      # Root-level ci: the workspaces install covers BOTH the desktop package (tauri CLI) and
+      # the frontend (whose production build now runs via tauri.conf.json's beforeBuildCommand
+      # — the v0.1.0 installers shipped the M0 placeholder page because nothing built or
+      # bundled the real SPA; frontendDist now points at ../../frontend/dist).
+      - name: npm ci (workspaces root) (macOS)
         if: runner.os != 'Windows'
-        working-directory: desktop
         run: npm ci
 
-      - name: npm ci (desktop) (Windows)
+      - name: npm ci (workspaces root) (Windows)
         if: runner.os == 'Windows'
-        working-directory: desktop
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"

@@ -26,6 +26,12 @@ echo "Copied to $RESOURCES_BACKEND_DIR/backend.jar"
 
 echo "== package.sh: 4/4 tauri build =="
 if [ -d "$REPO_ROOT/desktop/src-tauri" ]; then
+  # Workspace deps must exist at the ROOT: tauri.conf.json's beforeBuildCommand builds the
+  # real frontend (npm run build --workspace frontend) before bundling — the v0.1.0
+  # installers shipped the M0 placeholder because nothing ever built/bundled the SPA.
+  if [ ! -d "$REPO_ROOT/node_modules" ]; then
+    ( cd "$REPO_ROOT" && npm ci )
+  fi
   ( cd "$REPO_ROOT/desktop" && npm run tauri build )
 else
   echo "NOTICE: desktop/src-tauri does not exist yet (Tauri shell not scaffolded) -- skipping 'npm run tauri build'."
