@@ -126,7 +126,7 @@ test("Fältbyggare + Deltagarvy: create field → import → edit level → reco
 
   await drawer.getByLabel(sv.participants.drawer.manualLevelScoreLabel).fill("777");
   await drawer.getByRole("button", { name: sv.participants.drawer.saveButton }).click();
-  await expect(page.getByText(sv.participants.drawer.saveSuccess)).toBeVisible();
+  await expect(page.getByText(sv.participants.drawer.saveSuccess).first()).toBeVisible();
   await drawer.getByRole("button", { name: sv.participants.drawer.closeButton }).click();
   await expect(drawer).toHaveCount(0);
 
@@ -149,7 +149,7 @@ test("Fältbyggare + Deltagarvy: create field → import → edit level → reco
   await playWithControls.last().click();
   await page.getByRole("option", { name: "Karin Lindqvist" }).click();
   await oskarDrawer.getByRole("button", { name: sv.participants.drawer.saveButton }).click();
-  await expect(page.getByText(sv.participants.drawer.saveSuccess)).toBeVisible();
+  await expect(page.getByText(sv.participants.drawer.saveSuccess).first()).toBeVisible();
   await oskarDrawer.getByRole("button", { name: sv.participants.drawer.closeButton }).click();
   await expect(oskarDrawer).toHaveCount(0);
 
