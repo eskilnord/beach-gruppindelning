@@ -3,6 +3,7 @@ package se.klubb.groupplanner.config;
 import javax.sql.DataSource;
 import org.sqlite.SQLiteConfig;
 import org.sqlite.SQLiteDataSource;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -24,14 +25,25 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class DataSourceConfig {
 
+    /**
+     * Production default (CLAUDE.md "SQLite rules": {@code busy_timeout=5000}). Overridable via
+     * {@code app.sqlite.busy-timeout-ms} — used ONLY by the test suite ({@code
+     * src/test/resources/application.properties} raises it to 30000, see the comment there): a
+     * background solve's writeback can briefly hold the write lock while another connection
+     * writes, and slow CI runners stretch "briefly" past 5 s. In the packaged app nothing
+     * competes for the write lock (single user, solver writeback guarded by 409s on mutating
+     * endpoints), so production keeps the tight timeout as a genuine deadlock/regression alarm.
+     */
     static final int BUSY_TIMEOUT_MS = 5000;
 
     @Bean
-    public DataSource dataSource(AppDataDirResolver appDataDirResolver) {
+    public DataSource dataSource(
+            AppDataDirResolver appDataDirResolver,
+            @Value("${app.sqlite.busy-timeout-ms:" + BUSY_TIMEOUT_MS + "}") int busyTimeoutMs) {
         SQLiteConfig config = new SQLiteConfig();
         config.enforceForeignKeys(true);
         config.setJournalMode(SQLiteConfig.JournalMode.WAL);
-        config.setBusyTimeout(BUSY_TIMEOUT_MS);
+        config.setBusyTimeout(busyTimeoutMs);
 
         SQLiteDataSource dataSource = new SQLiteDataSource(config);
         dataSource.setUrl(appDataDirResolver.jdbcUrl());

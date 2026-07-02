@@ -19,6 +19,11 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest
 class PragmaIntegrationTest {
 
+    /** The test-suite-wide override from {@code src/test/resources/application.properties} (see
+     * the comment there — anti-SQLITE_BUSY belt-and-braces for slow CI runners). Production
+     * default remains {@link DataSourceConfig#BUSY_TIMEOUT_MS} = 5000. */
+    private static final int TEST_BUSY_TIMEOUT_MS = 30_000;
+
     @TempDir
     static Path dataDir;
 
@@ -45,10 +50,13 @@ class PragmaIntegrationTest {
     }
 
     @Test
-    void busyTimeoutIsFiveSeconds() {
+    void busyTimeoutHonorsTheConfiguredProperty() {
+        // Under test the app.sqlite.busy-timeout-ms property override is in effect, so this
+        // doubles as end-to-end proof that DataSourceConfig's @Value wiring reaches the actual
+        // per-connection pragma (stronger than the pre-M9 assertion of the hardcoded default).
         Integer busyTimeoutMs = jdbcClient.sql("PRAGMA busy_timeout").query(Integer.class).single();
 
-        assertThat(busyTimeoutMs).isEqualTo(DataSourceConfig.BUSY_TIMEOUT_MS);
+        assertThat(busyTimeoutMs).isEqualTo(TEST_BUSY_TIMEOUT_MS);
     }
 
     @Test

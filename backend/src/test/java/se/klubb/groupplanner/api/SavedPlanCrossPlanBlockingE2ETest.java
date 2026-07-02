@@ -12,6 +12,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -48,6 +49,7 @@ import se.klubb.groupplanner.resources.TrainingBlockGenerationService;
 import se.klubb.groupplanner.solver.assemble.GroupGenerator;
 import se.klubb.groupplanner.solver.regression.TestDatasetLoader;
 import se.klubb.groupplanner.util.Uuid7;
+import se.klubb.groupplanner.testsupport.ActiveSolveCleanup;
 
 /**
  * THE spec §23.6 acceptance path, through the REAL API end to end (M8 task item 4/5): "Herr torsdag
@@ -70,6 +72,7 @@ import se.klubb.groupplanner.util.Uuid7;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@ExtendWith(ActiveSolveCleanup.class)
 class SavedPlanCrossPlanBlockingE2ETest {
 
     private static final String VALID_TOKEN = "test-secret-token";

@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -19,7 +20,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import se.klubb.groupplanner.domain.CoachAssignment;
 import se.klubb.groupplanner.domain.CoachProfile;
-import se.klubb.groupplanner.domain.OptimizationRun;
 import se.klubb.groupplanner.domain.ParticipantProfile;
 import se.klubb.groupplanner.domain.PlayerAssignment;
 import se.klubb.groupplanner.domain.TrainingBlock;
@@ -27,7 +27,6 @@ import se.klubb.groupplanner.domain.TrainingGroup;
 import se.klubb.groupplanner.level.LevelService;
 import se.klubb.groupplanner.repo.ActivityPlanRepository;
 import se.klubb.groupplanner.repo.CoachAssignmentRepository;
-import se.klubb.groupplanner.repo.OptimizationRunRepository;
 import se.klubb.groupplanner.repo.CoachProfileRepository;
 import se.klubb.groupplanner.repo.CoachTimeSlotRepository;
 import se.klubb.groupplanner.repo.CustomFieldValueRepository;
@@ -44,6 +43,7 @@ import se.klubb.groupplanner.solver.assemble.GroupGenerator;
 import se.klubb.groupplanner.solver.regression.TestDatasetLoader;
 import se.klubb.groupplanner.solver.run.SolveCoordinator;
 import se.klubb.groupplanner.solver.run.SolveProfile;
+import se.klubb.groupplanner.testsupport.ActiveSolveCleanup;
 
 /**
  * §15.1/§15.2/§15.3 lock endpoints (spec §15, docs/design/04-solver.md §5):
@@ -54,6 +54,7 @@ import se.klubb.groupplanner.solver.run.SolveProfile;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@ExtendWith(ActiveSolveCleanup.class)
 class LockEndpointIntegrationTest {
 
     private static final String VALID_TOKEN = "test-secret-token";
@@ -70,8 +71,6 @@ class LockEndpointIntegrationTest {
     private MockMvc mockMvc;
     @Autowired
     private ObjectMapper objectMapper;
-    @Autowired
-    private OptimizationRunRepository optimizationRunRepository;
     @Autowired
     private SeasonPlanRepository seasonPlanRepository;
     @Autowired
@@ -241,35 +240,23 @@ class LockEndpointIntegrationTest {
         ParticipantProfile participant = participantProfileRepository.findByActivityPlanId(planId).get(0);
         TrainingGroup group = trainingGroupRepository.findByActivityPlanId(planId).get(0);
 
+        // The THOROUGH (120s) background solve started here is cancelled AND awaited to a
+        // terminal RUN ROW status by ActiveSolveCleanup (class-level @ExtendWith) - that
+        // extension is the generalization of the inline finally-cleanup this test used to
+        // carry (await the run row, not the transient solver status: the cancelled solve's
+        // writeback still holds SQLite write locks after NOT_SOLVING flips, which races the
+        // next test's inserts and blocks @TempDir deletion on Windows).
         solveCoordinator.startSolve(planId, SolveProfile.THOROUGH);
-        try {
-            mockMvc.perform(put("/api/plans/" + planId + "/assignments/" + participant.id() + "/lock")
-                            .header("X-GP-Token", VALID_TOKEN)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"groupId\":\"" + group.id() + "\"}"))
-                    .andExpect(status().isConflict());
 
-            // The lock was NOT applied - the DB row is untouched.
-            PlayerAssignment untouched = playerAssignmentRepository.findByParticipantProfileId(participant.id()).orElseThrow();
-            assertThat(untouched.locked()).isFalse();
-        } finally {
-            // Never leave a THOROUGH (120s) background solve running into the next test.
-            // Await the RUN ROW's terminal status, not the transient solver status: the
-            // cancelled solve's writeback transaction still holds SQLite write locks after
-            // NOT_SOLVING flips, which races the next test's inserts and blocks @TempDir
-            // deletion on Windows (SQLITE_BUSY observed on windows-latest).
-            String cancelledRunId = solveCoordinator.cancelSolve(planId);
-            org.awaitility.Awaitility.await()
-                    .atMost(java.time.Duration.ofSeconds(60))
-                    .pollInterval(java.time.Duration.ofMillis(200))
-                    .untilAsserted(() -> {
-                        var run = optimizationRunRepository.findById(cancelledRunId).orElseThrow();
-                        assertThat(run.status()).isIn(
-                                OptimizationRun.STATUS_CANCELLED,
-                                OptimizationRun.STATUS_FINISHED,
-                                OptimizationRun.STATUS_FAILED);
-                    });
-        }
+        mockMvc.perform(put("/api/plans/" + planId + "/assignments/" + participant.id() + "/lock")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"groupId\":\"" + group.id() + "\"}"))
+                .andExpect(status().isConflict());
+
+        // The lock was NOT applied - the DB row is untouched.
+        PlayerAssignment untouched = playerAssignmentRepository.findByParticipantProfileId(participant.id()).orElseThrow();
+        assertThat(untouched.locked()).isFalse();
     }
 
     @Test

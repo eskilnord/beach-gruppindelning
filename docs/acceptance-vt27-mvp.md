@@ -184,6 +184,26 @@ VT27-planeringen:
 
 ## Rättade luckor (denna omgång)
 
+0. **Systemisk Windows-CI-flake: `SQLITE_BUSY` ("database is locked") i test-setup**
+   (körning 28589334486, `backend (windows-latest)`, drabbade
+   `SolveControllerIntegrationTest.fullLifecycleStartStatusCompletionWritesResultsBack` och
+   `StalenessAndApplyMoveTest.applyMoveToWaitlistSetsGroupIdNull`). Rotorsak: testmetoder
+   som startar BAKGRUNDS-solves (wall-clock-profiler via `SolveCoordinator`/REST) kunde
+   avsluta metoden medan solven fortfarande körde; dess writeback höll sedan
+   SQLite-skrivlåset (längre än `busy_timeout` 5 s på långsamma runners) medan NÄSTA
+   testmetods setup-INSERT:ar kördes. Två testers inline-städning väntade dessutom bara på
+   `NOT_SOLVING` — som flippar FÖRE writebacken. **Fixad systematiskt**: ny JUnit-extension
+   `backend/src/test/java/se/klubb/groupplanner/testsupport/ActiveSolveCleanup.java`
+   (efter varje test: avbryt varje icke-terminal `optimization_run` och invänta att
+   run-RADEN når terminal status — terminal skrivs strikt EFTER writebacken, så terminal
+   rad ⇒ alla skrivlås släppta), inkopplad i alla 7 testklasser som startar asynkrona
+   solves; de buggiga/duplicerade inline-städningarna borttagna. Belt-and-braces:
+   `busy_timeout` höjd till 30 000 ms **endast i testsviten**
+   (`backend/src/test/resources/application.properties`, ny property
+   `app.sqlite.busy-timeout-ms`; produktion kvar på 5 000 — se kommentaren i
+   `DataSourceConfig`). Verifierat: berörda klasser individuellt gröna + full
+   `./mvnw clean verify` grön (501 tester, goldens oförändrade).
+
 1. **CI körde aldrig frontend-testerna** (`tsc`, `vitest`, Playwright) — `.github/workflows/ci.yml`
    hade fyra jobb (`confidentiality`, `backend`, `packaged-smoke`, `shell-check`) men inget
    som motsvarade `docs/plan.md`s Packaging & CI-avsnitt ("CI matrix... Playwright e2e

@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -34,6 +35,7 @@ import se.klubb.groupplanner.repo.TimeSlotRepository;
 import se.klubb.groupplanner.resources.TrainingBlockGenerationService;
 import se.klubb.groupplanner.solver.assemble.GroupGenerator;
 import se.klubb.groupplanner.solver.regression.TestDatasetLoader;
+import se.klubb.groupplanner.testsupport.ActiveSolveCleanup;
 
 /**
  * M7 extension of CLAUDE.md's comment-leak protection surface (task item 2's "add the leak assertion
@@ -48,6 +50,7 @@ import se.klubb.groupplanner.solver.regression.TestDatasetLoader;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@ExtendWith(ActiveSolveCleanup.class)
 class ExplanationRecordLeakTest {
 
     private static final String VALID_TOKEN = "test-secret-token";

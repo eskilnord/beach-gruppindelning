@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -39,7 +40,7 @@ import se.klubb.groupplanner.repo.TrainingGroupRepository;
 import se.klubb.groupplanner.resources.TrainingBlockGenerationService;
 import se.klubb.groupplanner.solver.assemble.GroupGenerator;
 import se.klubb.groupplanner.solver.regression.TestDatasetLoader;
-import se.klubb.groupplanner.solver.run.SolveCoordinator;
+import se.klubb.groupplanner.testsupport.ActiveSolveCleanup;
 
 /**
  * Staleness flip test + apply-move endpoint tests (this milestone's task item 6): manual move -&gt;
@@ -49,6 +50,7 @@ import se.klubb.groupplanner.solver.run.SolveCoordinator;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@ExtendWith(ActiveSolveCleanup.class)
 class StalenessAndApplyMoveTest {
 
     private static final String VALID_TOKEN = "test-secret-token";
@@ -95,8 +97,6 @@ class StalenessAndApplyMoveTest {
     private TrainingGroupRepository trainingGroupRepository;
     @Autowired
     private OptimizationRunRepository optimizationRunRepository;
-    @Autowired
-    private SolveCoordinator solveCoordinator;
 
     private String loadSmallPlan() {
         TestDatasetLoader loader = new TestDatasetLoader(
@@ -181,21 +181,20 @@ class StalenessAndApplyMoveTest {
                 .andExpect(status().isOk());
         assertThat(activityPlanRepository.getPlanRevision(planId)).isEqualTo(revisionBefore + 1);
 
-        // 409 while a solve is running.
+        // 409 while a solve is running. The THOROUGH (120s) background solve is cancelled AND
+        // awaited to a terminal run row by ActiveSolveCleanup (class-level @ExtendWith). The
+        // previous inline finally-cleanup here awaited only NOT_SOLVING, which flips BEFORE the
+        // cancelled solve's writeback transaction runs - on slow Windows runners that writeback
+        // held the SQLite write lock into the next test's setup inserts (the SQLITE_BUSY flake
+        // observed in applyMoveToWaitlistSetsGroupIdNull on windows-latest).
         mockMvc.perform(post("/api/plans/" + planId + "/solve")
                         .header("X-GP-Token", VALID_TOKEN).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"profile\":\"THOROUGH\"}"))
                 .andExpect(status().isAccepted());
-        try {
-            mockMvc.perform(post("/api/plans/" + planId + "/assignments/" + someone.id() + "/move")
-                            .header("X-GP-Token", VALID_TOKEN).contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"groupId\":\"" + targetGroupId + "\"}"))
-                    .andExpect(status().isConflict());
-        } finally {
-            solveCoordinator.cancelSolve(planId);
-            await().atMost(Duration.ofSeconds(15)).pollInterval(Duration.ofMillis(200)).untilAsserted(() ->
-                    assertThat(solveCoordinator.status(planId).status()).isEqualTo("NOT_SOLVING"));
-        }
+        mockMvc.perform(post("/api/plans/" + planId + "/assignments/" + someone.id() + "/move")
+                        .header("X-GP-Token", VALID_TOKEN).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"groupId\":\"" + targetGroupId + "\"}"))
+                .andExpect(status().isConflict());
     }
 
     @Test

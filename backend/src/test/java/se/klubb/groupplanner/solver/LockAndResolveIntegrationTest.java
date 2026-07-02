@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,6 +40,7 @@ import se.klubb.groupplanner.solver.assemble.GroupGenerator;
 import se.klubb.groupplanner.solver.regression.TestDatasetLoader;
 import se.klubb.groupplanner.solver.run.SolveCoordinator;
 import se.klubb.groupplanner.solver.run.SolveProfile;
+import se.klubb.groupplanner.testsupport.ActiveSolveCleanup;
 
 /**
  * Design M-S2 gate (b): "lock + re-solve golden test" — locks all THREE kinds (player, group
@@ -48,6 +50,7 @@ import se.klubb.groupplanner.solver.run.SolveProfile;
  * while the rest of the plan was still optimized (hard-feasible, every unlocked player placed).
  */
 @SpringBootTest
+@ExtendWith(ActiveSolveCleanup.class)
 class LockAndResolveIntegrationTest {
 
     @TempDir

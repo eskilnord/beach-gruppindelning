@@ -17,6 +17,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -45,6 +46,7 @@ import se.klubb.groupplanner.solver.assemble.GroupGenerator;
 import se.klubb.groupplanner.solver.regression.TestDatasetLoader;
 import se.klubb.groupplanner.solver.run.SolveCoordinator;
 import se.klubb.groupplanner.solver.run.SolveProfile;
+import se.klubb.groupplanner.testsupport.ActiveSolveCleanup;
 
 /**
  * Solve lifecycle end-to-end (docs/design/04-solver.md §9.4/§14.2): start -&gt; poll status -&gt;
@@ -55,6 +57,7 @@ import se.klubb.groupplanner.solver.run.SolveProfile;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@ExtendWith(ActiveSolveCleanup.class)
 class SolveControllerIntegrationTest {
 
     private static final String VALID_TOKEN = "test-secret-token";
@@ -237,10 +240,11 @@ class SolveControllerIntegrationTest {
             executor.shutdownNow();
         }
 
-        // Cleanup: don't leave a 10s background solve running into the next test.
-        solveCoordinator.cancelSolve(planId);
-        await().atMost(Duration.ofSeconds(15)).pollInterval(Duration.ofMillis(200)).untilAsserted(() ->
-                assertThat(solveCoordinator.status(planId).status()).isEqualTo("NOT_SOLVING"));
+        // The winner's 10s background solve is cancelled AND awaited to a terminal run row by
+        // ActiveSolveCleanup (class-level @ExtendWith). The previous inline cleanup here awaited
+        // only NOT_SOLVING, which flips BEFORE the writeback transaction runs - on slow Windows
+        // runners the writeback then held the SQLite write lock into the next test's setup
+        // inserts (SQLITE_BUSY, observed on windows-latest).
     }
 
     /** Returns the runId (String) on success or the thrown ConflictException — anything else propagates. */
