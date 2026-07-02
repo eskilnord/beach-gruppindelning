@@ -63,12 +63,13 @@ class ConstraintWeightControllerTest {
     }
 
     @Test
-    void listReturnsAllTwentyFourConstraintsWithDefaultsAndNoneOverridden() throws Exception {
+    void listReturnsAllThirtyOneConstraintsWithDefaultsAndNoneOverridden() throws Exception {
         String planId = createPlan();
 
+        // 24 from spec §10.1-10.24 + 7 M6a additions (backend/docs/m6a-notes.md).
         mockMvc.perform(get("/api/plans/" + planId + "/constraint-weights").header("X-GP-Token", VALID_TOKEN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(24))
+                .andExpect(jsonPath("$.length()").value(31))
                 .andExpect(jsonPath("$[?(@.key=='sameGroupSoft')].weight").value(80))
                 .andExpect(jsonPath("$[?(@.key=='sameGroupSoft')].overridden").value(false));
     }
@@ -139,6 +140,34 @@ class ConstraintWeightControllerTest {
                         .content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").exists());
+    }
+
+    /**
+     * M6a review fix 5: the solver's score overflow-headroom analysis (ScoreHeadroomTest,
+     * docs/design/04-solver.md §3.4) assumes a max UI weight of {@code WeightLimits.MAX_WEIGHT} —
+     * the write path must actually enforce that ceiling or the analysis is fiction.
+     */
+    @Test
+    void rejectsWeightAboveTenThousandButAcceptsExactlyTenThousand() throws Exception {
+        String planId = createPlan();
+
+        String tooBig = objectMapper.writeValueAsString(
+                List.of(new ConstraintWeightOverrideRequest("sameGroupSoft", null, se.klubb.groupplanner.fields.WeightLimits.MAX_WEIGHT + 1, null)));
+        mockMvc.perform(put("/api/plans/" + planId + "/constraint-weights")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(tooBig))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").exists());
+
+        String atCeiling = objectMapper.writeValueAsString(
+                List.of(new ConstraintWeightOverrideRequest("sameGroupSoft", null, se.klubb.groupplanner.fields.WeightLimits.MAX_WEIGHT, null)));
+        mockMvc.perform(put("/api/plans/" + planId + "/constraint-weights")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(atCeiling))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.key=='sameGroupSoft')].weight").value(se.klubb.groupplanner.fields.WeightLimits.MAX_WEIGHT));
     }
 
     /**

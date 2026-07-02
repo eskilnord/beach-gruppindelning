@@ -38,6 +38,35 @@ public class PlayerAssignmentRepository {
                 .list();
     }
 
+    /** Every assignment for participants in one plan (join through participant_profile), sorted by
+     * the stable participant_profile id (M6a determinism rule). */
+    public List<PlayerAssignment> findByActivityPlanId(String activityPlanId) {
+        return jdbcClient.sql("""
+                        SELECT pa.* FROM player_assignment pa
+                        JOIN participant_profile pp ON pp.id = pa.participant_profile_id
+                        WHERE pp.activity_plan_id = :activityPlanId
+                        ORDER BY pp.id
+                        """)
+                .param("activityPlanId", activityPlanId)
+                .query(PlayerAssignmentRepository::mapRow)
+                .list();
+    }
+
+    /** Post-solve writeback (se.klubb.groupplanner.solver.run.SolveCoordinator): only touches
+     * unlocked rows' group/source — a locked row's group is left exactly as the solver's
+     * {@code @PlanningPin} guaranteed it stayed (defensive: the solver never moves a pinned entity
+     * anyway, but this repository never trusts that from the write side either). */
+    public void updateGroupAndSource(String participantProfileId, String groupId, String source) {
+        jdbcClient.sql("""
+                        UPDATE player_assignment SET group_id = :groupId, source = :source
+                        WHERE participant_profile_id = :participantProfileId AND locked = 0
+                        """)
+                .param("participantProfileId", participantProfileId)
+                .param("groupId", groupId)
+                .param("source", source)
+                .update();
+    }
+
     /**
      * Creates an unassigned {@code source=imported} row for a participant profile if one doesn't
      * already exist ({@code participant_profile_id} is UNIQUE) - idempotent, so re-running an

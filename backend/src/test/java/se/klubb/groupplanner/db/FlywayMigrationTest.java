@@ -38,7 +38,8 @@ class FlywayMigrationTest {
             "person", "season_plan", "activity_plan", "participant_profile", "coach_profile",
             "coach_time_slot", "venue", "court", "time_slot", "training_block", "training_group",
             "player_assignment", "coach_assignment", "constraint_definition", "field_definition",
-            "custom_field_value", "constraint_weight_config", "import_template", "import_run");
+            "custom_field_value", "constraint_weight_config", "import_template", "import_run",
+            "optimization_run");
 
     @Test
     void allExpectedTablesExist() {
@@ -56,20 +57,23 @@ class FlywayMigrationTest {
                 .query((rs, rowNum) -> rs.getString("description"))
                 .list();
 
-        assertThat(descriptions).containsExactly("core", "seed constraints and standard fields", "import", "resources");
+        assertThat(descriptions).containsExactly(
+                "core", "seed constraints and standard fields", "import", "resources", "solver runs");
     }
 
     @Test
-    void exactlyTwentyFourConstraintsAreSeeded() {
+    void exactlyThirtyOneConstraintsAreSeeded() {
         Integer count = jdbcClient.sql("SELECT COUNT(*) FROM constraint_definition").query(Integer.class).single();
 
-        assertThat(count).isEqualTo(24);
+        assertThat(count).isEqualTo(31);
     }
 
     /**
-     * The exact seed contract for all 24 standard constraints (spec §10.1-10.24): key AND
-     * hard-or-soft classification. A future edit that flips a classification (e.g.
-     * groupMaxSizeHard -> SOFT) fails here, not silently in the solver (M6).
+     * The exact seed contract for all 24 spec-numbered standard constraints (§10.1-10.24) plus the
+     * 7 M6a additions (backend/docs/m6a-notes.md - coachMaxGroups, coachWishRequired/Forbidden,
+     * savedPlanPersonBlocked/CoachBlocked/CourtBlocked, unassignedPlayer): key AND hard-or-soft
+     * classification. A future edit that flips a classification (e.g. groupMaxSizeHard -> SOFT)
+     * fails here, not silently in the solver.
      */
     private static final Map<String, String> EXPECTED_CONSTRAINT_CLASSIFICATIONS = Map.ofEntries(
             Map.entry("trainingBlockCapacity", "HARD"),              // §10.1
@@ -95,7 +99,14 @@ class FlywayMigrationTest {
             Map.entry("coachPreferenceSoft", "SOFT"),                // §10.21
             Map.entry("lateTimeForLowerGroups", "SOFT"),             // §10.22
             Map.entry("lockedAssignmentHard", "HARD"),               // §10.23
-            Map.entry("savedPlanResourceBlock", "HARD"));            // §10.24
+            Map.entry("savedPlanResourceBlock", "HARD"),             // §10.24 (M1 placeholder, superseded below - see V5)
+            Map.entry("coachMaxGroups", "HARD"),                     // M6a addition
+            Map.entry("coachWishRequired", "HARD"),                  // §10.21b
+            Map.entry("coachWishForbidden", "HARD"),                 // §10.21c
+            Map.entry("savedPlanPersonBlocked", "HARD"),             // §10.24a
+            Map.entry("savedPlanCoachBlocked", "HARD"),              // §10.24b
+            Map.entry("savedPlanCourtBlocked", "HARD"),              // §10.24c
+            Map.entry("unassignedPlayer", "MEDIUM"));                // reserved waitlist penalty (ADR-006)
 
     @Test
     void constraintKeyToHardOrSoftMapMatchesSpecSection10Exactly() {
@@ -109,14 +120,19 @@ class FlywayMigrationTest {
     }
 
     @Test
-    void exactlyNineteenStandardFieldsAreSeeded() {
+    void exactlyTwentyStandardFieldsAreSeeded() {
         Integer count = jdbcClient.sql("SELECT COUNT(*) FROM field_definition WHERE is_standard = 1 AND activity_plan_id IS NULL")
                 .query(Integer.class)
                 .single();
 
-        assertThat(count).isEqualTo(19);
+        assertThat(count).isEqualTo(20);
     }
 
+    /**
+     * Spec §9.2's 19 fields, plus the M6a addition {@code mustNotPlayWith} (backend/docs/m6a-notes.md
+     * - the spec's list has no HARD "vill inte spela med" field, yet §10.13 differentGroupHard was
+     * already seeded in V2 with no data source for it).
+     */
     @Test
     void standardFieldKeysMatchSpecSection9Point2() {
         List<String> keys = jdbcClient.sql("SELECT key FROM field_definition WHERE activity_plan_id IS NULL ORDER BY sort_order")
@@ -127,7 +143,7 @@ class FlywayMigrationTest {
                 "rankingPoints", "previousGroupName", "previousGroupLevel", "manualLevelScore", "levelConfidence",
                 "canTimes", "cannotTimes", "preferTimes", "playWith", "mustPlayWith", "avoidPlayWith",
                 "wantsCoach", "mustHaveCoach", "cannotHaveCoach", "newToClub", "needsManualReview",
-                "priority", "importedComment", "internalNote");
+                "priority", "importedComment", "internalNote", "mustNotPlayWith");
     }
 
     @Test

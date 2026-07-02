@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  solverConfig.xml (docs/design/04-solver.md §9.1)
+
+  NO_ASSERT + randomSeed 0: the fast reproducible mode (REPRODUCIBLE is @Deprecated since 1.20 -
+  never use it, CLAUDE.md determinism rules). Tests override environmentMode to PHASE_ASSERT and
+  termination to stepCountLimit/unimprovedStepCountLimit (never wall-clock - ADR-007); user solves
+  keep this file's NO_ASSERT and get a wall-clock termination preset injected per job via
+  SolverConfigOverride (se.klubb.groupplanner.solver.run.SolveCoordinator).
+
+  No <localSearch> phase config: the 1.33 default (Construction Heuristic + Late Acceptance) is used
+  as-is (verified in DefaultLocalSearchPhaseFactory) - Late Acceptance has no time-gradient
+  dependency (unlike Simulated Annealing), so step-count termination reproduces bit-identically
+  across hardware. Do NOT configure simulated annealing.
+-->
+<solver xmlns="https://timefold.ai/xsd/solver">
+  <environmentMode>NO_ASSERT</environmentMode>
+  <randomSeed>0</randomSeed>
+
+  <solutionClass>se.klubb.groupplanner.solver.domain.GroupPlanSolution</solutionClass>
+  <entityClass>se.klubb.groupplanner.solver.domain.PlayerAssignment</entityClass>
+  <entityClass>se.klubb.groupplanner.solver.domain.GroupSchedule</entityClass>
+  <entityClass>se.klubb.groupplanner.solver.domain.CoachSlot</entityClass>
+
+  <scoreDirectorFactory>
+    <constraintProviderClass>se.klubb.groupplanner.solver.constraints.GroupPlanConstraintProvider</constraintProviderClass>
+  </scoreDirectorFactory>
+
+  <termination>
+    <!-- Safety net only - every interactive job overrides this whole block via SolverConfigOverride
+         (§9.3/§9.4, SolveProfile) and CI/tests override it to a stepCountLimit; it applies only to
+         a Solver built directly from this XML. The unimprovedSpentLimit guards against the
+         converged-solution churn pathology (backend/docs/m6a-notes.md "Review fix 1 - RCA"): an
+         already-optimal solution otherwise burns the entire wall-clock budget on rejected move
+         selections. Every SolveProfile preset carries its own unimprovedSpentLimit for the same
+         reason. -->
+    <spentLimit>PT120S</spentLimit>
+    <unimprovedSpentLimit>PT30S</unimprovedSpentLimit>
+  </termination>
+</solver>

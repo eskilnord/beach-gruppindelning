@@ -23,17 +23,20 @@ import se.klubb.groupplanner.domain.ActivityPlan;
 import se.klubb.groupplanner.domain.ParticipantProfile;
 import se.klubb.groupplanner.domain.Person;
 import se.klubb.groupplanner.domain.SeasonPlan;
+import se.klubb.groupplanner.domain.TimeSlot;
 import se.klubb.groupplanner.repo.ActivityPlanRepository;
 import se.klubb.groupplanner.repo.ParticipantProfileRepository;
 import se.klubb.groupplanner.repo.PersonRepository;
 import se.klubb.groupplanner.repo.SeasonPlanRepository;
+import se.klubb.groupplanner.repo.TimeSlotRepository;
 import se.klubb.groupplanner.util.Uuid7;
 
 /**
  * Custom field value round-trips per field type (spec §7.14, §9.1 structured-entry drawer):
  * {@code GET|PUT /api/plans/{planId}/participants/{pid}/field-values}, including relation-id
- * validation (personRelation) and time-expression validation (timeRelation, spec §8.6 "ogiltiga
- * tider" reusing {@link se.klubb.groupplanner.importer.parse.SwedishTimeParser}).
+ * validation (personRelation) and real {@code time_slot} id validation (timeRelation — M6a,
+ * backend/docs/m6a-notes.md; previously free-text SwedishTimeParser-grammar validated before
+ * structured TimeSlot CRUD existed).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -61,6 +64,14 @@ class ParticipantFieldValueControllerTest {
     private PersonRepository personRepository;
     @Autowired
     private ParticipantProfileRepository participantProfileRepository;
+    @Autowired
+    private TimeSlotRepository timeSlotRepository;
+
+    private String createTimeSlot(String planId, String startTime, String endTime) {
+        TimeSlot slot = timeSlotRepository.insert(new TimeSlot(
+                Uuid7.generate(), planId, "THURSDAY", null, startTime, endTime, null, "Torsdag " + startTime));
+        return slot.id();
+    }
 
     private String createPlan() {
         Instant now = Instant.now();
@@ -175,21 +186,39 @@ class ParticipantFieldValueControllerTest {
     }
 
     @Test
-    void timeRelationValidatesEachExpressionWithSwedishTimeParserGrammar() throws Exception {
+    void timeRelationValidatesEachIdAgainstRealTimeSlotsInThePlan() throws Exception {
         String planId = createPlan();
         String pid = createParticipant(planId, "Anna");
+        String slot1 = createTimeSlot(planId, "18:00", "19:30");
+        String slot2 = createTimeSlot(planId, "19:30", "21:00");
         createCustomField(planId, "cannotTimesCustom", "timeRelation", true, "TIME_AVAILABILITY", "HARD", null, null);
 
         mockMvc.perform(put("/api/plans/" + planId + "/participants/" + pid + "/field-values")
                         .header("X-GP-Token", VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"cannotTimesCustom\": [\"18:00\", \"ej 21\"]}"))
+                        .content("{\"cannotTimesCustom\": [\"" + slot1 + "\", \"" + slot2 + "\"]}"))
                 .andExpect(status().isOk());
+        String getResponse = mockMvc.perform(get("/api/plans/" + planId + "/participants/" + pid + "/field-values")
+                        .header("X-GP-Token", VALID_TOKEN))
+                .andReturn().getResponse().getContentAsString();
+        JsonNode value = valueFor(objectMapper.readTree(getResponse), "cannotTimesCustom");
+        assertThat(value.get(0).asText()).isEqualTo(slot1);
 
+        // Unknown id -> 400.
         mockMvc.perform(put("/api/plans/" + planId + "/participants/" + pid + "/field-values")
                         .header("X-GP-Token", VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"cannotTimesCustom\": [\"arton\"]}"))
+                        .content("{\"cannotTimesCustom\": [\"does-not-exist\"]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").exists());
+
+        // A time slot from a different plan -> 400.
+        String otherPlanId = createPlan();
+        String otherPlanSlot = createTimeSlot(otherPlanId, "18:00", "19:30");
+        mockMvc.perform(put("/api/plans/" + planId + "/participants/" + pid + "/field-values")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cannotTimesCustom\": [\"" + otherPlanSlot + "\"]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").exists());
     }

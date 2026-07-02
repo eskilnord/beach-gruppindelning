@@ -102,6 +102,35 @@
       <version>1.14.1</version>
     </dependency>
 
+    <!-- M6a: Timefold Solver Community, pinned EXACT (CLAUDE.md pin table, ADR-001, ADR-006).
+         NEVER float this version - Timefold 2.x moved ScoreAnalysis/explainability + the
+         recommendation API to the paid Plus edition (verified on repo1.maven.org 2026-07-01/02:
+         <latest>/<release> for this artifact is 2.2.0, but 1.33.0 is a separately published,
+         still-available release we pin to explicitly). Dependabot/renovate must ignore
+         ai.timefold.solver:* version bumps. -->
+    <dependency>
+      <groupId>ai.timefold.solver</groupId>
+      <artifactId>timefold-solver-spring-boot-starter</artifactId>
+      <version>1.33.0</version>
+    </dependency>
+    <dependency>
+      <groupId>ai.timefold.solver</groupId>
+      <artifactId>timefold-solver-test</artifactId>
+      <version>1.33.0</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- M6a: ArchUnit enforces CLAUDE.md's "no float/double/BigDecimal in solver.domain/
+         solver.constraints" determinism rule (NoFloatingPointArchTest). Latest stable on Maven
+         Central as of 2026-07-02 (repo1.maven.org maven-metadata.xml <latest>/<release> both
+         1.4.2). -->
+    <dependency>
+      <groupId>com.tngtech.archunit</groupId>
+      <artifactId>archunit-junit5</artifactId>
+      <version>1.4.2</version>
+      <scope>test</scope>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>

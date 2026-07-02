@@ -45,7 +45,17 @@ public class ConstraintWeightService {
             "timeAvailabilityHard",
             "coachAvailabilityHard",
             "lockedAssignmentHard",
-            "savedPlanResourceBlock");
+            "savedPlanResourceBlock",
+            // M6a additions (backend/docs/m6a-notes.md): coachMaxGroups joins groupMaxSizeHard/
+            // coachNoOverlap as a resource-physics cap; savedPlanPersonBlocked/CoachBlocked/
+            // CourtBlocked supersede the still-present-but-unused savedPlanResourceBlock placeholder
+            // above, split into three per the finalized design (§10.24a/b/c). coachWishRequired/
+            // coachWishForbidden are deliberately NOT here - like sameGroupHard/differentGroupHard,
+            // they are data-driven personal wishes, not physics.
+            "coachMaxGroups",
+            "savedPlanPersonBlocked",
+            "savedPlanCoachBlocked",
+            "savedPlanCourtBlocked");
 
     private final ConstraintDefinitionRepository constraintDefinitionRepository;
     private final ConstraintWeightConfigRepository constraintWeightConfigRepository;
@@ -121,8 +131,14 @@ public class ConstraintWeightService {
             throw new BadRequestException(
                     "Constraint '" + def.key() + "' cannot be disabled - it prevents physically impossible schedules");
         }
-        if (weight < 1) {
-            throw new BadRequestException("weight must be >= 1 for constraint '" + def.key() + "'");
+        if (weight < WeightLimits.MIN_WEIGHT) {
+            throw new BadRequestException(
+                    "weight must be >= " + WeightLimits.MIN_WEIGHT + " for constraint '" + def.key() + "'");
+        }
+        if (weight > WeightLimits.MAX_WEIGHT) {
+            // The solver's score overflow-headroom analysis assumes this ceiling (WeightLimits javadoc).
+            throw new BadRequestException(
+                    "weight must be <= " + WeightLimits.MAX_WEIGHT + " for constraint '" + def.key() + "'");
         }
     }
 

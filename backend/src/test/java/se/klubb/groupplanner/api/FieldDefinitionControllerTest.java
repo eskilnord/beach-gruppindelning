@@ -22,7 +22,8 @@ import se.klubb.groupplanner.util.Uuid7;
 
 /**
  * MockMvc tests for {@code GET /api/plans/{planId}/field-definitions} — M1 scope only returns the
- * 19 global standard fields (spec §9.2); per-plan custom fields arrive in M4 (docs/plan.md M1 row).
+ * global standard fields (19 from spec §9.2 + {@code mustNotPlayWith} added in M6a, backend/docs
+ * /m6a-notes.md = 20); per-plan custom fields arrive in M4 (docs/plan.md M1 row).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -57,7 +58,7 @@ class FieldDefinitionControllerTest {
 
         mockMvc.perform(get("/api/plans/" + plan.id() + "/field-definitions").header("X-GP-Token", VALID_TOKEN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(19))
+                .andExpect(jsonPath("$.length()").value(20))
                 .andExpect(jsonPath("$[0].key").value("rankingPoints"))
                 // COLUMN-storage fields expose their participant_profile column mapping...
                 .andExpect(jsonPath("$[0].storageKind").value("COLUMN"))

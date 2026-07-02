@@ -10,4 +10,7 @@ package se.klubb.groupplanner.domain;
 public record PlayerAssignment(String id, String participantProfileId, String groupId, boolean locked, String source) {
 
     public static final String SOURCE_IMPORTED = "imported";
+    public static final String SOURCE_MANUAL = "manual";
+    public static final String SOURCE_SOLVER = "solver";
+    public static final String SOURCE_LOCKED = "locked";
 }

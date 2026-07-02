@@ -56,7 +56,10 @@ public class CustomFieldValueRepository {
     }
 
     public List<CustomFieldValue> findByEntity(String entityType, String entityId) {
-        return jdbcClient.sql("SELECT * FROM custom_field_value WHERE entity_type = :entityType AND entity_id = :entityId")
+        // ORDER BY id (M6a determinism rule, ADR-007): se.klubb.groupplanner.solver.assemble
+        // .SolverInputAssembler iterates this result to build wish facts, and SQL without an
+        // explicit ORDER BY has no guaranteed row order.
+        return jdbcClient.sql("SELECT * FROM custom_field_value WHERE entity_type = :entityType AND entity_id = :entityId ORDER BY id")
                 .param("entityType", entityType)
                 .param("entityId", entityId)
                 .query(CustomFieldValueRepository::mapRow)

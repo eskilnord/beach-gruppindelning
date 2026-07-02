@@ -80,16 +80,17 @@ class FieldDefinitionCrudControllerTest {
                 .andReturn().getResponse().getContentAsString();
         String id = objectMapper.readTree(response).get("id").asText();
 
-        // The new field must show up in the plan's visible-fields listing alongside the 19 globals.
+        // The new field must show up in the plan's visible-fields listing alongside the 20 globals
+        // (19 spec §9.2 fields + mustNotPlayWith, added in M6a - backend/docs/m6a-notes.md).
         mockMvc.perform(get("/api/plans/" + planId + "/field-definitions").header("X-GP-Token", VALID_TOKEN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(20));
+                .andExpect(jsonPath("$.length()").value(21));
 
         // Cleanup path: a custom field can be deleted.
         mockMvc.perform(delete("/api/field-definitions/" + id).header("X-GP-Token", VALID_TOKEN))
                 .andExpect(status().isNoContent());
         mockMvc.perform(get("/api/plans/" + planId + "/field-definitions").header("X-GP-Token", VALID_TOKEN))
-                .andExpect(jsonPath("$.length()").value(19));
+                .andExpect(jsonPath("$.length()").value(20));
     }
 
     @Test
@@ -147,6 +148,23 @@ class FieldDefinitionCrudControllerTest {
                         .content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").exists());
+    }
+
+    /** M6a review fix 5: the ScoreHeadroomTest overflow analysis assumes weights are capped at
+     * WeightLimits.MAX_WEIGHT (10 000) — the field-builder write path must enforce it too. */
+    @Test
+    void rejectsSoftConstraintWeightAboveTenThousand() throws Exception {
+        String planId = createPlan();
+        String body = objectMapper.writeValueAsString(new FieldDefinitionController.CreateFieldDefinitionRequest(
+                "tooHeavyField", "För tungt fält", "personRelation", true, "SAME_GROUP", "SOFT",
+                se.klubb.groupplanner.fields.WeightLimits.MAX_WEIGHT + 1, null, null, null, null));
+
+        mockMvc.perform(post("/api/plans/" + planId + "/field-definitions")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("10000")));
     }
 
     @Test
@@ -284,6 +302,35 @@ class FieldDefinitionCrudControllerTest {
         mockMvc.perform(get("/api/plans/" + planId + "/field-definitions").header("X-GP-Token", VALID_TOKEN))
                 .andExpect(jsonPath("$[?(@.key=='priority')].hardOrSoft").value("MEDIUM"))
                 .andExpect(jsonPath("$[?(@.key=='priority')].affectsOptimization").value(true));
+    }
+
+    /**
+     * M6a carryover (backend/docs/m6a-notes.md item 8): {@code constraintType} on the reserved
+     * {@code priority} field must be just as immutable as {@code hardOrSoft}. Before this fix, a
+     * PATCH could retarget it to {@code LEVEL_BALANCE_INPUT} (also compatible with the field's
+     * {@code number} fieldType) without ever touching {@code hardOrSoft=MEDIUM} - {@code
+     * SolverInputAssembler} keys its priority parsing off {@code constraintType == PRIORITY} (not
+     * off the field's {@code key}), so this would have silently defaulted every participant's
+     * priority to 3, breaking §2's "shed lowest-priority-first" waitlist guarantee without any
+     * MEDIUM-rejection error ever firing.
+     */
+    @Test
+    void reservedMediumPriorityFieldCannotHaveItsConstraintTypeChanged() throws Exception {
+        String planId = createPlan();
+        String priorityId = fieldIdByKey(planId, "priority");
+
+        String retargetPatch = objectMapper.writeValueAsString(new FieldDefinitionController.UpdateFieldDefinitionRequest(
+                null, null, "LEVEL_BALANCE_INPUT", null, null, null, null, null, null));
+        mockMvc.perform(patch("/api/field-definitions/" + priorityId)
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(retargetPatch))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("PRIORITY")));
+
+        mockMvc.perform(get("/api/plans/" + planId + "/field-definitions").header("X-GP-Token", VALID_TOKEN))
+                .andExpect(jsonPath("$[?(@.key=='priority')].constraintType").value("PRIORITY"))
+                .andExpect(jsonPath("$[?(@.key=='priority')].hardOrSoft").value("MEDIUM"));
     }
 
     private String fieldIdByKey(String planId, String key) throws Exception {

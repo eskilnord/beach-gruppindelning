@@ -145,7 +145,8 @@ public class FieldDefinitionController {
             hardOrSoft = HardOrSoft.MEDIUM;
             weight = request.weight() != null ? request.weight() : existing.weight();
             fieldDefinitionValidator.validateReservedMediumPatch(
-                    existing.fieldType(), request.affectsOptimization(), request.hardOrSoft(), constraintType, weight);
+                    existing.fieldType(), request.affectsOptimization(), request.hardOrSoft(), constraintType,
+                    existing.constraintType(), weight);
             affectsOptimization = true;
         } else if (!affectsOptimization) {
             constraintType = ConstraintTypes.NONE;

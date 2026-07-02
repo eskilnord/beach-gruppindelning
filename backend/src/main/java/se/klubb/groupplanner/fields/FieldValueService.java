@@ -14,11 +14,11 @@ import org.springframework.transaction.annotation.Transactional;
 import se.klubb.groupplanner.api.error.BadRequestException;
 import se.klubb.groupplanner.domain.CustomFieldValue;
 import se.klubb.groupplanner.domain.FieldDefinition;
-import se.klubb.groupplanner.importer.parse.SwedishTimeParser;
 import se.klubb.groupplanner.repo.CoachProfileRepository;
 import se.klubb.groupplanner.repo.CustomFieldValueRepository;
 import se.klubb.groupplanner.repo.FieldDefinitionRepository;
 import se.klubb.groupplanner.repo.ParticipantProfileRepository;
+import se.klubb.groupplanner.repo.TimeSlotRepository;
 
 /**
  * Generic bulk read/write of {@code custom_field_value} rows for one entity (spec §7.14, §9.1
@@ -47,10 +47,17 @@ import se.klubb.groupplanner.repo.ParticipantProfileRepository;
  *   <li>{@code groupRelation} — JSON array of {@code training_group} ids, each validated to exist in
  *       the same plan (the group CRUD/repository itself arrives in M5; this is a minimal direct
  *       existence check)</li>
- *   <li>{@code timeRelation} — JSON array of free-text time expressions, each validated with the
- *       existing {@link SwedishTimeParser} grammar (spec §8.6 "ogiltiga tider") rather than
- *       resolved against {@code time_slot} rows, since structured TimeSlot CRUD is M5 — see
- *       backend/docs/m4-notes.md</li>
+ *   <li>{@code timeRelation} — JSON array of {@code time_slot} ids, each validated to exist in the
+ *       same plan (M6a — backend/docs/m6a-notes.md; M4 originally stored free-text time expressions
+ *       here, validated only with {@code SwedishTimeParser}'s grammar, since structured {@code
+ *       TimeSlot} CRUD didn't land until M5. That was a documented, anticipated gap: "When M5 lands,
+ *       a follow-up could... migrate this field type to reference real TimeSlot ids" (m4-notes.md).
+ *       M6a finishes that migration because the solver needs a structured id, not free text, to
+ *       build {@code PlayerAssignment.unavailableTimeSlotIds}/{@code preferredTimeSlotIds} for the
+ *       {@code timeAvailabilityHard}/{@code timePreferenceSoft} constraints. The raw imported "Tid"
+ *       reference text (spec §2.2's "never auto-interpreted" free text) is untouched by this change
+ *       — it lives in {@code importedComment}/custom text-typed fields, never in these three
+ *       standard fields.)</li>
  * </ul>
  *
  * <p>A JSON {@code null} value clears the field (deletes/nulls the stored value) — same
@@ -65,6 +72,7 @@ public class FieldValueService {
     private final CustomFieldValueRepository customFieldValueRepository;
     private final ParticipantProfileRepository participantProfileRepository;
     private final CoachProfileRepository coachProfileRepository;
+    private final TimeSlotRepository timeSlotRepository;
     private final JdbcClient jdbcClient;
     private final ObjectMapper objectMapper;
 
@@ -73,12 +81,14 @@ public class FieldValueService {
             CustomFieldValueRepository customFieldValueRepository,
             ParticipantProfileRepository participantProfileRepository,
             CoachProfileRepository coachProfileRepository,
+            TimeSlotRepository timeSlotRepository,
             JdbcClient jdbcClient,
             ObjectMapper objectMapper) {
         this.fieldDefinitionRepository = fieldDefinitionRepository;
         this.customFieldValueRepository = customFieldValueRepository;
         this.participantProfileRepository = participantProfileRepository;
         this.coachProfileRepository = coachProfileRepository;
+        this.timeSlotRepository = timeSlotRepository;
         this.jdbcClient = jdbcClient;
         this.objectMapper = objectMapper;
     }
@@ -192,11 +202,14 @@ public class FieldValueService {
                 yield value.toString();
             }
             case FieldTypes.TIME_RELATION -> {
-                List<String> expressions = requireStringArray(field, value);
-                for (String expression : expressions) {
-                    if (!SwedishTimeParser.isValidTimeExpression(expression)) {
+                List<String> ids = requireStringArray(field, value);
+                java.util.Set<String> planSlotIds = timeSlotRepository.findByActivityPlanId(planId).stream()
+                        .map(se.klubb.groupplanner.domain.TimeSlot::id)
+                        .collect(java.util.stream.Collectors.toSet());
+                for (String id : ids) {
+                    if (!planSlotIds.contains(id)) {
                         throw new BadRequestException(
-                                "Field '" + field.key() + "': ogiltig tid - kontrollera manuellt: '" + expression + "'");
+                                "Field '" + field.key() + "': unknown time slot id in this plan: " + id);
                     }
                 }
                 yield value.toString();

@@ -62,8 +62,12 @@ public class FieldDefinitionValidator {
             throw new BadRequestException("hardOrSoft must be HARD or SOFT when affectsOptimization is true");
         }
         if (HardOrSoft.SOFT.equals(hardOrSoft)) {
-            if (weight == null || weight < 1) {
+            if (weight == null || weight < WeightLimits.MIN_WEIGHT) {
                 throw new BadRequestException("weight must be a positive integer when hardOrSoft is SOFT");
+            }
+            if (weight > WeightLimits.MAX_WEIGHT) {
+                // The solver's score overflow-headroom analysis assumes this ceiling (WeightLimits javadoc).
+                throw new BadRequestException("weight must be <= " + WeightLimits.MAX_WEIGHT);
             }
         } else if (weight != null) {
             throw new BadRequestException("weight must be omitted when hardOrSoft is HARD");
@@ -80,12 +84,22 @@ public class FieldDefinitionValidator {
      *
      * @param requestedHardOrSoft the raw requested value, {@code null} if the PATCH omitted it.
      * @param requestedAffectsOptimization the raw requested value, {@code null} if omitted.
+     * @param existingConstraintType the field's CURRENT {@code constraintType} before this patch
+     *     (e.g. {@code PRIORITY} for the seeded {@code priority} field) - {@code constraintType} must
+     *     equal this (M6a carryover fix, backend/docs/m6a-notes.md item 8): a plain fieldType/
+     *     constraintType compatibility check alone is NOT enough here, because {@code NUMBER} fields
+     *     are compatible with both {@code PRIORITY} and {@code LEVEL_BALANCE_INPUT} - without this
+     *     check a PATCH could silently retarget the reserved field away from PRIORITY, which
+     *     {@code SolverInputAssembler} keys off by {@code constraintType} (not by field {@code key}),
+     *     silently defaulting every participant's priority to 3 and breaking §2's "shed
+     *     lowest-priority-first" waitlist guarantee without ever touching {@code hardOrSoft}.
      */
     public void validateReservedMediumPatch(
             String fieldType,
             Boolean requestedAffectsOptimization,
             String requestedHardOrSoft,
             String constraintType,
+            String existingConstraintType,
             Integer weight) {
         if (requestedAffectsOptimization != null && !requestedAffectsOptimization) {
             throw new BadRequestException(
@@ -102,8 +116,16 @@ public class FieldDefinitionValidator {
                     "constraintType " + constraintType + " is not compatible with fieldType " + fieldType
                             + " - compatible types: " + ConstraintTypes.compatibleConstraintTypes(fieldType));
         }
-        if (weight == null || weight < 1) {
-            throw new BadRequestException("weight must be >= 1 for a MEDIUM (reserved) field");
+        if (!constraintType.equals(existingConstraintType)) {
+            throw new BadRequestException(
+                    "This field's constraintType is reserved as " + existingConstraintType
+                            + " for the system waitlist penalty (ADR-006) and cannot be changed to " + constraintType);
+        }
+        if (weight == null || weight < WeightLimits.MIN_WEIGHT) {
+            throw new BadRequestException("weight must be >= " + WeightLimits.MIN_WEIGHT + " for a MEDIUM (reserved) field");
+        }
+        if (weight > WeightLimits.MAX_WEIGHT) {
+            throw new BadRequestException("weight must be <= " + WeightLimits.MAX_WEIGHT);
         }
     }
 }
