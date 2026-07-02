@@ -271,16 +271,16 @@ jobs:
         with:
           node-version: '24'
 
-      # Only installs @tauri-apps/cli (desktop/package.json's sole devDependency) — no
-      # frontend build exists yet at M0 (tauri.conf.json's frontendDist points at the static
-      # desktop/ui placeholder, which is already committed). Installed defensively before the
-      # cargo steps below in case a future tauri-build version shells out to the CLI for
-      # schema/config validation; `cargo check`/`clippy` have not been observed to require it
-      # today, but the dependency is tiny and this keeps CI in lockstep with local dev setup
-      # (scripts/package.sh also assumes `desktop/node_modules` is already installed).
-      - name: npm ci (desktop) — installs the Tauri CLI
-        working-directory: desktop
+      # Root workspaces install: the Tauri CLI (desktop) plus the frontend's build deps.
+      - name: npm ci (workspaces root)
         run: npm ci
+
+      # Since v0.1.1, tauri.conf.json's frontendDist points at the REAL SPA build and
+      # tauri-build's proc macro hard-fails if frontend/dist doesn't exist (deliberate:
+      # the v0.1.0 installers shipped the M0 placeholder because nothing bundled the SPA).
+      # cargo check therefore needs an actual frontend build, same as a real package build.
+      - name: build frontend (required by tauri-build's frontendDist check)
+        run: npm run build --workspace frontend
 
       - uses: dtolnay/rust-toolchain@stable
         with:
