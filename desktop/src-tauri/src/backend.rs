@@ -236,6 +236,13 @@ pub fn spawn_and_handshake(app: &AppHandle, state: &BackendState) -> Result<Back
 
     let java_path = java_binary_path(&resources_root);
     let jar_path = resources_root.join("backend").join("backend.jar");
+    // Resolved-path breadcrumb on stderr: cheap, and the only way to diagnose
+    // path-shape issues (e.g. Windows verbatim prefixes) from CI smoke logs.
+    eprintln!(
+        "spawning backend: java={} jar={}",
+        java_path.display(),
+        jar_path.display()
+    );
 
     let mut command = Command::new(&java_path);
     command
@@ -307,6 +314,9 @@ fn resolve_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
         .path()
         .app_data_dir()
         .map_err(|err| format!("could not resolve app data dir: {err}"))?;
+    // Strip any Windows \\?\ verbatim prefix: the path is handed to the JVM (GP_DATA_DIR,
+    // logback file appender), and Java cannot open verbatim-prefixed paths.
+    let data_dir = dunce::simplified(&data_dir).to_path_buf();
     std::fs::create_dir_all(data_dir.join("logs"))
         .map_err(|err| format!("could not create data dir {}: {err}", data_dir.display()))?;
     Ok(data_dir)
@@ -328,7 +338,9 @@ fn locate_resources_root(app: &AppHandle) -> Result<PathBuf, String> {
 
     for candidate in &candidates {
         if candidate.join("backend").join("backend.jar").exists() {
-            return Ok(candidate.clone());
+            // Strip any Windows \\?\ verbatim prefix — the JVM cannot load classes from
+            // a verbatim-prefixed `-jar` path (manifest reads, classloading fails).
+            return Ok(dunce::simplified(candidate).to_path_buf());
         }
     }
 

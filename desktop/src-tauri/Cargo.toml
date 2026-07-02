@@ -15,6 +15,11 @@ tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 getrandom = { version = "0.4", features = ["std"] }
+# Strips Windows \\?\ verbatim prefixes from paths. Tauri's resource_dir()/app_data_dir()
+# can return verbatim paths; `java -jar \\?\C:\...` reads the manifest but fails class
+# loading ("Could not find or load main class ...JarLauncher") — found via the release
+# workflow's 2x2 diagnostic matrix.
+dunce = "1"
 
 [profile.release]
 panic = "abort"
