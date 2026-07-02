@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Query } from "@tanstack/react-query";
 import { api } from "./client";
-import type { CancelSolveResponse, SolveRequestBody, SolveStatus, StartSolveResponse } from "./types";
+import type { CancelSolveResponse, SolveRequestBody, SolveStatus, StartSolveResponse, SuggestDurationResponse } from "./types";
 import { assignmentsKey } from "./assignments";
 import { groupsKey } from "./groups";
 
@@ -23,6 +23,29 @@ export function useSolveStatus(planId: string | undefined, options: { enabled?: 
 
 export function isSolveRunning(status: string | undefined): boolean {
   return SOLVING_STATUSES.has(status ?? "");
+}
+
+export const suggestDurationKey = (planId: string) => ["plans", planId, "solve", "suggest-duration"] as const;
+
+/**
+ * v0.2.0 (SUGGESTED OPTIMIZATION TIME): `POST .../solve/suggest-duration` - proposes a CUSTOM
+ * `durationSeconds` from the plan's problem size + a cached hardware benchmark. A POST modeled as a
+ * useQuery (not a mutation): it's a read-only computation the Optimeringsvy wants eagerly on tab
+ * open, with `refetch()` as the manual "Uppdatera förslag" re-run. Callers gate `enabled` on "no
+ * solve running" (the endpoint 409s during an active solve - the benchmark competes for CPU); the
+ * remaining 409 race window is surfaced to the user as the card's solve-active info state.
+ * `retry: false`: the first-ever call runs a multi-second benchmark - auto-retrying a 409/failure
+ * on top of that only piles on CPU work; `refetchOnWindowFocus: false` for the same reason.
+ */
+export function useSuggestDuration(planId: string | undefined, options: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: suggestDurationKey(planId ?? ""),
+    queryFn: () => api.post<SuggestDurationResponse>(`/api/plans/${planId}/solve/suggest-duration`),
+    enabled: planId !== undefined && options.enabled !== false,
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
+  });
 }
 
 /** Starts a solve (spec §16.6 profiles FAST/NORMAL/THOROUGH wall-clock, or the synchronous GREEDY

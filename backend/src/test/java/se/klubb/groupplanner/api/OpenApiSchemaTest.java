@@ -87,6 +87,36 @@ class OpenApiSchemaTest {
         assertThat(responsesJson).contains("SolveResponse");
     }
 
+    /**
+     * v0.2.0 regression guard (review fast-follow 5), same pattern as the {@code SolveResponse}
+     * assertions above: the new API surfaces the frontend's typegen consumes must actually exist in
+     * the GENERATED spec — {@code SuggestDurationResponse} (with the suggest-duration operation
+     * referencing it), {@code SolveRequest.durationSeconds} (the CUSTOM profile's duration), and
+     * {@code CapacityResponse.noCoaches} (the coach-less INFO banner flag).
+     */
+    @Test
+    void v020SchemasSuggestDurationDurationSecondsAndNoCoachesExist() throws Exception {
+        JsonNode root = fetchRoot();
+        JsonNode schemas = root.get("components").get("schemas");
+
+        JsonNode suggestResponse = schemas.get("SuggestDurationResponse");
+        assertThat(suggestResponse).as("SuggestDurationResponse schema must exist").isNotNull();
+        for (String field : new String[] {"suggestedSeconds", "machineSpeedFactor", "benchmarkMs", "problemSize", "rationaleSv"}) {
+            assertThat(suggestResponse.get("properties").has(field)).as("SuggestDurationResponse.%s", field).isTrue();
+        }
+        JsonNode suggestPost = root.get("paths").get("/api/plans/{planId}/solve/suggest-duration").get("post");
+        assertThat(suggestPost).as("suggest-duration operation must exist").isNotNull();
+        assertThat(suggestPost.get("responses").toString()).contains("SuggestDurationResponse");
+
+        JsonNode solveRequest = schemas.get("SolveRequest");
+        assertThat(solveRequest).as("SolveRequest schema must exist").isNotNull();
+        assertThat(solveRequest.get("properties").has("durationSeconds")).as("SolveRequest.durationSeconds").isTrue();
+
+        JsonNode capacityResponse = schemas.get("CapacityResponse");
+        assertThat(capacityResponse).as("CapacityResponse schema must exist").isNotNull();
+        assertThat(capacityResponse.get("properties").has("noCoaches")).as("CapacityResponse.noCoaches").isTrue();
+    }
+
     private JsonNode fetchSchemas() throws Exception {
         return fetchRoot().get("components").get("schemas");
     }

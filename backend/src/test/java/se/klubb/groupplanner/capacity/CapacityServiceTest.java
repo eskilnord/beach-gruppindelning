@@ -295,6 +295,23 @@ class CapacityServiceTest {
         }
     }
 
+    /** v0.2.0 (COACH-OPTIONAL SOLVING): zero registered coaches is its own INFO-level state, not a
+     * red "shortage" warning - see {@link CapacityResponse}'s javadoc. */
+    @Test
+    void zeroCoachesIsReportedAsInfoNotAShortageWarning() {
+        String planId = createPlan(5, 4, 6);
+        createSlotWithBlocks(planId, "THURSDAY", "18:00", "19:30", 2);
+        addParticipants(planId, 5);
+        // deliberately no createCoach(...) calls at all.
+
+        CapacityResponse response = capacityService.compute(planId);
+
+        assertThat(response.coachCount()).isZero();
+        assertThat(response.noCoaches()).isTrue();
+        assertThat(response.coachShortageRisk()).isFalse();
+        assertThat(response.coachShortageMessage()).isEqualTo("Inga tränare registrerade");
+    }
+
     @Test
     void noShortageWhenCoachesCoverEverySlotAndHaveNoBindingLimits() {
         String planId = createPlan(5, 4, 6);

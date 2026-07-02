@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Alert, Button, Card, Loader, SegmentedControl, SimpleGrid, Stack, Text, Title } from "@mantine/core";
 import { useAssignments } from "../../../api/assignments";
 import { ApiError } from "../../../api/client";
@@ -13,6 +13,7 @@ import { useOptimizationRuns } from "../../../api/runs";
 import { useTrainingBlocksForPlan } from "../../../api/trainingBlocks";
 import { sv } from "../../../i18n/sv";
 import { formatDateTime } from "../../../lib/formatDateTime";
+import { parseResultSummary } from "../optimize/runSummary";
 import { ExplainDrawer, type GroupOption } from "./explain/ExplainDrawer";
 import { GroupExplainDrawer } from "./explain/GroupExplainDrawer";
 import { WhatIfDialog } from "./explain/WhatIfDialog";
@@ -44,6 +45,12 @@ export function ResultsPanel() {
   const navigate = useNavigate();
   const [view, setView] = useState<ResultView>("cards");
 
+  // Ctrl/Cmd+F player search (PlayerSearchSpotlight.tsx) navigates here with `?highlight=<id>` -
+  // force the Kort view (only it renders per-member rows to scroll to/flash) and jump to the row
+  // once the joined view model below is ready.
+  const [searchParams] = useSearchParams();
+  const highlightedParticipantId = searchParams.get("highlight");
+
   // M7 explain/what-if drawer & dialog state - lifted to this shared parent (rather than living
   // inside each GroupCard/WaitlistCard) so there is exactly ONE of each mounted at a time and the
   // "waitlisted friend" link in the explain drawer can jump straight to a different participant
@@ -65,6 +72,10 @@ export function ResultsPanel() {
   const latestRun = runs.data?.[0];
   const latestRunId = latestRun?.id;
   const runStartedAtLabel = latestRun ? formatDateTime(latestRun.startedAt) : undefined;
+  // v0.2.0 (COACH-OPTIONAL SOLVING): the run summary's `note` (present only when the run solved a
+  // plan with zero coaches) is surfaced in the Resultatvy header too, so a user landing straight on
+  // the results doesn't have to go back to Optimering to learn why no group has a coach.
+  const latestRunNote = parseResultSummary(latestRun)?.note ?? null;
 
   const waitlistedParticipantIds = useMemo(
     () => (assignments.data?.players ?? []).filter((p) => p.groupId == null).map((p) => p.participantProfileId),
@@ -145,6 +156,25 @@ export function ResultsPanel() {
     };
   }, [groups.data, assignments.data, participants.data, coaches.data, trainingBlocks.data, persons.data, fieldDefinitions.data, priorityFieldValues]);
 
+  // `model` gets a brand-new object reference on every render (useParticipantFieldValues below
+  // builds a fresh plain object each call), so this can't depend on `model` directly - that would
+  // re-fire on every unrelated re-render (e.g. the user's own click on the Schema toggle) and force
+  // the view back to "cards" every time. Guard with a ref so a given highlight id is only acted on
+  // once, the moment its row first appears in the DOM.
+  const highlightHandledRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!highlightedParticipantId || !model || highlightHandledRef.current === highlightedParticipantId) {
+      return;
+    }
+    const row = document.getElementById(`participant-row-${highlightedParticipantId}`);
+    if (!row) {
+      return;
+    }
+    highlightHandledRef.current = highlightedParticipantId;
+    setView("cards");
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+
   if (isLoading) {
     return <Loader size="sm" />;
   }
@@ -191,6 +221,11 @@ export function ResultsPanel() {
             {sv.results.explainBasedOn(runStartedAtLabel ?? "")}
           </Text>
         )}
+        {latestRunNote && (
+          <Alert color="blue" mt="sm" data-testid="results-note">
+            {latestRunNote}
+          </Alert>
+        )}
       </Card>
 
       {view === "cards" && planId && (
@@ -225,6 +260,7 @@ export function ResultsPanel() {
                   coaches={groupCoaches}
                   members={members}
                   runId={latestRunId}
+                  highlightedParticipantId={highlightedParticipantId}
                   onExplain={(id, name) => setExplainTarget({ id, name })}
                   onTestMove={(id, name) => setWhatIfTarget({ id, name, currentGroupId: group.id })}
                   onExplainGroup={(id, name) => setExplainGroup({ id, name })}
@@ -235,6 +271,7 @@ export function ResultsPanel() {
           <WaitlistCard
             entries={model.waitlist}
             runId={latestRunId}
+            highlightedParticipantId={highlightedParticipantId}
             onExplain={(id, name) => setExplainTarget({ id, name })}
             onTestMove={(id, name) => setWhatIfTarget({ id, name, currentGroupId: null })}
           />

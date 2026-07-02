@@ -583,6 +583,12 @@ export const sv = {
       risk: "Risk för tränarbrist",
       ok: "Tillräckligt med tränare",
     },
+    noCoaches: {
+      title: "Inga tränare registrerade",
+      body:
+        "Det går utmärkt att optimera ändå – grupperna fördelas då på tider och banor utan tränartilldelning. Vill du att optimeringen även ska placera tränare lägger du till dem under fliken Tränare.",
+      goToCoachesButton: "Gå till Tränare",
+    },
     perSlotHeading: "Fördelning per träningstid",
     perSlotTable: {
       slot: "Träningstid",
@@ -604,6 +610,29 @@ export const sv = {
       generateFailed: "Kunde inte generera grupper",
       generateSuccess: (n: number) => (n === 1 ? "1 grupp genererad." : `${n} grupper genererade.`),
     },
+    suggest: {
+      heading: "Föreslagen optimeringstid",
+      loading: "Analyserar planens storlek och din dators hastighet…",
+      suggestedSeconds: (s: number) => `Föreslagen optimeringstid: ${s} s`,
+      problemSummary: (p: {
+        participants: number;
+        groups: number;
+        activeBlocks: number;
+        coaches: number;
+        wishes: number;
+        customFieldConstraints: number;
+      }) =>
+        `${p.participants} spelare · ${p.groups} grupper · ${p.activeBlocks} block · ${p.coaches} tränare · ${p.wishes} önskemål · ${p.customFieldConstraints} optimeringsfält`,
+      refreshButton: "Uppdatera förslag",
+      solveActive: "En optimering pågår redan – ett nytt tidsförslag beräknas när den är klar.",
+      loadFailed: "Kunde inte beräkna ett tidsförslag",
+      retryButton: "Försök igen",
+      optimizeButton: (s: number) => `Optimera (${s} s)`,
+    },
+    advanced: {
+      heading: "Avancerat",
+      customSecondsLabel: "Egen tid (sekunder)",
+    },
     profileHeading: "Optimeringsprofil",
     profiles: {
       FAST: {
@@ -622,6 +651,10 @@ export const sv = {
         label: "Greedy-baslinje",
         description:
           "Ingen riktig optimering - enklast möjliga tilldelning (sortering), som referens för hur mycket optimeringsmotorn faktiskt förbättrar resultatet. Körs direkt, på under en sekund.",
+      },
+      CUSTOM: {
+        label: "Egen tid",
+        description: "Ange själv exakt hur många sekunder optimeringen får köra (10–900).",
       },
     },
     weightsSummary: {
@@ -916,6 +949,120 @@ export const sv = {
       exportFailed: "Kunde inte exportera anonymiserat testdata",
       exportSuccess: "Det anonymiserade testdatat laddades ner.",
     },
+  },
+  tutorial: {
+    headerButtonTooltip: "Öppna guiden",
+    modalTitle: "Kom igång-guiden",
+    howToHeading: "Gör så här",
+    stepLabel: (current: number, total: number) => `Steg ${current} av ${total}`,
+    prevButton: "Föregående",
+    nextButton: "Nästa",
+    doneButton: "Klar",
+    goThereButton: "Ta mig dit",
+    goThereDisabledTooltip: "Öppna eller skapa en aktivitetsplan för att kunna gå direkt dit.",
+    bannerTitle: "Ny här?",
+    bannerBody:
+      "Öppna kom-igång-guiden för en snabb rundtur genom hela flödet – från säsong till export.",
+    bannerOpenButton: "Öppna kom-igång-guiden",
+    steps: [
+      {
+        title: "Säsong & plan",
+        body: "Allt börjar med en säsong – till exempel \"VT27\" – och en eller flera aktivitetsplaner i den, en per grupp av tränande (till exempel Herr, Dam eller Ungdom). Aktivitetsplanen är arbetsytan där du gör allting: importerar anmälningar, sätter tider och banor, och kör optimeringen.",
+        bullets: [
+          "Klicka på \"Skapa ny säsong\" på Startsidan.",
+          "Öppna säsongen och skapa en aktivitetsplan per grupp, t.ex. Herr, Dam eller Ungdom.",
+          "Du hittar alltid tillbaka via brödsmulorna högst upp på sidan.",
+        ],
+      },
+      {
+        title: "Importera anmälningar",
+        body: "Ladda upp anmälningsfilen (Excel eller CSV) i importguiden. Du väljer själv vilket blad och vilken rad som är rubrikrad, mappar varje kolumn till rätt fält, och får en tydlig sammanställning innan något sparas i planen.",
+        bullets: [
+          "Gå till fliken Deltagare och klicka \"Importera\".",
+          "Välj fil, granska bladet och mappa kolumnerna till rätt fält.",
+          "Validera raderna – du ser exakt vad som blir OK, varning eller överhoppat innan du bekräftar.",
+        ],
+      },
+      {
+        title: "Strukturera fält",
+        body: "Kommentarer från anmälningsformuläret (t.ex. \"vill helst spela med Anna\") visas bara som text att läsa – de tolkas ALDRIG automatiskt av systemet. Din uppgift är att läsa kommentaren och själv fylla i motsvarande strukturerade fält, som kompisönskemål eller manuell nivåscore, så att optimeringen faktiskt kan ta hänsyn till det.",
+        bullets: [
+          "Öppna en deltagare i Deltagarvyn för att se kommentaren till vänster.",
+          "Fyll i strukturerade fält till höger utifrån vad kommentaren säger.",
+          "Bara det som står i ett strukturerat fält påverkar optimeringen – fri text gör det aldrig.",
+        ],
+      },
+      {
+        title: "Tider & banor",
+        body: "Under Resurser lägger du till träningstider (dag samt start- och sluttid) och anger antal banor per tid. Varje kombination av tid och bana blir en plats en grupp kan tilldelas. Behöver en enstaka bana stängas av går det att inaktivera den utan att ta bort den.",
+        bullets: [
+          "Klicka \"Ny tid\" och ange dag, starttid och sluttid.",
+          "Ange antal banor för tiden – banorna skapas automatiskt.",
+          "Inaktivera en enskild bana vid behov, t.ex. om den är bokad av någon annan just den kvällen.",
+        ],
+      },
+      {
+        title: "Tränare (valfritt!)",
+        body: "Att lägga in tränare är helt valfritt – du kan optimera och få färdiga grupper helt utan dem, och resultatet visar då en vänlig notis om att grupperna fördelades utan tränartilldelning. Men lägger du in tränare kan optimeringen dessutom ta hänsyn till vilken nivå tränaren klarar, hur många grupper de orkar per dag och vecka, och när de faktiskt kan eller helst vill träna.",
+        bullets: [
+          "Klicka \"Ny tränare\" och länka en befintlig deltagare eller skapa en ny person.",
+          "Ange vilken nivå tränaren kan träna och hur många grupper per dag/vecka.",
+          "Fyll i tillgänglighet per träningstid: Otillgänglig, Tillgänglig eller Föredrar.",
+        ],
+      },
+      {
+        title: "Kapacitetskoll",
+        body: "Innan du optimerar är det värt att titta på Kapacitet: hur många deltagare har du, hur många aktiva banor och tider finns, och räcker tränarna till? Vyn varnar dig i förväg om risk för kölista eller tränarbrist, så du hinner lägga till fler tider eller tränare innan du kör optimeringen.",
+        bullets: [
+          "Se antal deltagare, aktiva block och beräknad kapacitet på ett ställe.",
+          "Följ varningarna om risk för kölista eller tränarbrist per träningstid.",
+          "Justera tider, banor eller tränare om något ser snålt tilltaget ut.",
+        ],
+      },
+      {
+        title: "Optimera",
+        body: "Optimeringen fördelar deltagare, tider/banor och tränare enligt DINA regler – de hårda kraven (t.ex. maxstorlek) som aldrig får brytas, och de mjuka önskemålen (t.ex. jämn nivåspridning eller kompisönskemål) som vägs mot varandra utifrån de vikter du satt under Fält. Resultatet är helt enkelt det bästa systemet kunde hitta enligt de regler och vikter du själv har angett – inte någon extern \"rätt\" lösning.",
+        bullets: [
+          "Välj en profil: Snabb för en första koll, Normal för de flesta gånger, Grundlig inför en slutgiltig plan.",
+          "Kryssa i om du bara vill optimera spelare, tider/banor eller tränare den här gången.",
+          "Klicka \"Starta optimering\" och följ förbättringarna live.",
+        ],
+      },
+      {
+        title: "Förstå resultatet",
+        body: "På fliken Resultat ser du varje grupp med spelare, tränare, tid/bana och nivåstatistik – och en kölista för dem som inte fick plats. Klicka \"Förklara\" på en spelare för att se exakt varför den hamnade där, med positiva och negativa faktorer i klartext. Nyfiken på ett alternativ? \"Testa flytt\" visar konsekvensen av att flytta någon innan du bestämmer dig – helt riskfritt.",
+        bullets: [
+          "Byt mellan Kort- och Schemavy för att se resultatet på olika sätt.",
+          "Klicka \"Förklara\" på valfri spelare eller grupp för en tydlig motivering.",
+          "Prova \"Testa flytt\" för att se konsekvensen av en flytt innan du genomför den.",
+        ],
+      },
+      {
+        title: "Lås & kör om",
+        body: "Nöjd med en spelare, tränare eller grupps tid/bana? Lås den så rör optimeringen den aldrig igen – resten av planen kan ändå förbättras vid en ny körning. Väljer du \"Lås & markera för omoptimering\" i Testa flytt-dialogen låses flytten automatiskt åt dig, och du kör sedan om optimeringen för att uppdatera resten.",
+        bullets: [
+          "Klicka \"Lås\" på en spelare, tränare eller en grupps tid/bana i Resultat.",
+          "Gå till Optimering och starta en ny körning – låsta delar rör sig inte.",
+          "Bra att kombinera med Testa flytt när du gör en manuell justering.",
+        ],
+      },
+      {
+        title: "Spara & exportera",
+        body: "Spara ett resultat under fliken Planer för att skapa en historik – varje sparning är en egen version, inget skrivs över. Sedan exporterar du planen som Excel eller CSV under Export. Kommentarer följer ALDRIG med i exporten som standard – du måste aktivt kryssa i det, och får då en tydlig varning om att filen innehåller känslig text.",
+        bullets: [
+          "Spara en version under fliken Planer när du är nöjd.",
+          "Gå till Export, välj format och layout, och ladda ner filen.",
+          "Låt \"Inkludera kommentarer\" vara avbockad om du inte medvetet behöver dem.",
+        ],
+      },
+    ],
+  },
+  playerSearch: {
+    actionIconTooltip: "Sök deltagare (Ctrl/Cmd+F)",
+    placeholder: "Sök deltagare…",
+    nothingFound: "Inga deltagare hittades.",
+    levelBadge: (level: number) => `Nivå ${level}`,
+    resultsWaitlistBadge: "Kölista",
   },
 } as const;
 

@@ -1,0 +1,36 @@
+/* Small standalone styles that aren't reasonably expressed via Mantine style props (theme.ts keeps
+   the reusable theme tokens; this file is for one-off keyframe animations/decorations used by a
+   single feature each). */
+
+/* Ctrl/Cmd+F player search (components/playersearch/PlayerSearchSpotlight.tsx ->
+   routes/plan/results/ResultsPanel.tsx): flashes the row the search result navigated to, so the
+   user's eye finds it immediately even after the page has scrolled to it. */
+@keyframes gp-highlight-flash {
+  0% {
+    background-color: var(--mantine-color-yellow-3);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.gp-highlight-flash {
+  animation: gp-highlight-flash 1.8s ease-out;
+}
+
+/* Planeringskarta horizontal scroll (routes/plan/results/ScheduleView.tsx): a subtle right-edge
+   fade hinting that more courts are scrollable into view. */
+.gp-scroll-fade {
+  position: relative;
+}
+
+.gp-scroll-fade::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 28px;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.1));
+}

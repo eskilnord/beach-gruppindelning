@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
+  ActionIcon,
   Alert,
   Anchor,
   Badge,
@@ -13,7 +14,9 @@ import {
   Tabs,
   Text,
   Title,
+  Tooltip,
 } from "@mantine/core";
+import { spotlight } from "@mantine/spotlight";
 import { useDeletePlan, usePlan } from "../../api/plans";
 import { useSeason } from "../../api/seasons";
 import { ApiError } from "../../api/client";
@@ -80,6 +83,17 @@ export function PlanLayout() {
           )}
         </Box>
         <Group>
+          <Tooltip label={sv.playerSearch.actionIconTooltip}>
+            <ActionIcon
+              variant="default"
+              size="lg"
+              aria-label={sv.playerSearch.actionIconTooltip}
+              onClick={() => spotlight.open()}
+              data-testid="player-search-open-button"
+            >
+              🔍
+            </ActionIcon>
+          </Tooltip>
           <Button variant="default" onClick={() => setEditOpen(true)}>
             {sv.plan.editButton}
           </Button>

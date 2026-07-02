@@ -18,6 +18,9 @@ export function parseResultSummary(run: OptimizationRun | undefined): RunResultS
       soft: parsed.soft ?? 0,
       feasible: parsed.feasible ?? false,
       unassignedCount: parsed.unassignedCount ?? 0,
+      // v0.2.0 (COACH-OPTIONAL SOLVING): present only when the solved plan had zero coaches
+      // (OptimizationRunService.NOTE_NO_COACHES) - rendered verbatim (the backend owns the wording).
+      note: typeof parsed.note === "string" ? parsed.note : null,
     };
   } catch {
     return null;

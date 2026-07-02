@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Alert, Badge, Button, Card, Group, Loader, Text, TextInput, Title, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
@@ -85,6 +85,7 @@ export function ParticipantsPanel() {
   const [quickFilter, setQuickFilter] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [anonymizeOpen, setAnonymizeOpen] = useState(false);
+  const [searchParams] = useSearchParams();
 
   const personName = (personId: string): string => {
     const person = persons.data?.find((candidate) => candidate.id === personId);
@@ -99,6 +100,16 @@ export function ParticipantsPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [participants.data, persons.data],
   );
+
+  // Ctrl/Cmd+F player search (PlayerSearchSpotlight.tsx) falls back to `?participant=<id>` when the
+  // plan has no groups yet (nothing solved to jump to in Resultatvy) - auto-open that participant's
+  // detail drawer once the row data is in.
+  useEffect(() => {
+    const participantId = searchParams.get("participant");
+    if (participantId && rows.some((row) => row.id === participantId)) {
+      setSelectedId(participantId);
+    }
+  }, [searchParams, rows]);
 
   const columnDefs: ColDef<ParticipantRow>[] = useMemo(
     () => [

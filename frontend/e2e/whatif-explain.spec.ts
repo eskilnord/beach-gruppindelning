@@ -108,6 +108,8 @@ test("Optimering (GREEDY, 2 grupper) → Analys/Förklara grupp/Förklara/Testa 
   await page.getByRole("button", { name: sv.optimize.groups.generateButton }).click();
   await expect(groupsSummary.getByText(sv.optimize.groups.count(2))).toBeVisible();
 
+  // v0.2.0: the presets moved under the "Avancerat" collapse (suggestion-first Optimeringsvy).
+  await page.getByTestId("advanced-toggle").click();
   await page.getByRole("radio", { name: sv.optimize.profiles.GREEDY.label }).click();
   await page.getByRole("button", { name: sv.optimize.startButton }).click();
   const lastRunCard = page.getByTestId("last-run-summary");
@@ -203,6 +205,7 @@ test("Optimering (GREEDY, 2 grupper) → Analys/Förklara grupp/Förklara/Testa 
 
   // --- Re-solving clears the staleness (a fresh run -> currentRevision === the new run's own) ---
   await page.getByRole("tab", { name: sv.plan.tabs.optimize }).click();
+  await page.getByTestId("advanced-toggle").click();
   await page.getByRole("radio", { name: sv.optimize.profiles.GREEDY.label }).click();
   await page.getByRole("button", { name: sv.optimize.startButton }).click();
   await expect(page.getByTestId("last-run-summary").getByTestId("last-run-score-line")).toBeVisible({ timeout: 10_000 });

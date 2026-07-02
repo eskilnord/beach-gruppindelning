@@ -67,58 +67,90 @@ export function ScheduleView({ planId, seasonPlanId, slotBlocks, groups, coachNa
       {grid.rows.length === 0 ? (
         <Text c="dimmed">{sv.results.empty}</Text>
       ) : (
-        <div
-          data-testid="schedule-grid"
-          style={{
-            display: "grid",
-            gridTemplateColumns: `140px repeat(${grid.courts.length}, minmax(160px, 1fr))`,
-            gap: 1,
-            backgroundColor: "var(--mantine-color-gray-3)",
-            border: "1px solid var(--mantine-color-gray-3)",
-          }}
-        >
-          <div style={{ backgroundColor: "var(--mantine-color-gray-0)", padding: 8, fontWeight: 600 }}>
-            {sv.results.schedule.timeColumn}
-          </div>
-          {grid.courts.map((court) => (
-            <div key={court.id} style={{ backgroundColor: "var(--mantine-color-gray-0)", padding: 8, fontWeight: 600 }}>
-              {court.name}
-            </div>
-          ))}
+        // Many courts (spec: horizontal scroll so ALL courts stay readable, never squeezed into
+        // narrow columns) - the inner grid keeps each court column at a readable minmax(160px, 1fr)
+        // floor, so once courts*160px+140px exceeds this outer container's width, the grid itself
+        // overflows it and this wrapper's own overflowX:auto turns that into a scrollbar SCOPED to
+        // the schedule (not the whole page). gp-scroll-fade (app/global.css) adds a subtle right-edge
+        // fade as a scroll affordance on top of the browser's native scrollbar.
+        <div className="gp-scroll-fade">
+          <div data-testid="schedule-grid-scroll" style={{ overflowX: "auto" }}>
+            <div
+              data-testid="schedule-grid"
+              style={{
+                display: "grid",
+                gridTemplateColumns: `140px repeat(${grid.courts.length}, minmax(160px, 1fr))`,
+                gap: 1,
+                backgroundColor: "var(--mantine-color-gray-3)",
+                border: "1px solid var(--mantine-color-gray-3)",
+              }}
+            >
+              <div
+                data-testid="schedule-time-header"
+                style={{
+                  backgroundColor: "var(--mantine-color-gray-0)",
+                  padding: 8,
+                  fontWeight: 600,
+                  position: "sticky",
+                  left: 0,
+                  zIndex: 1,
+                }}
+              >
+                {sv.results.schedule.timeColumn}
+              </div>
+              {grid.courts.map((court) => (
+                <div key={court.id} style={{ backgroundColor: "var(--mantine-color-gray-0)", padding: 8, fontWeight: 600 }}>
+                  {court.name}
+                </div>
+              ))}
 
-          {grid.rows.map((row) => (
-            <Fragment key={row.timeSlotId}>
-              <div style={{ backgroundColor: "white", padding: 8, fontWeight: 500 }}>{row.label}</div>
-              {row.cells.map((cell, cellIndex) => {
-                const cellConflicts =
-                  cell.kind === "group" ? conflictsForCell(conflictList, planId, cell.groupName, row.label) : [];
-                const inactive = cell.kind === "inactive";
-                const empty = cell.kind === "empty";
-                return (
+              {grid.rows.map((row) => (
+                <Fragment key={row.timeSlotId}>
                   <div
-                    key={`${row.timeSlotId}-${cellIndex}`}
-                    data-testid="schedule-cell"
+                    data-testid="schedule-time-label"
                     style={{
                       backgroundColor: "white",
                       padding: 8,
-                      backgroundImage: inactive
-                        ? "repeating-linear-gradient(45deg, var(--mantine-color-gray-2), var(--mantine-color-gray-2) 6px, white 6px, white 12px)"
-                        : undefined,
-                      color: empty || inactive ? "var(--mantine-color-dimmed)" : undefined,
-                      position: "relative",
+                      fontWeight: 500,
+                      position: "sticky",
+                      left: 0,
+                      zIndex: 1,
                     }}
                   >
-                    <Text size="sm">{cellContent(cell)}</Text>
-                    {cellConflicts.length > 0 && (
-                      <Badge color="red" size="xs" mt={4} data-testid="cell-conflict-badge">
-                        {sv.results.schedule.conflictBadge} ({cellConflicts.length})
-                      </Badge>
-                    )}
+                    {row.label}
                   </div>
-                );
-              })}
-            </Fragment>
-          ))}
+                  {row.cells.map((cell, cellIndex) => {
+                    const cellConflicts =
+                      cell.kind === "group" ? conflictsForCell(conflictList, planId, cell.groupName, row.label) : [];
+                    const inactive = cell.kind === "inactive";
+                    const empty = cell.kind === "empty";
+                    return (
+                      <div
+                        key={`${row.timeSlotId}-${cellIndex}`}
+                        data-testid="schedule-cell"
+                        style={{
+                          backgroundColor: "white",
+                          padding: 8,
+                          backgroundImage: inactive
+                            ? "repeating-linear-gradient(45deg, var(--mantine-color-gray-2), var(--mantine-color-gray-2) 6px, white 6px, white 12px)"
+                            : undefined,
+                          color: empty || inactive ? "var(--mantine-color-dimmed)" : undefined,
+                          position: "relative",
+                        }}
+                      >
+                        <Text size="sm">{cellContent(cell)}</Text>
+                        {cellConflicts.length > 0 && (
+                          <Badge color="red" size="xs" mt={4} data-testid="cell-conflict-badge">
+                            {sv.results.schedule.conflictBadge} ({cellConflicts.length})
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })}
+                </Fragment>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </Stack>

@@ -308,6 +308,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{planId}/solve/suggest-duration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["suggestDuration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans/{planId}/solve/cancel": {
         parameters: {
             query?: never;
@@ -1290,6 +1306,8 @@ export interface components {
         };
         SolveRequest: {
             profile?: string;
+            /** Format: int32 */
+            durationSeconds?: number;
             optimize?: components["schemas"]["OptimizeRequest"];
             blocking?: components["schemas"]["BlockingRequest"];
         };
@@ -1300,6 +1318,30 @@ export interface components {
             /** Format: int64 */
             hardViolations?: number;
             feasible?: boolean;
+        };
+        ProblemSize: {
+            /** Format: int32 */
+            participants?: number;
+            /** Format: int32 */
+            groups?: number;
+            /** Format: int32 */
+            activeBlocks?: number;
+            /** Format: int32 */
+            coaches?: number;
+            /** Format: int32 */
+            wishes?: number;
+            /** Format: int32 */
+            customFieldConstraints?: number;
+        };
+        SuggestDurationResponse: {
+            /** Format: int32 */
+            suggestedSeconds?: number;
+            /** Format: double */
+            machineSpeedFactor?: number;
+            /** Format: int64 */
+            benchmarkMs?: number;
+            problemSize?: components["schemas"]["ProblemSize"];
+            rationaleSv?: string;
         };
         CancelSolveResponse: {
             finalRunId?: string;
@@ -1847,6 +1889,7 @@ export interface components {
             groupsRequiringCoachEstimate?: number;
             coachShortageRisk?: boolean;
             coachShortageMessage?: string;
+            noCoaches?: boolean;
             perTimeSlot?: components["schemas"]["TimeSlotCapacityView"][];
         };
         TimeSlotCapacityView: {
@@ -2631,6 +2674,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["SolveResponse"];
+                };
+            };
+        };
+    };
+    suggestDuration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SuggestDurationResponse"];
                 };
             };
         };

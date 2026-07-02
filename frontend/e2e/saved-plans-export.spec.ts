@@ -97,7 +97,7 @@ test("Planer (spara+lås) → Export (flat csv+anonymiserat) → Säsongsvy (ant
 
   // --- Optimering: generate groups, run GREEDY (synchronous, deterministic) ---
   await page.getByRole("tab", { name: sv.plan.tabs.optimize }).click();
-  await expect(page.getByRole("heading", { name: sv.optimize.heading })).toBeVisible();
+  await expect(page.getByRole("heading", { name: sv.optimize.heading, exact: true })).toBeVisible();
   const groupsSummary = page.getByTestId("groups-summary");
   await page.getByRole("button", { name: sv.optimize.groups.generateButton }).click();
   await expect(groupsSummary.getByText(sv.optimize.groups.count(1))).toBeVisible();
@@ -108,6 +108,8 @@ test("Planer (spara+lås) → Export (flat csv+anonymiserat) → Säsongsvy (ant
   await expect(blockingGroup.getByRole("checkbox", { name: sv.optimize.blocking.blockCoaches })).toBeChecked();
   await expect(blockingGroup.getByRole("checkbox", { name: sv.optimize.blocking.blockCourts })).not.toBeChecked();
 
+  // v0.2.0: the presets moved under the "Avancerat" collapse (suggestion-first Optimeringsvy).
+  await page.getByTestId("advanced-toggle").click();
   await page.getByRole("radio", { name: sv.optimize.profiles.GREEDY.label }).click();
   await page.getByRole("button", { name: sv.optimize.startButton }).click();
   const lastRunCard = page.getByTestId("last-run-summary");

@@ -15,15 +15,24 @@ const FIXTURE_PATH = path.join(__dirname, "fixtures/optimize-results-fixture.csv
 
 const SLOT_LABEL = "Torsdag 18.00–19.30";
 
+// v0.2.0 COACH-OPTIONAL SOLVING: the backend's verbatim note (OptimizationRunService.NOTE_NO_COACHES),
+// written into result_summary_json only when the solved plan had zero coach profiles.
+const NO_COACHES_NOTE = "Inga tränare registrerade — grupperna optimerades utan tränartilldelning";
+
 /**
- * M6b frontend acceptance flow (milestone brief): seed a plan (import → resurser → tränare) →
- * generate groups → GREEDY solve (fast, deterministic - no waitlist logic, see GreedyBaselineService
- * javadoc, so this fixture's 6 players comfortably fit the single generated group's fallback
- * target/max of 10/12 and the OPLACERAD/KÖLISTA card is asserted in its empty state) → Resultatvy
- * shows the group with its members → toggle a player lock → Planeringskarta (Schema sub-view) shows
- * the group on the grid → FAST solve → progress panel appears while solving → completion banner.
+ * M6b frontend acceptance flow (milestone brief), extended with the two v0.2.0 features: seed a plan
+ * (import → resurser, deliberately NO coach yet) → the suggest-duration card computes a proposal on
+ * tab open (first call also runs the one-time hardware benchmark) → generate groups → a CUSTOM solve
+ * with a small manual duration via Avancerat (10 s) → completes with the coach-less note visible on
+ * both the last-run card and the Resultatvy header → THEN add the coach → GREEDY solve (fast,
+ * deterministic - no waitlist logic, see GreedyBaselineService javadoc, so this fixture's 6 players
+ * comfortably fit the single generated group's fallback target/max of 10/12 and the OPLACERAD/
+ * KÖLISTA card is asserted in its empty state; the note also disappears now that a coach exists) →
+ * Resultatvy shows the group with its members → toggle a player lock → Planeringskarta (Schema
+ * sub-view) shows the group on the grid → FAST solve → progress panel appears while solving →
+ * completion banner.
  */
-test("Optimering (generera+GREEDY+FAST) → Resultatvy (grupper+kölista+lås) → Planeringskarta", async ({ page }) => {
+test("Optimering (förslag+CUSTOM utan tränare+GREEDY+FAST) → Resultatvy (grupper+kölista+lås) → Planeringskarta", async ({ page }) => {
   const seasonName = `E2E-optimize-sasong-${Date.now()}`;
   const planName = `E2E-optimize-plan-${Date.now()}`;
 
@@ -81,6 +90,41 @@ test("Optimering (generera+GREEDY+FAST) → Resultatvy (grupper+kölista+lås) �
   await slotRow.getByLabel(sv.resources.courtsLabel).blur();
   await expect(slotRow.locator('[data-testid="block-chip"]')).toHaveCount(1);
 
+  // --- Optimering (coach-less, v0.2.0): the suggest-duration card computes a proposal on tab open ---
+  await page.getByRole("tab", { name: sv.plan.tabs.optimize }).click();
+  await expect(page.getByRole("heading", { name: sv.optimize.heading, exact: true })).toBeVisible();
+  const suggestCard = page.getByTestId("suggest-duration-card");
+  // Generous timeout: the first-ever suggest call in this backend process also runs the one-time
+  // hardware benchmark (a fixed synthetic solve, ~2-3 s on the reference machine, cached after).
+  await expect(suggestCard.getByTestId("suggest-seconds")).toBeVisible({ timeout: 30_000 });
+  await expect(suggestCard.getByTestId("suggest-problem-size")).toBeVisible();
+
+  const groupsSummary = page.getByTestId("groups-summary");
+  await expect(groupsSummary.getByText(sv.optimize.groups.count(0))).toBeVisible();
+
+  await page.getByRole("button", { name: sv.optimize.groups.generateButton }).click();
+  // Scoped to groups-summary - the "1 grupp genererad." success notification toast also matches
+  // this text and would otherwise make the plain page-wide locator ambiguous (strict mode).
+  await expect(groupsSummary.getByText(sv.optimize.groups.count(1))).toBeVisible();
+
+  // --- CUSTOM solve with a small manual duration via Avancerat (v0.2.0) ---
+  await page.getByTestId("advanced-toggle").click();
+  await page.getByRole("radio", { name: sv.optimize.profiles.CUSTOM.label }).click();
+  await page.getByLabel(sv.optimize.advanced.customSecondsLabel).fill("10");
+  await page.getByRole("button", { name: sv.optimize.startButton }).click();
+
+  await expect(page.getByTestId("solve-progress")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("solve-progress")).toHaveCount(0, { timeout: 25_000 });
+  const lastRunCard = page.getByTestId("last-run-summary");
+  await expect(lastRunCard.getByTestId("last-run-score-line")).toBeVisible({ timeout: 10_000 });
+
+  // --- The run solved a plan with zero coaches -> the note shows on the last-run card... ---
+  await expect(lastRunCard.getByTestId("last-run-note")).toHaveText(NO_COACHES_NOTE);
+
+  // --- ...and in the Resultatvy header ---
+  await page.getByRole("tab", { name: sv.plan.tabs.results }).click();
+  await expect(page.getByTestId("results-note")).toHaveText(NO_COACHES_NOTE);
+
   // --- Tränare: one coach, linked to an already-imported participant ---
   await page.getByRole("tab", { name: sv.plan.tabs.coaches }).click();
   await page.getByRole("button", { name: sv.coaches.newCoachButton }).click();
@@ -93,22 +137,16 @@ test("Optimering (generera+GREEDY+FAST) → Resultatvy (grupper+kölista+lås) �
   await expect(coachDialog).toHaveCount(0);
   await expect(page.getByRole("row").filter({ hasText: "Tova Lindberg" })).toHaveCount(1);
 
-  // --- Optimering: generate groups, then run GREEDY (synchronous, deterministic) ---
+  // --- Optimering: run GREEDY (synchronous, deterministic) - the plan now HAS a coach ---
   await page.getByRole("tab", { name: sv.plan.tabs.optimize }).click();
-  await expect(page.getByRole("heading", { name: sv.optimize.heading })).toBeVisible();
-  const groupsSummary = page.getByTestId("groups-summary");
-  await expect(groupsSummary.getByText(sv.optimize.groups.count(0))).toBeVisible();
-
-  await page.getByRole("button", { name: sv.optimize.groups.generateButton }).click();
-  // Scoped to groups-summary - the "1 grupp genererad." success notification toast also matches
-  // this text and would otherwise make the plain page-wide locator ambiguous (strict mode).
-  await expect(groupsSummary.getByText(sv.optimize.groups.count(1))).toBeVisible();
-
+  await page.getByTestId("advanced-toggle").click();
   await page.getByRole("radio", { name: sv.optimize.profiles.GREEDY.label }).click();
   await page.getByRole("button", { name: sv.optimize.startButton }).click();
 
-  const lastRunCard = page.getByTestId("last-run-summary");
   await expect(lastRunCard.getByTestId("last-run-score-line")).toBeVisible({ timeout: 10_000 });
+  // With a coach registered, the fresh run's summary carries no note - the retrying toHaveCount(0)
+  // also doubles as the wait for the runs list to refetch with the new GREEDY run on top.
+  await expect(lastRunCard.getByTestId("last-run-note")).toHaveCount(0, { timeout: 10_000 });
 
   // --- Resultatvy: the group card shows all 6 members, kölistan is empty ---
   await page.getByRole("tab", { name: sv.plan.tabs.results }).click();
@@ -143,6 +181,7 @@ test("Optimering (generera+GREEDY+FAST) → Resultatvy (grupper+kölista+lås) �
 
   // --- Optimering again: a FAST solve shows the live progress panel while it runs ---
   await page.getByRole("tab", { name: sv.plan.tabs.optimize }).click();
+  await page.getByTestId("advanced-toggle").click();
   await page.getByRole("radio", { name: sv.optimize.profiles.FAST.label }).click();
   await page.getByRole("button", { name: sv.optimize.startButton }).click();
 

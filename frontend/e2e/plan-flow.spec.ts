@@ -80,7 +80,7 @@ test("create season → open it → create activity plan → navigate tabs → d
   // full solve/results/schedule flow). No groups generated yet for this fresh plan.
   await page.getByRole("tab", { name: sv.plan.tabs.optimize }).click();
   await expect(page.getByRole("tab", { name: sv.plan.tabs.optimize })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByRole("heading", { name: sv.optimize.heading })).toBeVisible();
+  await expect(page.getByRole("heading", { name: sv.optimize.heading, exact: true })).toBeVisible();
   await expect(page.getByText(sv.optimize.groups.count(0))).toBeVisible();
 
   // Resultat (M6b: Resultatvy, not a placeholder anymore) - empty state before any groups exist.

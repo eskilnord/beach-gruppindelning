@@ -30,6 +30,9 @@ interface GroupCardProps {
   /** The plan's latest run id (M7) - explain/what-if actions are disabled until the plan has been
    *  solved at least once (spec §17/§18 need a run to explain/probe against). */
   runId: string | undefined;
+  /** Ctrl/Cmd+F player search (PlayerSearchSpotlight.tsx): the participant whose row
+   *  ResultsPanel.tsx should scroll to and flash-highlight, from the `?highlight=` query param. */
+  highlightedParticipantId?: string | null;
   onExplain: (participantProfileId: string, name: string) => void;
   onTestMove: (participantProfileId: string, name: string) => void;
   onExplainGroup: (groupId: string, name: string) => void;
@@ -46,7 +49,18 @@ function showError(error: unknown, fallback: string) {
  * (M7, kravspec §17.1 "Gruppnivå"), and per-member [Förklara]/[Testa flytt] buttons (M7, spec §19.10)
  * - all three disabled with a tooltip until the plan has a `runId` to explain/probe against.
  */
-export function GroupCard({ planId, group, timeBanaLabel, coaches, members, runId, onExplain, onTestMove, onExplainGroup }: GroupCardProps) {
+export function GroupCard({
+  planId,
+  group,
+  timeBanaLabel,
+  coaches,
+  members,
+  runId,
+  highlightedParticipantId,
+  onExplain,
+  onTestMove,
+  onExplainGroup,
+}: GroupCardProps) {
   const lockBlock = useLockGroupBlock(planId);
   const unlockBlock = useUnlockGroupBlock(planId);
   const lockCoach = useLockGroupCoach(planId);
@@ -187,7 +201,11 @@ export function GroupCard({ planId, group, timeBanaLabel, coaches, members, runI
       <Table verticalSpacing={4} withTableBorder>
         <Table.Tbody>
           {members.map((member) => (
-            <Table.Tr key={member.participantProfileId}>
+            <Table.Tr
+              key={member.participantProfileId}
+              id={`participant-row-${member.participantProfileId}`}
+              className={highlightedParticipantId === member.participantProfileId ? "gp-highlight-flash" : undefined}
+            >
               <Table.Td>{member.name}</Table.Td>
               <Table.Td>{member.level != null ? Math.round(member.level) : "—"}</Table.Td>
               <Table.Td>

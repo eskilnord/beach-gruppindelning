@@ -13,6 +13,7 @@ import se.klubb.groupplanner.solver.assemble.OptimizeSelection;
 import se.klubb.groupplanner.solver.run.SolveCoordinator;
 import se.klubb.groupplanner.solver.run.SolveProfile;
 import se.klubb.groupplanner.solver.run.SolveStatus;
+import se.klubb.groupplanner.solver.run.SuggestDurationService;
 
 /**
  * Solve lifecycle endpoints (docs/design/04-solver.md §14.2): start/status/cancel. {@code
@@ -43,9 +44,11 @@ public class SolveController {
     private static final String GREEDY_PROFILE = "GREEDY";
 
     private final SolveCoordinator solveCoordinator;
+    private final SuggestDurationService suggestDurationService;
 
-    public SolveController(SolveCoordinator solveCoordinator) {
+    public SolveController(SolveCoordinator solveCoordinator, SuggestDurationService suggestDurationService) {
         this.solveCoordinator = solveCoordinator;
+        this.suggestDurationService = suggestDurationService;
     }
 
     @PostMapping("/api/plans/{planId}/solve")
@@ -61,13 +64,30 @@ public class SolveController {
                     result.runId(), "FINISHED", result.score().toString(), result.hardViolations(), result.feasible()));
         }
         SolveProfile profile = SolveProfile.fromString(profileStr);
+        Integer durationSeconds = request == null ? null : request.durationSeconds();
+        if (profile == SolveProfile.CUSTOM) {
+            // Fail fast on the HTTP request (400) before ever touching the assembler/SolverManager;
+            // SolveCoordinator re-validates defensively too (see its own javadoc).
+            SolveProfile.requireValidCustomDuration(durationSeconds);
+        }
         OptimizeSelection optimize = optimizeOf(request);
         BlockingOptions blocking = blockingOf(request);
-        String runId = solveCoordinator.startSolve(planId, profile, optimize, blocking);
+        String runId = solveCoordinator.startSolve(planId, profile, durationSeconds, optimize, blocking);
         // Report the ACTUAL SolverManager status (SOLVING_SCHEDULED until a solver thread picks the
         // job up, then SOLVING_ACTIVE) rather than a hardcoded value (review fix 8).
         String status = solveCoordinator.status(planId).status();
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(new SolveResponse(runId, status, null, null, null));
+    }
+
+    /**
+     * v0.2.0 (SUGGESTED OPTIMIZATION TIME): proposes a {@code durationSeconds} for the {@code CUSTOM}
+     * profile instead of making the user pick blind — see {@link SuggestDurationService}'s javadoc
+     * for the full formula/rationale. 409 while a solve is active for this plan (the hardware
+     * benchmark competes for CPU).
+     */
+    @PostMapping("/api/plans/{planId}/solve/suggest-duration")
+    public SuggestDurationService.SuggestDurationResponse suggestDuration(@PathVariable String planId) {
+        return suggestDurationService.suggest(planId);
     }
 
     @GetMapping("/api/plans/{planId}/solve/status")
@@ -102,8 +122,11 @@ public class SolveController {
                 Boolean.TRUE.equals(b.conflictsAsWarnings()));
     }
 
+    /** {@code durationSeconds} (v0.2.0) is REQUIRED (10..900, 400 outside) exactly when {@code
+     * profile == "CUSTOM"}; ignored for FAST/NORMAL/THOROUGH/GREEDY (no error if present, matching
+     * this record's existing lenient-unknown-fields convention). */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record SolveRequest(String profile, OptimizeRequest optimize, BlockingRequest blocking) {
+    public record SolveRequest(String profile, Integer durationSeconds, OptimizeRequest optimize, BlockingRequest blocking) {
     }
 
     /** §15.5 "Optimera endast X" — a {@code null} field (or an absent {@code optimize} object

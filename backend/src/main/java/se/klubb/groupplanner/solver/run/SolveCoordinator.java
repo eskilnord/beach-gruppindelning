@@ -7,6 +7,7 @@ import ai.timefold.solver.core.api.solver.SolutionManager;
 import ai.timefold.solver.core.api.solver.SolverConfigOverride;
 import ai.timefold.solver.core.api.solver.SolverManager;
 import ai.timefold.solver.core.api.solver.SolverStatus;
+import ai.timefold.solver.core.config.solver.termination.TerminationConfig;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
@@ -94,13 +95,31 @@ public class SolveCoordinator {
 
     /** Convenience overload: full optimize, no cross-plan blocking (M6a's exact behavior). */
     public String startSolve(String activityPlanId, SolveProfile profile) {
-        return startSolve(activityPlanId, profile, OptimizeSelection.ALL, BlockingOptions.NONE);
+        return startSolve(activityPlanId, profile, null, OptimizeSelection.ALL, BlockingOptions.NONE);
     }
 
-    /** Starts an async solve; returns the new {@code optimization_run} id. 409 if already solving
-     * (including a concurrent racing start — see {@link #startingByActivityPlanId}), 404/400 (via
-     * {@code SolverInputAssembler}) if the plan/pins/weights are invalid. */
+    /** Convenience overload for a fixed preset profile (not {@link SolveProfile#CUSTOM}) — M6b's
+     * exact signature, kept for existing non-CUSTOM callers; delegates with no custom duration. */
     public String startSolve(String activityPlanId, SolveProfile profile, OptimizeSelection optimize, BlockingOptions blocking) {
+        return startSolve(activityPlanId, profile, null, optimize, blocking);
+    }
+
+    /**
+     * Starts an async solve; returns the new {@code optimization_run} id. 409 if already solving
+     * (including a concurrent racing start — see {@link #startingByActivityPlanId}), 404/400 (via
+     * {@code SolverInputAssembler}) if the plan/pins/weights are invalid.
+     *
+     * <p>{@code customDurationSeconds} (v0.2.0, SUGGESTED OPTIMIZATION TIME) is required exactly when
+     * {@code profile == SolveProfile.CUSTOM} (re-validated here via {@link
+     * SolveProfile#requireValidCustomDuration(Integer)} even though {@code SolveController} already
+     * validated it — defensive re-check, same convention as {@code SolverInputAssembler}'s
+     * reserved-MEDIUM guardrail) and ignored for every other profile.
+     */
+    public String startSolve(
+            String activityPlanId, SolveProfile profile, Integer customDurationSeconds, OptimizeSelection optimize, BlockingOptions blocking) {
+        if (profile == SolveProfile.CUSTOM) {
+            SolveProfile.requireValidCustomDuration(customDurationSeconds);
+        }
         if (startingByActivityPlanId.putIfAbsent(activityPlanId, Boolean.TRUE) != null) {
             throw new ConflictException("A solve is already being started for plan " + activityPlanId);
         }
@@ -114,7 +133,11 @@ public class SolveCoordinator {
             try {
                 assembledByActivityPlanId.put(activityPlanId, assembled);
                 cancelledByActivityPlanId.remove(activityPlanId);
-                progressRegistry.start(activityPlanId, run.id(), profile.limitMs());
+                TerminationConfig termination = profile == SolveProfile.CUSTOM
+                        ? SolveProfile.customTerminationConfig(customDurationSeconds)
+                        : profile.terminationConfig();
+                long limitMs = profile == SolveProfile.CUSTOM ? SolveProfile.customLimitMs(customDurationSeconds) : profile.limitMs();
+                progressRegistry.start(activityPlanId, run.id(), limitMs);
 
                 solverManager.solveBuilder()
                         .withProblemId(activityPlanId)
@@ -122,7 +145,7 @@ public class SolveCoordinator {
                         .withBestSolutionEventConsumer(event -> progressRegistry.onBestSolution(activityPlanId, event.solution()))
                         .withFinalBestSolutionEventConsumer(event -> onFinalBestSolution(activityPlanId, run.id(), event.solution()))
                         .withExceptionHandler((id, ex) -> onException(id, run.id(), ex))
-                        .withConfigOverride(new SolverConfigOverride<GroupPlanSolution>().withTerminationConfig(profile.terminationConfig()))
+                        .withConfigOverride(new SolverConfigOverride<GroupPlanSolution>().withTerminationConfig(termination))
                         .run();
             } catch (RuntimeException e) {
                 // The run row was already inserted as SOLVING - never leave it orphaned.
@@ -193,7 +216,8 @@ public class SolveCoordinator {
             int unassignedCount = ProgressRegistry.unassignedCount(result);
             ScoreAnalysis<HardMediumSoftLongScore> analysis =
                     solutionManager.analyze(result, ScoreAnalysisFetchPolicy.FETCH_ALL);
-            optimizationRunService.finishRun(run.id(), score, unassignedCount, false, analysis, planRevisionAtFinish);
+            optimizationRunService.finishRun(
+                    run.id(), score, unassignedCount, false, analysis, planRevisionAtFinish, result.getCoaches().isEmpty());
             return new GreedyResult(run.id(), score);
         } catch (RuntimeException e) {
             optimizationRunService.failRun(run.id(), e);
@@ -270,7 +294,8 @@ public class SolveCoordinator {
         int unassignedCount = ProgressRegistry.unassignedCount(finalSolution);
         ScoreAnalysis<HardMediumSoftLongScore> analysis =
                 solutionManager.analyze(finalSolution, ScoreAnalysisFetchPolicy.FETCH_ALL);
-        optimizationRunService.finishRun(runId, finalSolution.getScore(), unassignedCount, cancelled, analysis, planRevisionAtFinish);
+        optimizationRunService.finishRun(runId, finalSolution.getScore(), unassignedCount, cancelled, analysis,
+                planRevisionAtFinish, finalSolution.getCoaches().isEmpty());
         progressRegistry.clear(activityPlanId);
     }
 

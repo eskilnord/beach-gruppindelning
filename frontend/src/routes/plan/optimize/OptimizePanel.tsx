@@ -10,6 +10,7 @@ import {
   Checkbox,
   Group,
   Loader,
+  NumberInput,
   Progress,
   Radio,
   Stack,
@@ -24,22 +25,37 @@ import { useConstraintWeights } from "../../../api/constraintWeights";
 import { useGenerateGroups, useGroups } from "../../../api/groups";
 import { runsKey, useOptimizationRuns } from "../../../api/runs";
 import { invalidateResultQueries, isSolveRunning, useCancelSolve, useSolveStatus, useStartSolve } from "../../../api/solve";
-import type { SolveProfile } from "../../../api/types";
+import type { SolveProfile, SolveRequestBody } from "../../../api/types";
 import { sv } from "../../../i18n/sv";
 import { formatDateTime } from "../../../lib/formatDateTime";
 import { PlanAnalysisSection } from "./PlanAnalysisSection";
 import { formatScoreLine } from "./scoreFormat";
 import { parseResultSummary, runDurationSeconds } from "./runSummary";
+import { SuggestDurationCard } from "./SuggestDurationCard";
 
-const PROFILES: SolveProfile[] = ["FAST", "NORMAL", "THOROUGH", "GREEDY"];
+/** Avancerat-panel choices (v0.2.0): the three wall-clock presets + the GREEDY baseline + CUSTOM
+ *  ("Egen tid") with its own seconds input. The suggestion-first primary flow (SuggestDurationCard)
+ *  bypasses this list entirely and always submits CUSTOM with the suggested duration. */
+const PROFILES: SolveProfile[] = ["FAST", "NORMAL", "THOROUGH", "GREEDY", "CUSTOM"];
+
+/** Mirror of the backend's SolveProfile.CUSTOM_MIN/MAX_SECONDS (10..900, 400 outside) - used only to
+ *  gate the Avancerat start button client-side; the backend remains the source of truth. */
+const CUSTOM_MIN_SECONDS = 10;
+const CUSTOM_MAX_SECONDS = 900;
 
 /**
- * Optimeringsvy (spec §19.9): profile picker, a collapsible read-only constraint-weights summary
- * (reuses the M4 `constraint-weights` data, links to Fält for editing), §15.5 "Optimera endast"
- * checkboxes, start/cancel with a 1s-polling progress panel, and a persistent "Senaste körning"
- * card that doubles as the completion result banner (feasible green / hard-violations red) - see
+ * Optimeringsvy (spec §19.9, suggestion-first since v0.2.0): the SUGGESTED OPTIMIZATION TIME card
+ * (fetched eagerly on tab open - SuggestDurationCard.tsx) is the primary flow, its
+ * [Optimera (N s)]-button submitting `{profile:"CUSTOM", durationSeconds:N}`; the old presets
+ * (Snabb/Normal/Grundlig/Greedy) plus a manual seconds input live on under an "Avancerat" collapse
+ * with the original "Starta optimering" button. Also: a collapsible read-only constraint-weights
+ * summary (reuses the M4 `constraint-weights` data, links to Fält for editing), §15.5 "Optimera
+ * endast" checkboxes (they apply to BOTH start paths), start/cancel with a 1s-polling progress panel
+ * (the backend's `limitMs` already reflects a CUSTOM duration, so the bar needs no special-casing),
+ * and a persistent "Senaste körning" card that doubles as the completion result banner - see
  * `api/runs.ts`'s javadoc for why that reads `GET .../runs` rather than the (post-completion, empty)
- * `GET .../solve/status`.
+ * `GET .../solve/status`. The run summary's v0.2.0 `note` (coach-less solve) renders as an info
+ * Alert under the score banner.
  */
 export function OptimizePanel() {
   const { planId } = useParams<{ planId: string }>();
@@ -55,6 +71,7 @@ export function OptimizePanel() {
   const cancelSolve = useCancelSolve(planId ?? "");
 
   const [profile, setProfile] = useState<SolveProfile>("NORMAL");
+  const [customSeconds, setCustomSeconds] = useState<number | "">(60);
   const [optimizePlayers, setOptimizePlayers] = useState(true);
   const [optimizeSchedule, setOptimizeSchedule] = useState(true);
   const [optimizeCoaches, setOptimizeCoaches] = useState(true);
@@ -105,28 +122,36 @@ export function OptimizePanel() {
     });
   };
 
-  const handleStart = () => {
-    startSolve.mutate(
-      {
-        profile,
-        optimize: { players: optimizePlayers, schedule: optimizeSchedule, coaches: optimizeCoaches },
-        blocking: { blockPlayers, blockCoaches, blockCourts, conflictsAsWarnings },
+  // Shared by both start paths (the suggestion card's primary [Optimera (N s)] and the Avancerat
+  // panel's "Starta optimering"): one mutation, one error surface. A 409 (a solve already active -
+  // e.g. a race with another window) arrives as an ApiError whose backend message is shown verbatim
+  // in the toast; the buttons are additionally disabled while `running`, so the 409 path is a
+  // race-window fallback, not the normal guard.
+  const handleStart = (startProfile: SolveProfile, durationSeconds?: number) => {
+    const body: SolveRequestBody = {
+      profile: startProfile,
+      durationSeconds,
+      optimize: { players: optimizePlayers, schedule: optimizeSchedule, coaches: optimizeCoaches },
+      blocking: { blockPlayers, blockCoaches, blockCourts, conflictsAsWarnings },
+    };
+    startSolve.mutate(body, {
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: runsKey(planId) });
+        invalidateResultQueries(queryClient, planId);
       },
-      {
-        onSuccess: () => {
-          void queryClient.invalidateQueries({ queryKey: runsKey(planId) });
-          invalidateResultQueries(queryClient, planId);
-        },
-        onError: (error) => {
-          notifications.show({
-            color: "red",
-            title: sv.common.error,
-            message: error instanceof ApiError ? error.message : sv.optimize.startFailed,
-          });
-        },
+      onError: (error) => {
+        notifications.show({
+          color: "red",
+          title: sv.common.error,
+          message: error instanceof ApiError ? error.message : sv.optimize.startFailed,
+        });
       },
-    );
+    });
   };
+
+  const customSecondsValid =
+    typeof customSeconds === "number" && customSeconds >= CUSTOM_MIN_SECONDS && customSeconds <= CUSTOM_MAX_SECONDS;
+  const advancedStartDisabled = running || (profile === "CUSTOM" && !customSecondsValid);
 
   const handleCancel = () => {
     cancelSolve.mutate(undefined, {
@@ -162,19 +187,6 @@ export function OptimizePanel() {
             {sv.optimize.groups.generateButton}
           </Button>
         </Group>
-
-        <Radio.Group
-          value={profile}
-          onChange={(value) => setProfile(value as SolveProfile)}
-          label={sv.optimize.profileHeading}
-          mb="lg"
-        >
-          <Stack gap="xs" mt="xs">
-            {PROFILES.map((p) => (
-              <Radio key={p} value={p} label={sv.optimize.profiles[p].label} description={sv.optimize.profiles[p].description} />
-            ))}
-          </Stack>
-        </Radio.Group>
 
         <Accordion variant="separated" mb="lg">
           <Accordion.Item value="weights">
@@ -275,9 +287,58 @@ export function OptimizePanel() {
           />
         </Group>
 
-        <Button onClick={handleStart} loading={startSolve.isPending} disabled={running}>
-          {sv.optimize.startButton}
-        </Button>
+        <SuggestDurationCard
+          planId={planId}
+          solveActive={running}
+          startPending={startSolve.isPending}
+          onOptimize={(durationSeconds) => handleStart("CUSTOM", durationSeconds)}
+        />
+
+        <Accordion variant="separated">
+          <Accordion.Item value="advanced">
+            <Accordion.Control data-testid="advanced-toggle">{sv.optimize.advanced.heading}</Accordion.Control>
+            <Accordion.Panel>
+              <Radio.Group
+                value={profile}
+                onChange={(value) => setProfile(value as SolveProfile)}
+                label={sv.optimize.profileHeading}
+                mb="md"
+              >
+                <Stack gap="xs" mt="xs">
+                  {PROFILES.map((p) => (
+                    <Radio
+                      key={p}
+                      value={p}
+                      label={sv.optimize.profiles[p].label}
+                      description={sv.optimize.profiles[p].description}
+                    />
+                  ))}
+                </Stack>
+              </Radio.Group>
+
+              {profile === "CUSTOM" && (
+                <NumberInput
+                  label={sv.optimize.advanced.customSecondsLabel}
+                  min={CUSTOM_MIN_SECONDS}
+                  max={CUSTOM_MAX_SECONDS}
+                  w={200}
+                  mb="md"
+                  value={customSeconds}
+                  onChange={(value) => setCustomSeconds(value === "" ? "" : Number(value))}
+                />
+              )}
+
+              <Button
+                variant="default"
+                onClick={() => handleStart(profile, profile === "CUSTOM" ? Number(customSeconds) : undefined)}
+                loading={startSolve.isPending}
+                disabled={advancedStartDisabled}
+              >
+                {sv.optimize.startButton}
+              </Button>
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
       </Card>
 
       {running && (
@@ -324,6 +385,14 @@ export function OptimizePanel() {
             >
               <Text data-testid="last-run-score-line">{formatScoreLine(latestSummary)}</Text>
             </Alert>
+            {latestSummary.note && (
+              // v0.2.0 (COACH-OPTIONAL SOLVING): the backend's own Swedish note, verbatim - present
+              // only when the run solved a plan with zero coaches. Info, not a warning: solving
+              // without coaches is fully supported.
+              <Alert color="blue" data-testid="last-run-note">
+                {latestSummary.note}
+              </Alert>
+            )}
             <Group gap="xs">
               {latestRun.status === "CANCELLED" && <Badge color="yellow">{sv.optimize.lastRun.cancelledBadge}</Badge>}
               {latestDurationSeconds != null && (

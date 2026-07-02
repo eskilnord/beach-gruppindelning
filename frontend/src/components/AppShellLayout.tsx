@@ -1,4 +1,4 @@
-import { AppShell, Group, NavLink, Text, Title } from "@mantine/core";
+import { ActionIcon, AppShell, Group, NavLink, Text, Title, Tooltip } from "@mantine/core";
 import { Outlet, useParams } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { useSeason } from "../api/seasons";
@@ -6,22 +6,43 @@ import { usePlan } from "../api/plans";
 import { sv } from "../i18n/sv";
 import { BackendStatusFooter } from "./BackendStatusFooter";
 import { ReconnectOverlay } from "./ReconnectOverlay";
+import { PlayerSearchSpotlight } from "./playersearch/PlayerSearchSpotlight";
+import { TutorialModal } from "./tutorial/TutorialModal";
+import { useTutorialStore } from "./tutorial/tutorialStore";
 
 /**
  * App shell: sidebar navigation (Hem, aktiv säsong, aktiv plan) + footer backend-status indicator +
  * main content outlet. `useParams` here picks up seasonId/planId from whichever nested route is
- * currently active, since child route params merge upward to the whole matched branch.
+ * currently active, since child route params merge upward to the whole matched branch. Also hosts
+ * the two app-wide singletons that need to live above every route: the "?" kom-igång-guiden
+ * affordance + its <TutorialModal> (feature: available everywhere, not just on Startvy), and the
+ * Ctrl/Cmd+F <PlayerSearchSpotlight>, mounted only while a plan is active (planId present).
  */
 export function AppShellLayout() {
   const { seasonId, planId } = useParams<{ seasonId?: string; planId?: string }>();
   const { data: season } = useSeason(seasonId);
   const { data: plan } = usePlan(planId);
+  const tutorialOpened = useTutorialStore((state) => state.opened);
+  const openTutorial = useTutorialStore((state) => state.open);
+  const closeTutorial = useTutorialStore((state) => state.close);
 
   return (
     <AppShell header={{ height: 56 }} navbar={{ width: 240, breakpoint: "sm" }} padding="md">
       <AppShell.Header>
-        <Group h="100%" px="md">
+        <Group h="100%" px="md" justify="space-between">
           <Title order={4}>{sv.app.title}</Title>
+          <Tooltip label={sv.tutorial.headerButtonTooltip}>
+            <ActionIcon
+              variant="default"
+              radius="xl"
+              size="lg"
+              aria-label={sv.tutorial.headerButtonTooltip}
+              onClick={openTutorial}
+              data-testid="tutorial-open-button"
+            >
+              ?
+            </ActionIcon>
+          </Tooltip>
         </Group>
       </AppShell.Header>
 
@@ -58,6 +79,9 @@ export function AppShellLayout() {
       </AppShell.Main>
 
       <ReconnectOverlay />
+
+      <TutorialModal opened={tutorialOpened} planId={planId} onClose={closeTutorial} />
+      {planId && <PlayerSearchSpotlight planId={planId} />}
     </AppShell>
   );
 }

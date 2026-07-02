@@ -1,5 +1,5 @@
-import { useParams } from "react-router-dom";
-import { Alert, Badge, Card, Group, Loader, SimpleGrid, Table, Text, Title } from "@mantine/core";
+import { useNavigate, useParams } from "react-router-dom";
+import { Alert, Badge, Button, Card, Group, Loader, SimpleGrid, Table, Text, Title } from "@mantine/core";
 import { useCapacity } from "../../../api/capacity";
 import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
@@ -40,6 +40,7 @@ function HeadlineCard({ label, value, caption }: HeadlineCardProps) {
  */
 export function CapacityPanel() {
   const { planId } = useParams<{ planId: string }>();
+  const navigate = useNavigate();
   const capacity = useCapacity(planId);
 
   if (capacity.isLoading) {
@@ -109,9 +110,24 @@ export function CapacityPanel() {
           <Text fw={600}>{data.groupsRequiringCoachEstimate}</Text>
         </div>
       </Group>
-      <Alert color={coachBanner.color} title={coachBanner.title} mb="md">
-        {coachBanner.message}
-      </Alert>
+      {data.noCoaches ? (
+        // v0.2.0 (COACH-OPTIONAL SOLVING): zero coaches is a deliberate, fully supported state, not
+        // a shortage to alarm on (CapacityResponse's own javadoc: check noCoaches BEFORE
+        // coachShortageRisk) - neutral blue INFO, with a hint that optimization works without
+        // coaches and a shortcut to the Tränare tab for those who do want them assigned.
+        <Alert color="blue" title={sv.capacity.noCoaches.title} mb="md" data-testid="no-coaches-info">
+          <Text size="sm" mb="xs">
+            {sv.capacity.noCoaches.body}
+          </Text>
+          <Button size="xs" variant="light" onClick={() => navigate(`/plans/${planId}/tranare`)}>
+            {sv.capacity.noCoaches.goToCoachesButton}
+          </Button>
+        </Alert>
+      ) : (
+        <Alert color={coachBanner.color} title={coachBanner.title} mb="md">
+          {coachBanner.message}
+        </Alert>
+      )}
 
       <Title order={5} mb="xs">
         {sv.capacity.perSlotHeading}

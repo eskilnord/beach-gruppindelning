@@ -118,6 +118,7 @@ export type CapacityResponse = Omit<
     | "groupsRequiringCoachEstimate"
     | "coachShortageRisk"
     | "coachShortageMessage"
+    | "noCoaches"
   >,
   "perTimeSlot"
 > & {
@@ -146,7 +147,10 @@ export interface AssignmentsView {
   coaches: CoachAssignment[];
 }
 
-export type SolveProfile = "FAST" | "NORMAL" | "THOROUGH" | "GREEDY";
+/** {@code CUSTOM} (v0.2.0, SUGGESTED OPTIMIZATION TIME) requires an accompanying
+ *  {@code durationSeconds} (10..900, backend 400s outside - SolveProfile.requireValidCustomDuration);
+ *  the other four ignore it. */
+export type SolveProfile = "FAST" | "NORMAL" | "THOROUGH" | "GREEDY" | "CUSTOM";
 
 export interface OptimizeSelectionRequest {
   players?: boolean;
@@ -165,12 +169,32 @@ export interface BlockingSelectionRequest {
   conflictsAsWarnings?: boolean;
 }
 
-/** Hand-written request body for `POST .../solve`; mirrors backend SolveController.SolveRequest. */
+/** Hand-written request body for `POST .../solve`; mirrors backend SolveController.SolveRequest.
+ *  `durationSeconds` is required exactly when `profile === "CUSTOM"` (v0.2.0). */
 export interface SolveRequestBody {
   profile: SolveProfile;
+  durationSeconds?: number;
   optimize?: OptimizeSelectionRequest;
   blocking?: BlockingSelectionRequest;
 }
+
+/** `POST .../solve/suggest-duration` (v0.2.0, SUGGESTED OPTIMIZATION TIME): the backend's proposed
+ *  CUSTOM `durationSeconds` for this plan, from its problem size + a cached hardware benchmark
+ *  (SuggestDurationService). 409 while a solve is active (the benchmark competes for CPU). Nested
+ *  `problemSize` re-narrowed per this file's established composite-type idiom (NOTE above). */
+export type SuggestDurationProblemSize = WithRequired<
+  components["schemas"]["ProblemSize"],
+  "participants" | "groups" | "activeBlocks" | "coaches" | "wishes" | "customFieldConstraints"
+>;
+export type SuggestDurationResponse = Omit<
+  WithRequired<
+    components["schemas"]["SuggestDurationResponse"],
+    "suggestedSeconds" | "machineSpeedFactor" | "benchmarkMs" | "rationaleSv"
+  >,
+  "problemSize"
+> & {
+  problemSize: SuggestDurationProblemSize;
+};
 
 /** {@code POST/GET .../solve} responses now derive from a concrete `SolveResponse` schema
  *  (SolveController was changed from `ResponseEntity<?>` to `ResponseEntity<SolveResponse>` as part
@@ -197,6 +221,10 @@ export interface RunResultSummary {
   soft: number;
   feasible: boolean;
   unassignedCount: number;
+  /** v0.2.0 (COACH-OPTIONAL SOLVING): the backend's UI-facing note, present only when the solved
+   *  plan had zero coach profiles (OptimizationRunService.NOTE_NO_COACHES) - surfaced as an info
+   *  Alert on the last-run card and the Resultatvy header. */
+  note: string | null;
 }
 
 export type ConflictUsage = WithRequired<

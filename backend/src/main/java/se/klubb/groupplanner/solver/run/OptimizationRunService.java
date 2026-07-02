@@ -44,6 +44,12 @@ import se.klubb.groupplanner.util.Uuid7;
 @Service
 public class OptimizationRunService {
 
+    /** v0.2.0 (COACH-OPTIONAL SOLVING): the UI-facing note surfaced in {@code result_summary_json}
+     * ONLY when the solved plan had zero coach profiles (see {@link #finishRun}'s {@code noCoaches}
+     * parameter and backend/docs/v020-notes.md) - the same wording for both a real solve and the
+     * GREEDY baseline, since both funnel through this one method. */
+    public static final String NOTE_NO_COACHES = "Inga tränare registrerade — grupperna optimerades utan tränartilldelning";
+
     private final OptimizationRunRepository optimizationRunRepository;
     private final ObjectMapper objectMapper;
 
@@ -73,7 +79,11 @@ public class OptimizationRunService {
      * persisted solution ({@code null} only tolerated for callers that genuinely have no solution to
      * analyze — none currently do; {@code SolveCoordinator} always supplies one). {@code
      * planRevisionAtFinish} is {@code activity_plan.plan_revision} immediately AFTER this run's own
-     * writeback (+ bump) — see {@code ActivityPlanRepository#bumpRevision}.
+     * writeback (+ bump) — see {@code ActivityPlanRepository#bumpRevision}. {@code noCoaches}
+     * (v0.2.0) is {@code true} when the solved {@code GroupPlanSolution} had zero {@code CoachFact}s
+     * (i.e. the plan has no coach_profile rows at all - see {@code SolverInputAssembler}'s CoachSlot
+     * skip and backend/docs/v020-notes.md); it adds a {@code note} field to the persisted summary the
+     * UI can show instead of silently looking like coaches were simply forgotten.
      */
     public OptimizationRun finishRun(
             String runId,
@@ -81,7 +91,8 @@ public class OptimizationRunService {
             int unassignedCount,
             boolean cancelled,
             ScoreAnalysis<HardMediumSoftLongScore> analysis,
-            int planRevisionAtFinish) {
+            int planRevisionAtFinish,
+            boolean noCoaches) {
         OptimizationRun run = optimizationRunRepository.findById(runId)
                 .orElseThrow(() -> new IllegalStateException("optimization_run vanished mid-solve: " + runId));
         Instant finishedAt = Instant.now();
@@ -93,6 +104,9 @@ public class OptimizationRunService {
         summary.put("feasible", score.isFeasible());
         summary.put("unassignedCount", unassignedCount);
         summary.put("constraintSummaries", constraintSummariesOf(analysis));
+        if (noCoaches) {
+            summary.put("note", NOTE_NO_COACHES);
+        }
         OptimizationRun updated = new OptimizationRun(
                 run.id(),
                 run.activityPlanId(),

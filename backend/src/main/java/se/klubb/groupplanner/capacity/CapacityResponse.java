@@ -16,6 +16,15 @@ import java.util.List;
  * coachesAvailableCount} counts coaches NOT marked {@code UNAVAILABLE} at that slot (neutral/
  * unlisted = available); {@code coachesPreferredCount} is the subset explicitly marked {@code
  * PREFERRED} (a forward signal for M6b's coach-preference soft constraint).
+ *
+ * <p><b>{@code noCoaches} (v0.2.0, COACH-OPTIONAL SOLVING):</b> {@code coachCount == 0} is a
+ * deliberate "no tränare registered yet" state, not a shortage to alarm on with the red {@code
+ * coachShortageRisk} styling — a council may genuinely run a plan with no coaches at all (user
+ * feedback from the first field test: "om man inte lägger till tränare så ska man ändå kunna
+ * optimera grupperna"). When {@code noCoaches} is {@code true}, {@code coachShortageRisk} is forced
+ * {@code false} and {@code coachShortageMessage} is repurposed to the neutral, INFO-level "Inga
+ * tränare registrerade" instead of the "Risk för tränarbrist: ..." wording — the UI should treat
+ * {@code noCoaches} as its own (blue/info) banner state, checked before {@code coachShortageRisk}.
  */
 public record CapacityResponse(
         int participantCount,
@@ -31,6 +40,7 @@ public record CapacityResponse(
         int groupsRequiringCoachEstimate,
         boolean coachShortageRisk,
         String coachShortageMessage,
+        boolean noCoaches,
         List<TimeSlotCapacityView> perTimeSlot) {
 
     /** No configured default sizes -&gt; target/max capacity can't be computed at all. */

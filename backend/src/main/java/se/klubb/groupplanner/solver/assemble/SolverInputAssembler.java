@@ -427,30 +427,49 @@ public class SolverInputAssembler {
         }
 
         // --- CoachSlot entities ---
-        Map<String, List<CoachAssignment>> coachAssignmentsByGroupId = new HashMap<>();
-        for (CoachAssignment ca : coachAssignments) {
-            coachAssignmentsByGroupId.computeIfAbsent(ca.groupId(), k -> new ArrayList<>()).add(ca);
-        }
+        // v0.2.0 (COACH-OPTIONAL SOLVING, user feedback from the first field test): a plan with ZERO
+        // coach_profiles must solve end-to-end with no coach-related hard violations. Before this
+        // change, GroupGenerator's newly-created groups default to requiredCoachCount=1 (see its own
+        // javadoc/constructor call - unrelated to this feature, a pre-existing default), so a
+        // coach-less plan still got one CoachSlot per group; every slot then had NO CoachFact to
+        // resolve to (coachFacts is empty whenever coachProfiles is empty), stayed unassigned, and
+        // coachRequirementHard (HARD) penalized every single one - confirmed by the M7 E2E transcript
+        // (backend/docs/m7-notes.md: "Hard=-12 is coachRequirementHard (no coaches seeded)") and
+        // reproduced/documented in backend/docs/v020-notes.md. Fix: skip CoachSlot construction
+        // entirely (regardless of any group's requiredCoachCount) whenever the PLAN has no coach
+        // profiles at all - not a per-group requiredCoachCount=0 special case (that already worked;
+        // this is the "no coaches registered anywhere" case). With zero CoachSlot entities, every
+        // coach-related constraint (coachRequirementHard/coachNoOverlap/coachAvailabilityHard/
+        // coachMaxGroups/coachLevelFit/coachPreferenceSoft/coachWish*/coachCannotTrainAndCoachSameTime/
+        // savedPlanCoachBlocked/coachPreferredTimeSlot) is inert by construction (each iterates
+        // CoachSlot.class, which is now empty) - verified in
+        // solver.constraints.CoachlessConstraintInertnessTest.
         List<CoachSlot> coachSlots = new ArrayList<>();
-        for (TrainingGroup tg : trainingGroups) {
-            Group fact = groupByDbId.get(tg.id());
-            List<CoachAssignment> existingForGroup = coachAssignmentsByGroupId.getOrDefault(tg.id(), List.of()).stream()
-                    .sorted((a, b) -> a.id().compareTo(b.id()))
-                    .toList();
-            for (int slotIndex = 0; slotIndex < tg.requiredCoachCount(); slotIndex++) {
-                CoachFact initialCoach = null;
-                boolean pinned = false;
-                if (slotIndex < existingForGroup.size()) {
-                    CoachAssignment ca = existingForGroup.get(slotIndex);
-                    initialCoach = coachFactByDbId.get(ca.coachProfileId());
-                    pinned = ca.locked();
-                    if (pinned && initialCoach == null) {
-                        throw new BadRequestException(
-                                "Group '" + tg.name() + "' slot " + slotIndex + " is locked to a coach outside this plan - fix before solving");
+        if (!coachProfiles.isEmpty()) {
+            Map<String, List<CoachAssignment>> coachAssignmentsByGroupId = new HashMap<>();
+            for (CoachAssignment ca : coachAssignments) {
+                coachAssignmentsByGroupId.computeIfAbsent(ca.groupId(), k -> new ArrayList<>()).add(ca);
+            }
+            for (TrainingGroup tg : trainingGroups) {
+                Group fact = groupByDbId.get(tg.id());
+                List<CoachAssignment> existingForGroup = coachAssignmentsByGroupId.getOrDefault(tg.id(), List.of()).stream()
+                        .sorted((a, b) -> a.id().compareTo(b.id()))
+                        .toList();
+                for (int slotIndex = 0; slotIndex < tg.requiredCoachCount(); slotIndex++) {
+                    CoachFact initialCoach = null;
+                    boolean pinned = false;
+                    if (slotIndex < existingForGroup.size()) {
+                        CoachAssignment ca = existingForGroup.get(slotIndex);
+                        initialCoach = coachFactByDbId.get(ca.coachProfileId());
+                        pinned = ca.locked();
+                        if (pinned && initialCoach == null) {
+                            throw new BadRequestException(
+                                    "Group '" + tg.name() + "' slot " + slotIndex + " is locked to a coach outside this plan - fix before solving");
+                        }
                     }
+                    long id = CoachSlot.syntheticId(fact.id(), slotIndex);
+                    coachSlots.add(new CoachSlot(id, fact, slotIndex, initialCoach, pinned));
                 }
-                long id = CoachSlot.syntheticId(fact.id(), slotIndex);
-                coachSlots.add(new CoachSlot(id, fact, slotIndex, initialCoach, pinned));
             }
         }
 

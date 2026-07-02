@@ -13,6 +13,9 @@ interface WaitlistCardProps {
   /** The plan's latest run id (M7) - explain/what-if actions are disabled until the plan has been
    *  solved at least once. */
   runId: string | undefined;
+  /** Ctrl/Cmd+F player search (PlayerSearchSpotlight.tsx): the participant whose row
+   *  ResultsPanel.tsx should scroll to and flash-highlight, from the `?highlight=` query param. */
+  highlightedParticipantId?: string | null;
   onExplain: (participantProfileId: string, name: string) => void;
   onTestMove: (participantProfileId: string, name: string) => void;
 }
@@ -25,7 +28,7 @@ interface WaitlistCardProps {
  * the M7 [Förklara]/[Testa flytt] actions (kravspec §17's waitlist narrative + §18 what-if, which
  * works symmetrically for probing a move INTO a group from the kölista).
  */
-export function WaitlistCard({ entries, runId, onExplain, onTestMove }: WaitlistCardProps) {
+export function WaitlistCard({ entries, runId, highlightedParticipantId, onExplain, onTestMove }: WaitlistCardProps) {
   return (
     <Card withBorder padding="md" data-testid="waitlist-card">
       <Group justify="space-between" mb="xs">
@@ -39,7 +42,11 @@ export function WaitlistCard({ entries, runId, onExplain, onTestMove }: Waitlist
         <Table verticalSpacing={4} withTableBorder>
           <Table.Tbody>
             {entries.map((entry) => (
-              <Table.Tr key={entry.participantProfileId}>
+              <Table.Tr
+                key={entry.participantProfileId}
+                id={`participant-row-${entry.participantProfileId}`}
+                className={highlightedParticipantId === entry.participantProfileId ? "gp-highlight-flash" : undefined}
+              >
                 <Table.Td>{entry.name}</Table.Td>
                 <Table.Td>{entry.level != null ? Math.round(entry.level) : "—"}</Table.Td>
                 <Table.Td>

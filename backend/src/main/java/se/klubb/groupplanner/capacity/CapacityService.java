@@ -109,6 +109,10 @@ public class CapacityService {
         List<CoachProfile> coaches = coachProfileRepository.findByActivityPlanId(activityPlanId);
         int coachCount = coaches.size();
         int groupsRequiringCoachEstimate = activeBlocks;
+        // v0.2.0 (COACH-OPTIONAL SOLVING): zero registered coaches is a distinct, deliberate state -
+        // not a "shortage" the bipartite-matching estimate below can meaningfully reason about (there
+        // is nothing to match against). See CapacityResponse's javadoc for the full UI contract.
+        boolean noCoaches = coachCount == 0;
 
         List<TimeSlot> slots = timeSlotRepository.findByActivityPlanId(activityPlanId);
         Map<String, Integer> activeBlocksBySlot = trainingBlockRepository.countActiveByTimeSlotForPlan(activityPlanId);
@@ -140,12 +144,18 @@ public class CapacityService {
         for (CoachProfile coach : coaches) {
             aggregateCoachCapacity += effectiveWeeklyCapacity(coach, distinctActiveDays, activeBlocks);
         }
-        boolean aggregateShortage = groupsRequiringCoachEstimate > 0 && aggregateCoachCapacity < groupsRequiringCoachEstimate;
-        boolean perSlotShortage = !deficientSlotLabels.isEmpty();
+        // v0.2.0: with zero coaches the per-slot/aggregate signals above are both trivially "true"
+        // (0 available < N needed everywhere) and would otherwise render as a scary red multi-reason
+        // shortage warning for what may simply be "coaches haven't been added yet" - forced false and
+        // reported via the dedicated noCoaches/INFO channel instead (CapacityResponse's javadoc).
+        boolean aggregateShortage = !noCoaches && groupsRequiringCoachEstimate > 0 && aggregateCoachCapacity < groupsRequiringCoachEstimate;
+        boolean perSlotShortage = !noCoaches && !deficientSlotLabels.isEmpty();
         boolean coachShortageRisk = aggregateShortage || perSlotShortage;
 
         String coachShortageMessage;
-        if (!coachShortageRisk) {
+        if (noCoaches) {
+            coachShortageMessage = "Inga tränare registrerade";
+        } else if (!coachShortageRisk) {
             coachShortageMessage = "Tillräckligt med tränare för samtliga grupper";
         } else {
             List<String> reasons = new ArrayList<>();
@@ -162,7 +172,7 @@ public class CapacityService {
         return new CapacityResponse(
                 participantCount, waitlistedCount, activeBlocks, targetSize, maxSize, targetCapacity, maxCapacity,
                 waitlistRisk, waitlistMessage, coachCount, groupsRequiringCoachEstimate,
-                coachShortageRisk, coachShortageMessage, perSlot);
+                coachShortageRisk, coachShortageMessage, noCoaches, perSlot);
     }
 
     /**

@@ -17,6 +17,7 @@ import { useSeasons } from "../../api/seasons";
 import { useRecentPlans } from "../../api/plans";
 import { ApiError } from "../../api/client";
 import { sv } from "../../i18n/sv";
+import { TutorialBanner } from "../../components/tutorial/TutorialBanner";
 import { CreateSeasonModal } from "./CreateSeasonModal";
 import { ImportEntryModal } from "./ImportEntryModal";
 
@@ -33,6 +34,8 @@ export function StartPage() {
         <Title order={2}>{sv.start.heading}</Title>
         <Text c="dimmed">{sv.start.subheading}</Text>
       </Box>
+
+      <TutorialBanner />
 
       <Group>
         <Button onClick={() => setCreateModalOpen(true)}>{sv.start.createSeasonButton}</Button>
