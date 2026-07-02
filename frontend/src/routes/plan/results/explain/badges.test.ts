@@ -42,6 +42,12 @@ describe("originBadge", () => {
     expect(badge.color).toBe("grape");
   });
 
+  it("maps FRIEND_VIA_COACH (v0.3.0 WI-5) to Kompis knuten via tränare", () => {
+    const badge = originBadge("FRIEND_VIA_COACH");
+    expect(badge.label).toBe(sv.results.explain.origin.friendViaCoach);
+    expect(badge.color).toBe("violet");
+  });
+
   it("maps COACH_WISH to Tränarönskemål", () => {
     const badge = originBadge("COACH_WISH");
     expect(badge.label).toBe(sv.results.explain.origin.coachWish);

@@ -255,8 +255,10 @@ export type SeasonConflict = Omit<
 
 // --- M7: Förklarbarhet / What-if ---
 
-/** {@code origin} entries on an {@link AlternativeGroupView} (design §11.3's union-rule labels). */
-export type AlternativeOrigin = "FRIEND_WISH" | "COACH_WISH" | "PREVIOUS_GROUP" | "TOP_SCORE";
+/** {@code origin} entries on an {@link AlternativeGroupView} (design §11.3's union-rule labels).
+ *  {@code FRIEND_VIA_COACH} (v0.3.0 WI-5) always appears ALONGSIDE {@code FRIEND_WISH}, never
+ *  alone - see backend ExplanationService#unionOrigins. */
+export type AlternativeOrigin = "FRIEND_WISH" | "FRIEND_VIA_COACH" | "COACH_WISH" | "PREVIOUS_GROUP" | "TOP_SCORE";
 
 /** {@code verdict} on an {@link AlternativeGroupView} - whether the candidate group would break a
  *  hard rule, improve, worsen, or leave total score exactly unchanged (NEUTRAL, an M7-review
@@ -288,6 +290,14 @@ export type BrokenWishView = WithRequired<components["schemas"]["BrokenWishView"
 export type SelectedGroupView = WithRequired<components["schemas"]["SelectedGroupView"], "groupId" | "name" | "size">;
 export type WaitlistBlockerView = WithRequired<components["schemas"]["WaitlistBlockerView"], "groupId" | "name" | "blockerSv">;
 
+/** v0.3.0 WI-5 second-order factor (user feedback: "beror det på att en annan spelare påverkas av
+ *  en tränare?") - see backend ExplanationDtos.IndirectFactorView/ExplanationService
+ *  #buildIndirectFactors. `messageSv` is the finished Swedish sentence, rendered server-side. */
+export type IndirectFactorView = WithRequired<
+  components["schemas"]["IndirectFactorView"],
+  "otherParticipantProfileId" | "otherPersonName" | "coachPersonName" | "coachWishType" | "groupName" | "messageSv"
+>;
+
 export type AlternativeGroupView = Omit<
   WithRequired<
     components["schemas"]["AlternativeGroupView"],
@@ -318,8 +328,16 @@ export type PersonExplanationResponse = Omit<
     | "brokenWishes"
     | "appliedWeights"
     | "alternatives"
+    | "indirectFactors"
   >,
-  "selectedGroup" | "positiveFactors" | "negativeFactors" | "brokenWishes" | "appliedWeights" | "alternatives" | "waitlist"
+  | "selectedGroup"
+  | "positiveFactors"
+  | "negativeFactors"
+  | "brokenWishes"
+  | "appliedWeights"
+  | "alternatives"
+  | "indirectFactors"
+  | "waitlist"
 > & {
   selectedGroup?: SelectedGroupView;
   positiveFactors: FactorView[];
@@ -327,6 +345,7 @@ export type PersonExplanationResponse = Omit<
   brokenWishes: BrokenWishView[];
   appliedWeights: AppliedWeightView[];
   alternatives: AlternativeGroupView[];
+  indirectFactors: IndirectFactorView[];
   waitlist?: WaitlistView;
 };
 

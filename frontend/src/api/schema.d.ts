@@ -1691,8 +1691,17 @@ export interface components {
             weightApplied?: number;
             messageSv?: string;
             unassignedFriendParticipantProfileId?: string;
+            coachBindingSv?: string;
         };
         FactorView: {
+            messageSv?: string;
+        };
+        IndirectFactorView: {
+            otherParticipantProfileId?: string;
+            otherPersonName?: string;
+            coachPersonName?: string;
+            coachWishType?: string;
+            groupName?: string;
             messageSv?: string;
         };
         PersonExplanationResponse: {
@@ -1710,6 +1719,7 @@ export interface components {
             brokenWishes?: components["schemas"]["BrokenWishView"][];
             appliedWeights?: components["schemas"]["AppliedWeightView"][];
             alternatives?: components["schemas"]["AlternativeGroupView"][];
+            indirectFactors?: components["schemas"]["IndirectFactorView"][];
             waitlist?: components["schemas"]["WaitlistView"];
         };
         SelectedGroupView: {

@@ -37,6 +37,7 @@ import se.klubb.groupplanner.explain.ExplanationDtos.GroupExplanationResponse;
 import se.klubb.groupplanner.explain.ExplanationDtos.GroupMatchView;
 import se.klubb.groupplanner.explain.ExplanationDtos.GroupMemberBrokenWishView;
 import se.klubb.groupplanner.explain.ExplanationDtos.HardViolationView;
+import se.klubb.groupplanner.explain.ExplanationDtos.IndirectFactorView;
 import se.klubb.groupplanner.explain.ExplanationDtos.ManualReviewEntryView;
 import se.klubb.groupplanner.explain.ExplanationDtos.PersonExplanationResponse;
 import se.klubb.groupplanner.explain.ExplanationDtos.PlanExplanationResponse;
@@ -63,11 +64,13 @@ import se.klubb.groupplanner.solver.constraints.LevelMath;
 import se.klubb.groupplanner.solver.domain.CoachFact;
 import se.klubb.groupplanner.solver.domain.CoachSlot;
 import se.klubb.groupplanner.solver.domain.CoachWish;
+import se.klubb.groupplanner.solver.domain.CoachWishType;
 import se.klubb.groupplanner.solver.domain.Group;
 import se.klubb.groupplanner.solver.domain.GroupPlanSolution;
 import se.klubb.groupplanner.solver.domain.GroupSchedule;
 import se.klubb.groupplanner.solver.domain.PersonPairWish;
 import se.klubb.groupplanner.solver.domain.PlayerAssignment;
+import se.klubb.groupplanner.solver.domain.WishType;
 
 /**
  * The explainability engine (task item 4, docs/design/04-solver.md §11, kravspec §17/§18 chapter,
@@ -252,11 +255,14 @@ public class ExplanationService {
     private void persistAudit(RunContext ctx, PlayerAssignment target, String participantProfileId, PersonExplanationResponse response) {
         try {
             String selectedGroupDbId = target.getGroup() == null ? null : groupDbId(ctx, target.getGroup());
+            // v0.3.0 WI-5 (Opus review finding 6): indirectFactors is persisted in its own V9 column;
+            // the broken-wish coachBindingSv annotation rides inside the brokenWishes JSON (it is a
+            // BrokenWishView field), so the audit row captures both second-order shapes.
             explanationRecordRepository.upsert(
                     ctx.run().id(), participantProfileId, selectedGroupDbId,
                     writeJson(response.positiveFactors()), writeJson(response.negativeFactors()),
                     writeJson(response.alternatives()), writeJson(response.brokenWishes()),
-                    writeJson(response.selectedGroup()));
+                    writeJson(response.selectedGroup()), writeJson(response.indirectFactors()));
         } catch (RuntimeException e) {
             // Audit persistence is best-effort (design §11.4: the LRU cache is the serving path) - a
             // write failure must never break the actual explanation response.
@@ -295,6 +301,7 @@ public class ExplanationService {
         List<AppliedWeightView> appliedWeights = appliedWeightsFor(ctx, weightKeys);
 
         List<AlternativeGroupView> alternatives = buildAlternatives(ctx, target, selectedGroup);
+        List<IndirectFactorView> indirectFactors = buildIndirectFactors(ctx, target, selectedGroup);
 
         SelectedGroupView selectedGroupView = new SelectedGroupView(
                 groupDbId(ctx, selectedGroup), selectedGroup.name(), stats.size(), selectedGroup.targetSize(),
@@ -303,7 +310,7 @@ public class ExplanationService {
         return new PersonExplanationResponse(
                 ctx.run().id(), ctx.run().planRevision(), ctx.currentRevision(), ctx.stale(),
                 participantProfileId, target.getDisplayName(), selectedGroupView, positive, negative, brokenWishes,
-                appliedWeights, alternatives, null);
+                appliedWeights, alternatives, indirectFactors, null);
     }
 
     /** Level-vs-band factor (kravspec §17.2's "Kalles nivåscore 640 matchade Grupp Y:s nivåspann
@@ -380,7 +387,8 @@ public class ExplanationService {
                     if (isWish) {
                         long weight = Math.abs(primaryComponent(ca.weight()));
                         brokenWishes.add(new BrokenWishView(
-                                ca.constraintName(), otherPersonName(j, participantId, idx), weight, messageSv, null));
+                                ca.constraintName(), otherPersonName(j, participantId, idx), weight, messageSv, null,
+                                coachBindingAnnotation(ctx, j, participantId)));
                     }
                 } else if (isPositive(match.score())) {
                     positive.add(new FactorView(messageSv));
@@ -412,12 +420,141 @@ public class ExplanationService {
             String friendName = other.getDisplayName();
             String friendDbId = participantDbId(ctx, otherId);
             brokenWishes.add(new BrokenWishView(
-                    key, friendName, 0, "%s är oplacerad (kölista)".formatted(friendName), friendDbId));
+                    key, friendName, 0, "%s är oplacerad (kölista)".formatted(friendName), friendDbId, null));
         }
     }
 
     private PlayerAssignment playerById(RunContext ctx, long solverId) {
         return ctx.solution().getPlayerAssignments().stream().filter(pa -> pa.getId() == solverId).findFirst().orElse(null);
+    }
+
+    // --- v0.3.0 WI-5: second-order ("via a coach") reasons ----------------------------------
+
+    /** v0.3.0 WI-5 (user feedback: "Förklaringen av varför en spelare blev tilldelad en grupp bör
+     * även visa om det beror på att en annan spelare påverkas av en tränare"): a SECOND-order
+     * positive reason a placed player X ended up in {@code selectedGroup} — X wished to play WITH
+     * participant Y ({@code MUST_SAME}/{@code WANT_SAME}), Y is ALSO placed in that same group, and
+     * Y is there partly because Y's own MUST/WANT coach wish is satisfied by the group's assigned
+     * CoachSlot. Every other factor in this class is strictly first-order (only justifications
+     * naming X's OWN id, see {@link #referencesParticipant}); this is the one deliberate two-hop
+     * chain, built directly from the {@code PersonPairWish}/{@code CoachWish}/{@code CoachSlot}
+     * facts — there is no Timefold match type for "X because Y because coach Z", so it is
+     * synthesized the same way {@link #addWaitlistedFriendNotices} already synthesizes text
+     * straight from facts for a case Timefold's own justifications can't express.
+     *
+     * <p>Deduped to one entry per distinct Y (a player can have more than one wish record pointing
+     * at the same friend); sorted by other-person-name then coach-name for deterministic output
+     * (CLAUDE.md determinism rule). Deliberately NOT called for a waitlisted target — {@code
+     * selectedGroup} is null there, and "why was I placed here" has no meaning for someone who
+     * wasn't. */
+    private List<IndirectFactorView> buildIndirectFactors(RunContext ctx, PlayerAssignment target, Group selectedGroup) {
+        Map<Long, IndirectFactorView> byOtherParticipant = new LinkedHashMap<>();
+        for (PersonPairWish wish : ctx.solution().getPersonPairWishes()) {
+            if (wish.type() != WishType.MUST_SAME && wish.type() != WishType.WANT_SAME) {
+                continue;
+            }
+            if (wish.aParticipantProfileId() != target.getId() && wish.bParticipantProfileId() != target.getId()) {
+                continue;
+            }
+            long otherId = wish.aParticipantProfileId() == target.getId() ? wish.bParticipantProfileId() : wish.aParticipantProfileId();
+            if (byOtherParticipant.containsKey(otherId)) {
+                continue;
+            }
+            PlayerAssignment other = playerById(ctx, otherId);
+            if (other == null || other.getGroup() != selectedGroup) {
+                continue;
+            }
+            CoachWish binding = coachBindingFor(ctx, otherId, selectedGroup);
+            if (binding == null) {
+                continue;
+            }
+            String otherName = other.getDisplayName();
+            String coachName = ctx.index().personName(binding.coachPersonId());
+            boolean must = binding.type() == CoachWishType.MUST;
+            // Opus review finding 2: "kan delvis bero på" (may partly be because), not "är här
+            // delvis för att" — the fact pattern (wish + co-placement + coach binding) is proven
+            // from data, but DECISIVE influence on the solver's choice is not, and an explanation
+            // engine must never overclaim (same truthfulness class as M7 review fix M1).
+            String messageSv = "%s:s placering kan delvis bero på att %s (önskad medspelare) %s tränaren %s, som är knuten till %s".formatted(
+                    target.getDisplayName(), otherName, must ? "behöver" : "önskar", coachName, selectedGroup.name());
+            byOtherParticipant.put(otherId, new IndirectFactorView(
+                    participantDbId(ctx, otherId), otherName, coachName, binding.type().name(), selectedGroup.name(), messageSv));
+        }
+        // Opus review finding 4: the id tiebreaker makes the sort provably total even for two
+        // distinct participants with identical display names wishing for the same coach.
+        return byOtherParticipant.values().stream()
+                .sorted(java.util.Comparator.comparing(IndirectFactorView::otherPersonName)
+                        .thenComparing(IndirectFactorView::coachPersonName)
+                        .thenComparing(IndirectFactorView::otherParticipantProfileId))
+                .toList();
+    }
+
+    /** For a BROKEN {@code MUST_SAME}/{@code WANT_SAME} pair wish (the negative mirror of {@link
+     * #buildIndirectFactors}): if the wish partner is themselves placed in a DIFFERENT group and
+     * tied to THAT group via their own MUST/WANT coach wish, that tie is exactly why the wish
+     * couldn't be honored — annotated onto the {@link BrokenWishView} rather than surfaced as its
+     * own factor (design's existing "one row per broken wish" shape). Returns null for every other
+     * justification type/direction (a broken {@code DIFFERENT_GROUP} wish or a coach-wish-of-X's-own
+     * violation has no "partner's group" to check) and whenever no such coach tie exists — the
+     * overwhelming majority of broken wishes have nothing to do with a coach. */
+    private String coachBindingAnnotation(RunContext ctx, ConstraintJustification j, long participantId) {
+        Long otherId = switch (j) {
+            case Justifications.PairWishBrokenJustification x when isSameGroupWishType(x.type()) ->
+                    x.aParticipantId() == participantId ? x.bParticipantId() : x.aParticipantId();
+            case Justifications.PairWishSoftJustification x when isSameGroupWishType(x.type()) ->
+                    x.aParticipantId() == participantId ? x.bParticipantId() : x.aParticipantId();
+            default -> null;
+        };
+        if (otherId == null) {
+            return null;
+        }
+        PlayerAssignment other = playerById(ctx, otherId);
+        if (other == null || other.getGroup() == null) {
+            return null;
+        }
+        CoachWish binding = coachBindingFor(ctx, otherId, other.getGroup());
+        if (binding == null) {
+            return null;
+        }
+        boolean must = binding.type() == CoachWishType.MUST;
+        return "%s är knuten till %s via tränare %s (%s)".formatted(
+                other.getDisplayName(), other.getGroup().name(), ctx.index().personName(binding.coachPersonId()),
+                must ? "måste ha tränare" : "önskar tränare");
+    }
+
+    private static boolean isSameGroupWishType(String type) {
+        return "MUST_SAME".equals(type) || "WANT_SAME".equals(type);
+    }
+
+    /** The shared "is participant {@code participantId} tied to {@code group} via a coach
+     * requirement/preference" check behind both {@link #buildIndirectFactors} (positive direction)
+     * and {@link #coachBindingAnnotation} (negative direction): a MUST/WANT {@code CoachWish} of
+     * theirs whose wished-for coach is the one actually filling one of {@code group}'s CoachSlots.
+     * MUST is preferred over WANT when both exist (the stronger, more informative tie); {@code
+     * CoachWish}es are iterated in {@code SolverInputAssembler}'s already-deterministic sort order,
+     * so the first match of each kind is a stable pick (CLAUDE.md determinism rule). */
+    private CoachWish coachBindingFor(RunContext ctx, long participantId, Group group) {
+        CoachWish must = null;
+        CoachWish want = null;
+        for (CoachWish wish : ctx.solution().getCoachWishes()) {
+            if (wish.participantProfileId() != participantId) {
+                continue;
+            }
+            if (wish.type() != CoachWishType.MUST && wish.type() != CoachWishType.WANT) {
+                continue;
+            }
+            boolean bound = ctx.solution().getCoachSlots().stream()
+                    .anyMatch(slot -> slot.getGroup() == group && slot.getCoach() != null && slot.getCoach().personId() == wish.coachPersonId());
+            if (!bound) {
+                continue;
+            }
+            if (wish.type() == CoachWishType.MUST && must == null) {
+                must = wish;
+            } else if (wish.type() == CoachWishType.WANT && want == null) {
+                want = wish;
+            }
+        }
+        return must != null ? must : want;
     }
 
     /** The ONE-PASS candidate-group probe (docs/design/04-solver.md §11.3, verifier-corrected: "12
@@ -445,14 +582,28 @@ public class ExplanationService {
     }
 
     /** Rules 1-4 of design §11.3, as pure labelling over the already-computed {@code results} map (no
-     * further probing): 1) FRIEND_WISH = groups containing anyone referenced by a personRelation wish
-     * of {@code target}; 2) COACH_WISH = groups whose assigned coach matches a coachRelation wish; 3)
-     * PREVIOUS_GROUP = the group matching {@code target.getPreviousGroupOrder()}; 4) TOP_SCORE = the
-     * top-3 REMAINING groups (not already unioned) ranked by what-if score delta, best first. */
+     * further probing): 1) FRIEND_WISH = groups containing anyone referenced by a SAME-group
+     * ({@code MUST_SAME}/{@code WANT_SAME}) personRelation wish of {@code target} — avoid-wishes are
+     * excluded, see the polarity guard below (v0.3.0 WI-5 adds FRIEND_VIA_COACH ALONGSIDE it
+     * whenever that friend's own presence in the group is itself explained by their MUST/WANT coach
+     * wish — the same {@link #coachBindingFor} check {@link #buildIndirectFactors} uses for the
+     * selected group); 2)
+     * COACH_WISH = groups whose assigned coach matches a coachRelation wish; 3) PREVIOUS_GROUP = the
+     * group matching {@code target.getPreviousGroupOrder()}; 4) TOP_SCORE = the top-3 REMAINING
+     * groups (not already unioned) ranked by what-if score delta, best first. */
     private Map<Group, Set<String>> unionOrigins(
             RunContext ctx, PlayerAssignment target, Group selectedGroup, List<Group> candidates, Map<Group, MoveProbe.Result> results) {
         Map<Group, Set<String>> origins = new LinkedHashMap<>();
         for (PersonPairWish wish : ctx.solution().getPersonPairWishes()) {
+            // v0.3.0 WI-5 review fix (Opus finding 1): FRIEND_WISH (and the new FRIEND_VIA_COACH)
+            // must only ever tag the group of a SAME-group wish partner. Without this guard a
+            // MUST_DIFFERENT/WANT_DIFFERENT (avoid) wish against Y also tagged Y's group
+            // "Kompisönskemål" — steering the user toward the exact group the wish says to keep the
+            // player AWAY from (a pre-existing truthfulness bug of the same class as M7 review fix
+            // M1, which FRIEND_VIA_COACH would have compounded with a fabricated coach rationale).
+            if (wish.type() != WishType.MUST_SAME && wish.type() != WishType.WANT_SAME) {
+                continue;
+            }
             if (wish.aParticipantProfileId() != target.getId() && wish.bParticipantProfileId() != target.getId()) {
                 continue;
             }
@@ -460,6 +611,9 @@ public class ExplanationService {
             PlayerAssignment other = playerById(ctx, otherId);
             if (other != null && other.getGroup() != null && other.getGroup() != selectedGroup) {
                 origins.computeIfAbsent(other.getGroup(), k -> new LinkedHashSet<>()).add("FRIEND_WISH");
+                if (coachBindingFor(ctx, otherId, other.getGroup()) != null) {
+                    origins.get(other.getGroup()).add("FRIEND_VIA_COACH");
+                }
             }
         }
         for (CoachWish wish : ctx.solution().getCoachWishes()) {
@@ -593,7 +747,7 @@ public class ExplanationService {
         return new PersonExplanationResponse(
                 ctx.run().id(), ctx.run().planRevision(), ctx.currentRevision(), ctx.stale(),
                 participantProfileId, target.getDisplayName(), null, List.of(), negative, brokenWishes, appliedWeights,
-                List.of(), waitlistView);
+                List.of(), List.of(), waitlistView);
     }
 
     /** Amendment (a): the concrete hard blocker per group, plus (for a full group specifically) the

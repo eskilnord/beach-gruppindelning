@@ -142,7 +142,10 @@ class ExplanationRecordLeakTest {
                         "negative_factors_json", String.valueOf(rs.getString("negative_factors_json")),
                         "alternative_groups_json", String.valueOf(rs.getString("alternative_groups_json")),
                         "broken_preferences_json", String.valueOf(rs.getString("broken_preferences_json")),
-                        "score_impact_json", String.valueOf(rs.getString("score_impact_json"))))
+                        "score_impact_json", String.valueOf(rs.getString("score_impact_json")),
+                        // v0.3.0 WI-5 (V9): the second-order "via a coach" audit column joins the
+                        // same leak-assertion surface as its five siblings.
+                        "indirect_factors_json", String.valueOf(rs.getString("indirect_factors_json"))))
                 .list();
         assertThat(explanationRecordRows).isNotEmpty();
         assertNoLeak(explanationRecordRows);

@@ -59,7 +59,8 @@ class FlywayMigrationTest {
 
         assertThat(descriptions).containsExactly(
                 "core", "seed constraints and standard fields", "import", "resources", "solver runs",
-                "soft constraints locks saved plan", "explainability", "activity plan level min default");
+                "soft constraints locks saved plan", "explainability", "activity plan level min default",
+                "explanation record indirect factors");
     }
 
     @Test

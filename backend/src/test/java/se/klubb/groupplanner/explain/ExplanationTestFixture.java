@@ -6,6 +6,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import se.klubb.groupplanner.domain.ActivityPlan;
+import se.klubb.groupplanner.domain.CoachAssignment;
+import se.klubb.groupplanner.domain.CoachProfile;
 import se.klubb.groupplanner.domain.CustomFieldValue;
 import se.klubb.groupplanner.domain.OptimizationRun;
 import se.klubb.groupplanner.domain.ParticipantProfile;
@@ -15,6 +17,8 @@ import se.klubb.groupplanner.domain.SeasonPlan;
 import se.klubb.groupplanner.domain.TimeSlot;
 import se.klubb.groupplanner.domain.TrainingGroup;
 import se.klubb.groupplanner.repo.ActivityPlanRepository;
+import se.klubb.groupplanner.repo.CoachAssignmentRepository;
+import se.klubb.groupplanner.repo.CoachProfileRepository;
 import se.klubb.groupplanner.repo.CustomFieldValueRepository;
 import se.klubb.groupplanner.repo.FieldDefinitionRepository;
 import se.klubb.groupplanner.repo.OptimizationRunRepository;
@@ -53,6 +57,8 @@ public final class ExplanationTestFixture {
     private final FieldDefinitionRepository fieldDefinitionRepository;
     private final CustomFieldValueRepository customFieldValueRepository;
     private final OptimizationRunRepository optimizationRunRepository;
+    private final CoachProfileRepository coachProfileRepository;
+    private final CoachAssignmentRepository coachAssignmentRepository;
 
     public final String planId;
 
@@ -69,7 +75,9 @@ public final class ExplanationTestFixture {
             TrainingBlockGenerationService trainingBlockGenerationService,
             FieldDefinitionRepository fieldDefinitionRepository,
             CustomFieldValueRepository customFieldValueRepository,
-            OptimizationRunRepository optimizationRunRepository) {
+            OptimizationRunRepository optimizationRunRepository,
+            CoachProfileRepository coachProfileRepository,
+            CoachAssignmentRepository coachAssignmentRepository) {
         this.activityPlanRepository = activityPlanRepository;
         this.personRepository = personRepository;
         this.participantProfileRepository = participantProfileRepository;
@@ -80,6 +88,8 @@ public final class ExplanationTestFixture {
         this.fieldDefinitionRepository = fieldDefinitionRepository;
         this.customFieldValueRepository = customFieldValueRepository;
         this.optimizationRunRepository = optimizationRunRepository;
+        this.coachProfileRepository = coachProfileRepository;
+        this.coachAssignmentRepository = coachAssignmentRepository;
 
         Instant now = Instant.now();
         SeasonPlan season = seasonPlanRepository.insert(new SeasonPlan(Uuid7.generate(), "VT-explain-test", null, null, "active", now, now));
@@ -105,8 +115,19 @@ public final class ExplanationTestFixture {
     public String addGroup(
             String name, int groupOrder, int minSize, int targetSize, int maxSize, String assignedBlockId,
             Double levelMin, Double levelMax) {
+        return addGroup(name, groupOrder, minSize, targetSize, maxSize, assignedBlockId, levelMin, levelMax, 0);
+    }
+
+    /** Coach-slot-capable overload — used by the v0.3.0 WI-5 second-order ("via a coach")
+     * explainability tests, which need a group with {@code requiredCoachCount >= 1} for {@link
+     * #assignCoach} to actually produce a {@code CoachSlot} in the assembled solution (see
+     * {@code SolverInputAssembler}: zero required slots means zero CoachSlot entities for that
+     * group, regardless of any {@code coach_assignment} row). */
+    public String addGroup(
+            String name, int groupOrder, int minSize, int targetSize, int maxSize, String assignedBlockId,
+            Double levelMin, Double levelMax, int requiredCoachCount) {
         TrainingGroup group = trainingGroupRepository.insert(new TrainingGroup(
-                Uuid7.generate(), planId, name, groupOrder, "beach", minSize, targetSize, maxSize, 0,
+                Uuid7.generate(), planId, name, groupOrder, "beach", minSize, targetSize, maxSize, requiredCoachCount,
                 levelMin, levelMax, assignedBlockId, false));
         return group.id();
     }
@@ -142,6 +163,38 @@ public final class ExplanationTestFixture {
         List<String> targets = wishAccumulator.computeIfAbsent(accKey, k -> new ArrayList<>());
         targets.add(toParticipantId);
         customFieldValueRepository.upsert(fieldId, CustomFieldValue.ENTITY_TYPE_PARTICIPANT, fromParticipantId, toJsonArray(targets));
+    }
+
+    /** Creates a person+coach_profile row (v0.3.0 WI-5 fixture extension) — the coach-side
+     * counterpart of {@link #addParticipant}. Returns the coach_profile id. */
+    public String addCoach(String firstName, String lastName) {
+        Instant now = Instant.now();
+        Person person = personRepository.insert(new Person(
+                Uuid7.generate(), firstName, lastName, null, null, null, null, true, false, null, now, now));
+        CoachProfile profile = coachProfileRepository.insert(new CoachProfile(
+                Uuid7.generate(), person.id(), planId, null, null, null, null, null, false, null));
+        return profile.id();
+    }
+
+    /** Inserts an unlocked {@code coach_assignment} row so the group's CoachSlot resolves to this
+     * coach in the assembled solution — see {@code SolverInputAssembler}: locked/pinned status is
+     * irrelevant to which {@code CoachFact} ends up in the slot, only to whether the solver COULD
+     * move it, so an unlocked assignment is exactly as "real" for {@code ExplanationService}'s
+     * read-only current-state analysis as a locked one. Requires the group to have been created
+     * with {@code requiredCoachCount >= 1} ({@link #addGroup}'s coach-slot-capable overload). */
+    public void assignCoach(String groupId, String coachProfileId) {
+        coachAssignmentRepository.insert(coachProfileId, groupId, false, CoachAssignment.SOURCE_IMPORTED);
+    }
+
+    /** Adds a directed coachRelation wish (e.g. {@code fieldKey = "mustHaveCoach"}/{@code
+     * "wantsCoach"}) from a participant to a coach — the coach-side counterpart of {@link #wish},
+     * same multi-value-JSON-array accumulation semantics. */
+    public void coachWish(String participantProfileId, String coachProfileId, String fieldKey) {
+        String fieldId = requireGlobalField(fieldKey).id();
+        String accKey = fieldId + "|" + participantProfileId;
+        List<String> targets = wishAccumulator.computeIfAbsent(accKey, k -> new ArrayList<>());
+        targets.add(coachProfileId);
+        customFieldValueRepository.upsert(fieldId, CustomFieldValue.ENTITY_TYPE_PARTICIPANT, participantProfileId, toJsonArray(targets));
     }
 
     /** Inserts a plain {@code FINISHED} {@code optimization_run} row stamped with the plan's CURRENT

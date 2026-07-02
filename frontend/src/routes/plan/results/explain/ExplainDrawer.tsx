@@ -7,6 +7,7 @@ import type { BrokenWishView } from "../../../../api/types";
 import { sv } from "../../../../i18n/sv";
 import { AlternativeCard } from "./AlternativeCard";
 import { weightBadgeLabel } from "./badges";
+import { IndirectFactorsSection } from "./IndirectFactorsSection";
 import { describeStaleness } from "./staleness";
 
 export interface GroupOption {
@@ -219,6 +220,8 @@ function ExplainDrawerBody({
         ))}
       </div>
 
+      <IndirectFactorsSection indirectFactors={data.indirectFactors} onNavigateToParticipant={onNavigateToParticipant} />
+
       <Divider />
 
       <Accordion variant="separated">
@@ -309,24 +312,34 @@ interface BrokenWishRowProps {
 
 function BrokenWishRow({ wish, weightLabel, onNavigateToParticipant }: BrokenWishRowProps) {
   return (
-    <Group gap={6} wrap="wrap" mb={2}>
-      <Text size="sm" c="red">
-        ✗ {wish.messageSv}
-      </Text>
-      {weightLabel && (
-        <Badge size="xs" color="red" variant="light">
-          {weightLabel}
-        </Badge>
+    <div data-testid="explain-broken-wish">
+      <Group gap={6} wrap="wrap" mb={2}>
+        <Text size="sm" c="red">
+          ✗ {wish.messageSv}
+        </Text>
+        {weightLabel && (
+          <Badge size="xs" color="red" variant="light">
+            {weightLabel}
+          </Badge>
+        )}
+        {wish.unassignedFriendParticipantProfileId && (
+          <Button
+            size="compact-xs"
+            variant="subtle"
+            onClick={() => onNavigateToParticipant(wish.unassignedFriendParticipantProfileId!, wish.withPerson ?? "")}
+          >
+            {sv.results.explain.waitlistedFriendLink(wish.withPerson ?? "")}
+          </Button>
+        )}
+      </Group>
+      {/* v0.3.0 WI-5: why the wish partner is coach-bound elsewhere - already a finished Swedish
+       *  sentence from the backend (see BrokenWishView#coachBindingSv), rendered verbatim like
+       *  every other message field in this drawer. */}
+      {wish.coachBindingSv && (
+        <Text size="xs" c="dimmed" ml={4} mb={4} data-testid="explain-broken-wish-coach-binding">
+          — {wish.coachBindingSv}
+        </Text>
       )}
-      {wish.unassignedFriendParticipantProfileId && (
-        <Button
-          size="compact-xs"
-          variant="subtle"
-          onClick={() => onNavigateToParticipant(wish.unassignedFriendParticipantProfileId!, wish.withPerson ?? "")}
-        >
-          {sv.results.explain.waitlistedFriendLink(wish.withPerson ?? "")}
-        </Button>
-      )}
-    </Group>
+    </div>
   );
 }

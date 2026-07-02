@@ -823,6 +823,12 @@ export const sv = {
       noNegative: "Inga negativa faktorer.",
       noBrokenWishes: "Inga brutna önskemål.",
       brokenWishWith: (person: string) => `Med ${person}`,
+      // v0.3.0 WI-5 (user feedback: "Förklaringen ... bör även visa om det beror på att en annan
+      // spelare påverkas av en tränare") - the second-order "via a coach" section. indirectFactors[]
+      // entries carry their own finished Swedish messageSv from the backend (same pattern as every
+      // other factor list); only the section's own heading/empty-state text lives here.
+      indirectFactorsHeading: "Indirekt påverkan",
+      noIndirectFactors: "Ingen indirekt påverkan via tränare hittad.",
       appliedWeightsHeading: "Tillämpade vikter",
       appliedWeightsTable: {
         label: "Constraint",
@@ -845,11 +851,18 @@ export const sv = {
       },
       origin: {
         friendWish: "Kompisönskemål",
+        // v0.3.0 WI-5: added ALONGSIDE friendWish (never instead of it) when the friend's own
+        // presence in that candidate group is itself explained by their MUST/WANT coach wish.
+        friendViaCoach: "Kompis knuten via tränare",
         coachWish: "Tränarönskemål",
         previousGroup: "Tidigare grupp",
         topScore: "Näst bäst",
       },
       waitlistedFriendLink: (name: string) => `Visa ${name}s förklaring (kölista)`,
+      // v0.3.0 WI-5: the indirect-factors section links to the (placed, not waitlisted) wish
+      // partner's own explanation - same navigation affordance as waitlistedFriendLink above, but
+      // without the "(kölista)" suffix since this person IS placed.
+      friendExplanationLink: (name: string) => `Visa ${name}s förklaring`,
       waitlist: {
         blockersHeading: "Per grupp",
         qualityWarningTitle: "Förbättring möjlig",

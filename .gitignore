@@ -35,3 +35,6 @@ frontend/blob-report/
 .env.*
 .idea/
 .vscode/
+
+# Runtime logs (dev backend rotates into backend/logs/)
+backend/logs/

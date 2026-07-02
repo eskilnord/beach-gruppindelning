@@ -39,14 +39,25 @@ public final class ExplanationDtos {
      * themselves unassigned, so Timefold produces no match at all to report (a broken/satisfied
      * {@code sameGroupHard/Soft} match requires BOTH sides to have a non-null group — {@code
      * forEach(PlayerAssignment)}'s own null-filtering semantics) — the id lets the frontend link
-     * straight to that person's own waitlist explanation ("Lisa är oplacerad (kölista)"). */
+     * straight to that person's own waitlist explanation ("Lisa är oplacerad (kölista)").
+     *
+     * <p>{@code coachBindingSv} is v0.3.0 WI-5's second-order annotation (user feedback: "beror det
+     * på att en annan spelare påverkas av en tränare?"): set only for a broken {@code MUST_SAME}/
+     * {@code WANT_SAME} pair wish whose OTHER participant is themselves placed (in a different
+     * group) and tied to THAT group via their own MUST/WANT coach wish — i.e. the finished Swedish
+     * reason the wish couldn't be honored ("Lisa är knuten till Grupp 3 via tränare Anna (måste ha
+     * tränare)"), null in every other case (the common one). */
     public record BrokenWishView(
-            String key, String withPerson, long weightApplied, String messageSv, String unassignedFriendParticipantProfileId) {
+            String key, String withPerson, long weightApplied, String messageSv,
+            String unassignedFriendParticipantProfileId, String coachBindingSv) {
     }
 
-    /** {@code origin} entries: {@code FRIEND_WISH|COACH_WISH|PREVIOUS_GROUP|TOP_SCORE} (design §11.3's
-     * union-rule labels — a candidate can carry more than one, e.g. both a friend AND the previous
-     * group). {@code verdict} values: {@code WOULD_BREAK_HARD|BETTER|NEUTRAL|WORSE} — NEUTRAL (an
+    /** {@code origin} entries: {@code FRIEND_WISH|FRIEND_VIA_COACH|COACH_WISH|PREVIOUS_GROUP|
+     * TOP_SCORE} (design §11.3's union-rule labels — a candidate can carry more than one, e.g. both a
+     * friend AND the previous group). {@code FRIEND_VIA_COACH} (v0.3.0 WI-5) is added ALONGSIDE
+     * {@code FRIEND_WISH} — never instead of it — whenever the friend's own placement in that
+     * candidate group is itself explained by a MUST/WANT coach wish tied to that group's CoachSlot.
+     * {@code verdict} values: {@code WOULD_BREAK_HARD|BETTER|NEUTRAL|WORSE} — NEUTRAL (an
      * exactly-zero score diff, "påverkar inte totalpoängen") is an M7-review extension of design
      * §11.3's original three-value enum; frontends must treat it as a fourth first-class value. */
     public record AlternativeGroupView(
@@ -58,6 +69,26 @@ public final class ExplanationDtos {
             List<ConstraintMessageView> newlyBroken,
             List<ConstraintMessageView> newlyFixed,
             String narrativeSv) {
+    }
+
+    /** v0.3.0 WI-5 second-order factor (user feedback: "Förklaringen av varför en spelare blev
+     * tilldelad en grupp bör även visa om det beror på att en annan spelare påverkas av en
+     * tränare"): placed player X is (partly) in their group because a wished-for playing partner
+     * ({@code otherPersonName}, MUST_SAME/WANT_SAME) is themselves ALSO in that group only because
+     * of their own {@code coachWishType} (MUST/WANT) coach wish for {@code coachPersonName}, who is
+     * assigned to the group via its CoachSlot. Built directly from {@code PersonPairWish}/{@code
+     * CoachWish}/{@code CoachSlot} facts (there is no Timefold match type for a two-hop chain like
+     * this — see {@code ExplanationService#buildIndirectFactors}); {@code messageSv} is the finished
+     * Swedish sentence, rendered server-side like every other factor in this API (mirrors {@link
+     * BrokenWishView}'s finished-text-plus-id pattern so the frontend never needs its own MUST/WANT
+     * copy). */
+    public record IndirectFactorView(
+            String otherParticipantProfileId,
+            String otherPersonName,
+            String coachPersonName,
+            String coachWishType,
+            String groupName,
+            String messageSv) {
     }
 
     public record SelectedGroupView(
@@ -89,6 +120,7 @@ public final class ExplanationDtos {
             List<BrokenWishView> brokenWishes,
             List<AppliedWeightView> appliedWeights,
             List<AlternativeGroupView> alternatives,
+            List<IndirectFactorView> indirectFactors,
             WaitlistView waitlist) {
     }
 

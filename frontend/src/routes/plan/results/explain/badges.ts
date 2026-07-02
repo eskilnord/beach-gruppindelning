@@ -31,13 +31,17 @@ export function verdictBadge(verdict: string): Badge {
 
 /**
  * Maps an {@link AlternativeGroupView}'s `origin` entries (design §11.3's union-rule labels:
- * `FRIEND_WISH|COACH_WISH|PREVIOUS_GROUP|TOP_SCORE` - a candidate can carry more than one) to a
- * Swedish badge label + color, for the ALTERNATIVEN comparison cards (spec §17.3).
+ * `FRIEND_WISH|FRIEND_VIA_COACH|COACH_WISH|PREVIOUS_GROUP|TOP_SCORE` - a candidate can carry more
+ * than one) to a Swedish badge label + color, for the ALTERNATIVEN comparison cards (spec §17.3).
+ * `FRIEND_VIA_COACH` (v0.3.0 WI-5) always appears ALONGSIDE `FRIEND_WISH`, never alone - both
+ * badges render on the same card.
  */
 export function originBadge(origin: string): Badge {
   switch (origin) {
     case "FRIEND_WISH":
       return { label: sv.results.explain.origin.friendWish, color: "grape" };
+    case "FRIEND_VIA_COACH":
+      return { label: sv.results.explain.origin.friendViaCoach, color: "violet" };
     case "COACH_WISH":
       return { label: sv.results.explain.origin.coachWish, color: "indigo" };
     case "PREVIOUS_GROUP":

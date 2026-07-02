@@ -34,7 +34,8 @@ public class ExplanationRecordRepository {
             String negativeFactorsJson,
             String alternativeGroupsJson,
             String brokenPreferencesJson,
-            String scoreImpactJson) {
+            String scoreImpactJson,
+            String indirectFactorsJson) {
         String id = jdbcClient.sql(
                         "SELECT id FROM explanation_record WHERE optimization_run_id = :runId AND participant_profile_id = :pid")
                 .param("runId", optimizationRunId)
@@ -46,10 +47,11 @@ public class ExplanationRecordRepository {
                         INSERT INTO explanation_record
                             (id, optimization_run_id, participant_profile_id, selected_group_id, positive_factors_json,
                              negative_factors_json, alternative_groups_json, broken_preferences_json, score_impact_json,
-                             created_at)
+                             indirect_factors_json, created_at)
                         VALUES
                             (:id, :runId, :pid, :selectedGroupId, :positiveFactorsJson, :negativeFactorsJson,
-                             :alternativeGroupsJson, :brokenPreferencesJson, :scoreImpactJson, :createdAt)
+                             :alternativeGroupsJson, :brokenPreferencesJson, :scoreImpactJson, :indirectFactorsJson,
+                             :createdAt)
                         ON CONFLICT (optimization_run_id, participant_profile_id)
                         DO UPDATE SET selected_group_id = excluded.selected_group_id,
                             positive_factors_json = excluded.positive_factors_json,
@@ -57,6 +59,7 @@ public class ExplanationRecordRepository {
                             alternative_groups_json = excluded.alternative_groups_json,
                             broken_preferences_json = excluded.broken_preferences_json,
                             score_impact_json = excluded.score_impact_json,
+                            indirect_factors_json = excluded.indirect_factors_json,
                             created_at = excluded.created_at
                         """)
                 .param("id", id)
@@ -68,6 +71,7 @@ public class ExplanationRecordRepository {
                 .param("alternativeGroupsJson", alternativeGroupsJson)
                 .param("brokenPreferencesJson", brokenPreferencesJson)
                 .param("scoreImpactJson", scoreImpactJson)
+                .param("indirectFactorsJson", indirectFactorsJson)
                 .param("createdAt", Instant.now().toString())
                 .update();
     }
@@ -92,6 +96,7 @@ public class ExplanationRecordRepository {
                 rs.getString("alternative_groups_json"),
                 rs.getString("broken_preferences_json"),
                 rs.getString("score_impact_json"),
+                rs.getString("indirect_factors_json"),
                 rs.getString("created_at"));
     }
 }

@@ -12,6 +12,8 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import se.klubb.groupplanner.explain.ExplanationDtos.PersonExplanationResponse;
 import se.klubb.groupplanner.repo.ActivityPlanRepository;
+import se.klubb.groupplanner.repo.CoachAssignmentRepository;
+import se.klubb.groupplanner.repo.CoachProfileRepository;
 import se.klubb.groupplanner.repo.CustomFieldValueRepository;
 import se.klubb.groupplanner.repo.FieldDefinitionRepository;
 import se.klubb.groupplanner.repo.OptimizationRunRepository;
@@ -68,6 +70,10 @@ class Section23Point7Test {
     @Autowired
     private OptimizationRunRepository optimizationRunRepository;
     @Autowired
+    private CoachProfileRepository coachProfileRepository;
+    @Autowired
+    private CoachAssignmentRepository coachAssignmentRepository;
+    @Autowired
     private ExplanationService explanationService;
 
     @Test
@@ -75,7 +81,8 @@ class Section23Point7Test {
         ExplanationTestFixture fx = new ExplanationTestFixture(
                 seasonPlanRepository, activityPlanRepository, personRepository, participantProfileRepository,
                 playerAssignmentRepository, trainingGroupRepository, timeSlotRepository, trainingBlockGenerationService,
-                fieldDefinitionRepository, customFieldValueRepository, optimizationRunRepository);
+                fieldDefinitionRepository, customFieldValueRepository, optimizationRunRepository,
+                coachProfileRepository, coachAssignmentRepository);
 
         List<String> blocks = fx.addTimeSlotWithBlocks("Torsdag 18.00-19.30", 2);
         String groupY = fx.addGroup("Grupp Y", 1, 1, 5, 5, blocks.get(0));

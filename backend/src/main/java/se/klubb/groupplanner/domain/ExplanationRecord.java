@@ -11,8 +11,13 @@ package se.klubb.groupplanner.domain;
  * backend/docs/m7-notes.md for the full reasoning.
  *
  * <p>The JSON columns hold the SAME DTOs {@code ExplanationService} returns over the wire
- * (positive/negative factors, alternatives, broken wishes, score impact) — never re-parsed back into
+ * (positive/negative factors, alternatives, broken wishes, score impact, and — since v0.3.0 WI-5's
+ * V9 migration — the second-order "via a coach" indirect factors) — never re-parsed back into
  * the cache by this milestone.
+ *
+ * <p>{@code indirectFactorsJson} is null for rows written before V9 and a JSON array (possibly
+ * empty) afterwards; the broken-wish {@code coachBindingSv} annotation lives INSIDE {@code
+ * brokenPreferencesJson}'s serialized {@code BrokenWishView} records, so it needed no column.
  */
 public record ExplanationRecord(
         String id,
@@ -24,5 +29,6 @@ public record ExplanationRecord(
         String alternativeGroupsJson,
         String brokenPreferencesJson,
         String scoreImpactJson,
+        String indirectFactorsJson,
         String createdAt) {
 }
