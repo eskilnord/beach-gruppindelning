@@ -243,6 +243,9 @@ public class ImportController {
                 : new CommitOptions(request.saveAsTemplate() != null && request.saveAsTemplate(), request.templateName());
         CommitResult result = importCommitService.commit(session, planId, options);
         importSessionService.delete(sid);
+        // M7 review fix M2: an import commit creates/updates participants and their field values -
+        // the single largest data mutation the app has; any cached explanation is definitively stale.
+        activityPlanRepository.bumpRevision(planId);
         return result;
     }
 

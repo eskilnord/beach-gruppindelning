@@ -89,7 +89,12 @@ public class ParticipantProfileController {
                 request.internalNote(),
                 request.manualReviewFlag() != null && request.manualReviewFlag(),
                 request.waitlisted() != null && request.waitlisted());
-        return participantProfileRepository.insert(profile);
+        ParticipantProfile created = participantProfileRepository.insert(profile);
+        // M7 review fix M2: a new participant changes what any already-computed explanation for this
+        // plan describes (probe results, waitlist reasoning) - see AssignmentController#move's javadoc
+        // for the shared invalidation-surface rationale.
+        activityPlanRepository.bumpRevision(planId);
+        return created;
     }
 
     @GetMapping("/api/participants/{id}")
@@ -140,14 +145,20 @@ public class ParticipantProfileController {
                 nullableString(body, "internalNote", existing.internalNote()),
                 requiredBoolean(body, "manualReviewFlag", existing.manualReviewFlag()),
                 requiredBoolean(body, "waitlisted", existing.waitlisted()));
-        return participantProfileRepository.update(updated);
+        ParticipantProfile saved = participantProfileRepository.update(updated);
+        // M7 (docs/design/04-solver.md §11.6): a level/priority-affecting edit invalidates any
+        // already-computed explanation for this plan - see AssignmentController#move's javadoc for
+        // the full "invalidation surface" rationale shared by every bump call site.
+        activityPlanRepository.bumpRevision(existing.activityPlanId());
+        return saved;
     }
 
     @DeleteMapping("/api/participants/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable String id) {
-        findOrThrow(id);
+        ParticipantProfile existing = findOrThrow(id);
         participantProfileRepository.deleteById(id);
+        activityPlanRepository.bumpRevision(existing.activityPlanId()); // M7 review fix M2.
     }
 
     /**
@@ -160,6 +171,9 @@ public class ParticipantProfileController {
     public RecomputeLevelsResult recomputeLevels(@PathVariable String planId) {
         requirePlanExists(planId);
         int count = levelService.recomputeForPlan(planId);
+        // M7 review fix M2: recomputed estimated levels feed levelScaled directly - every level-based
+        // sentence in an already-cached explanation may now be false.
+        activityPlanRepository.bumpRevision(planId);
         return new RecomputeLevelsResult(count);
     }
 

@@ -19,6 +19,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import se.klubb.groupplanner.domain.CoachAssignment;
 import se.klubb.groupplanner.domain.CoachProfile;
+import se.klubb.groupplanner.domain.OptimizationRun;
 import se.klubb.groupplanner.domain.ParticipantProfile;
 import se.klubb.groupplanner.domain.PlayerAssignment;
 import se.klubb.groupplanner.domain.TrainingBlock;
@@ -26,6 +27,7 @@ import se.klubb.groupplanner.domain.TrainingGroup;
 import se.klubb.groupplanner.level.LevelService;
 import se.klubb.groupplanner.repo.ActivityPlanRepository;
 import se.klubb.groupplanner.repo.CoachAssignmentRepository;
+import se.klubb.groupplanner.repo.OptimizationRunRepository;
 import se.klubb.groupplanner.repo.CoachProfileRepository;
 import se.klubb.groupplanner.repo.CoachTimeSlotRepository;
 import se.klubb.groupplanner.repo.CustomFieldValueRepository;
@@ -68,6 +70,8 @@ class LockEndpointIntegrationTest {
     private MockMvc mockMvc;
     @Autowired
     private ObjectMapper objectMapper;
+    @Autowired
+    private OptimizationRunRepository optimizationRunRepository;
     @Autowired
     private SeasonPlanRepository seasonPlanRepository;
     @Autowired
@@ -250,11 +254,21 @@ class LockEndpointIntegrationTest {
             assertThat(untouched.locked()).isFalse();
         } finally {
             // Never leave a THOROUGH (120s) background solve running into the next test.
-            solveCoordinator.cancelSolve(planId);
+            // Await the RUN ROW's terminal status, not the transient solver status: the
+            // cancelled solve's writeback transaction still holds SQLite write locks after
+            // NOT_SOLVING flips, which races the next test's inserts and blocks @TempDir
+            // deletion on Windows (SQLITE_BUSY observed on windows-latest).
+            String cancelledRunId = solveCoordinator.cancelSolve(planId);
             org.awaitility.Awaitility.await()
-                    .atMost(java.time.Duration.ofSeconds(30))
+                    .atMost(java.time.Duration.ofSeconds(60))
                     .pollInterval(java.time.Duration.ofMillis(200))
-                    .untilAsserted(() -> assertThat(solveCoordinator.status(planId).status()).isEqualTo("NOT_SOLVING"));
+                    .untilAsserted(() -> {
+                        var run = optimizationRunRepository.findById(cancelledRunId).orElseThrow();
+                        assertThat(run.status()).isIn(
+                                OptimizationRun.STATUS_CANCELLED,
+                                OptimizationRun.STATUS_FINISHED,
+                                OptimizationRun.STATUS_FAILED);
+                    });
         }
     }
 

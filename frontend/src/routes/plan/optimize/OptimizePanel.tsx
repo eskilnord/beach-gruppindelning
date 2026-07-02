@@ -26,21 +26,12 @@ import { runsKey, useOptimizationRuns } from "../../../api/runs";
 import { invalidateResultQueries, isSolveRunning, useCancelSolve, useSolveStatus, useStartSolve } from "../../../api/solve";
 import type { SolveProfile } from "../../../api/types";
 import { sv } from "../../../i18n/sv";
+import { formatDateTime } from "../../../lib/formatDateTime";
+import { PlanAnalysisSection } from "./PlanAnalysisSection";
 import { formatScoreLine } from "./scoreFormat";
 import { parseResultSummary, runDurationSeconds } from "./runSummary";
 
 const PROFILES: SolveProfile[] = ["FAST", "NORMAL", "THOROUGH", "GREEDY"];
-
-function formatWhen(iso: string | undefined): string {
-  if (!iso) {
-    return "";
-  }
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {
-    return iso;
-  }
-  return date.toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" });
-}
 
 /**
  * Optimeringsvy (spec §19.9): profile picker, a collapsible read-only constraint-weights summary
@@ -301,13 +292,23 @@ export function OptimizePanel() {
                 </Text>
               )}
               <Text size="sm" c="dimmed">
-                {sv.optimize.lastRun.when(formatWhen(latestRun.startedAt))}
+                {sv.optimize.lastRun.when(formatDateTime(latestRun.startedAt))}
               </Text>
             </Group>
           </Stack>
         )}
         {latestRun && !latestSummary && latestRun.status === "FAILED" && (
           <Badge color="red">{sv.optimize.lastRun.failedBadge}</Badge>
+        )}
+        {latestRun && (
+          <Accordion variant="separated" mt="sm">
+            <Accordion.Item value="analysis">
+              <Accordion.Control>{sv.optimize.analysis.heading}</Accordion.Control>
+              <Accordion.Panel>
+                <PlanAnalysisSection planId={planId} runId={latestRun.id} />
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
         )}
       </Card>
     </Stack>

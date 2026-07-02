@@ -1,4 +1,4 @@
-import { Badge, Card, Group, Table, Text, Title } from "@mantine/core";
+import { Badge, Button, Card, Group, Table, Text, Title, Tooltip } from "@mantine/core";
 import { sv } from "../../../i18n/sv";
 
 export interface WaitlistEntry {
@@ -10,15 +10,22 @@ export interface WaitlistEntry {
 
 interface WaitlistCardProps {
   entries: WaitlistEntry[];
+  /** The plan's latest run id (M7) - explain/what-if actions are disabled until the plan has been
+   *  solved at least once. */
+  runId: string | undefined;
+  onExplain: (participantProfileId: string, name: string) => void;
+  onTestMove: (participantProfileId: string, name: string) => void;
 }
 
 /**
  * OPLACERAD/KÖLISTA card (spec §19.10, docs/design/03-adversarial-review-round1.md's waitlist
  * decision): every `player_assignment` with `group_id == null` - the MVP waitlist bucket. `priority`
  * is the plan's "Prioritet" custom field value when one is configured (the same field the solver's
- * `unassignedPlayer` medium penalty scales by); omitted when the plan has none.
+ * `unassignedPlayer` medium penalty scales by); omitted when the plan has none. Each row also gets
+ * the M7 [Förklara]/[Testa flytt] actions (kravspec §17's waitlist narrative + §18 what-if, which
+ * works symmetrically for probing a move INTO a group from the kölista).
  */
-export function WaitlistCard({ entries }: WaitlistCardProps) {
+export function WaitlistCard({ entries, runId, onExplain, onTestMove }: WaitlistCardProps) {
   return (
     <Card withBorder padding="md" data-testid="waitlist-card">
       <Group justify="space-between" mb="xs">
@@ -41,6 +48,30 @@ export function WaitlistCard({ entries }: WaitlistCardProps) {
                       {sv.results.waitlist.priorityLabel(entry.priority)}
                     </Badge>
                   )}
+                </Table.Td>
+                <Table.Td>
+                  <Group gap={4} wrap="nowrap">
+                    <Tooltip label={sv.results.noRunTooltip} disabled={runId !== undefined}>
+                      <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        disabled={runId === undefined}
+                        onClick={() => onExplain(entry.participantProfileId, entry.name)}
+                      >
+                        {sv.results.waitlist.explainButton}
+                      </Button>
+                    </Tooltip>
+                    <Tooltip label={sv.results.noRunTooltip} disabled={runId !== undefined}>
+                      <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        disabled={runId === undefined}
+                        onClick={() => onTestMove(entry.participantProfileId, entry.name)}
+                      >
+                        {sv.results.groupCard.testMoveButton}
+                      </Button>
+                    </Tooltip>
+                  </Group>
                 </Table.Td>
               </Table.Tr>
             ))}

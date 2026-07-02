@@ -244,6 +244,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{planId}/whatif/why-not": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["whyNot"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/whatif/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["move"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans/{planId}/time-slots": {
         parameters: {
             query?: never;
@@ -414,6 +446,22 @@ export interface paths {
         get: operations["listForPlan_3"];
         put?: never;
         post: operations["create_6"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/assignments/{participantProfileId}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["move_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -668,6 +716,54 @@ export interface paths {
             cookie?: never;
         };
         get: operations["list_5"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/runs/{runId}/explanations/players/{participantProfileId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["player"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/runs/{runId}/explanations/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["plan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/runs/{runId}/explanations/groups/{groupId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["group"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1025,6 +1121,80 @@ export interface components {
             /** Format: date-time */
             updatedAt?: string;
         };
+        WhyNotRequest: {
+            participantProfileId?: string;
+            groupId?: string;
+            runId?: string;
+        };
+        AlternativeGroupView: {
+            groupId?: string;
+            name?: string;
+            origin?: string[];
+            verdict?: string;
+            scoreDelta?: components["schemas"]["ScoreDeltaView"];
+            newlyBroken?: components["schemas"]["ConstraintMessageView"][];
+            newlyFixed?: components["schemas"]["ConstraintMessageView"][];
+            narrativeSv?: string;
+        };
+        ConstraintMessageView: {
+            key?: string;
+            messageSv?: string;
+        };
+        ScoreDeltaView: {
+            /** Format: int64 */
+            hard?: number;
+            /** Format: int64 */
+            medium?: number;
+            /** Format: int64 */
+            soft?: number;
+        };
+        WhatIfWhyNotResponse: {
+            runId?: string;
+            /** Format: int32 */
+            basedOnRevision?: number;
+            /** Format: int32 */
+            currentRevision?: number;
+            stale?: boolean;
+            alternative?: components["schemas"]["AlternativeGroupView"];
+        };
+        MoveRequest: {
+            participantProfileId?: string;
+            targetGroupId?: string;
+            runId?: string;
+        };
+        GroupSizeChangeView: {
+            groupId?: string;
+            name?: string;
+            /** Format: int32 */
+            from?: number;
+            /** Format: int32 */
+            to?: number;
+            /** Format: int32 */
+            max?: number;
+        };
+        LevelSpreadChangeView: {
+            groupId?: string;
+            name?: string;
+            /** Format: int32 */
+            from?: number;
+            /** Format: int32 */
+            to?: number;
+        };
+        WhatIfMoveResponse: {
+            runId?: string;
+            /** Format: int32 */
+            basedOnRevision?: number;
+            /** Format: int32 */
+            currentRevision?: number;
+            stale?: boolean;
+            scoreDelta?: components["schemas"]["ScoreDeltaView"];
+            wouldBreakHard?: boolean;
+            groupSizeChanges?: components["schemas"]["GroupSizeChangeView"][];
+            levelSpreadChanges?: components["schemas"]["LevelSpreadChangeView"][];
+            newlyBroken?: components["schemas"]["ConstraintMessageView"][];
+            newlyFixed?: components["schemas"]["ConstraintMessageView"][];
+            suggestedActions?: string[];
+        };
         CreateTimeSlotRequest: {
             dayOfWeek?: string;
             date?: string;
@@ -1058,10 +1228,6 @@ export interface components {
             profile?: string;
             optimize?: components["schemas"]["OptimizeRequest"];
             blocking?: components["schemas"]["BlockingRequest"];
-        };
-        StartSolveResponse: {
-            runId?: string;
-            status?: string;
         };
         CancelSolveResponse: {
             finalRunId?: string;
@@ -1212,6 +1378,13 @@ export interface components {
             canAlsoTrainAsParticipant?: boolean;
             notes?: string;
         };
+        PlayerAssignment: {
+            id?: string;
+            participantProfileId?: string;
+            groupId?: string;
+            locked?: boolean;
+            source?: string;
+        };
         CreatePersonRequest: {
             firstName?: string;
             lastName?: string;
@@ -1350,6 +1523,156 @@ export interface components {
             /** Format: int32 */
             durationMs?: number;
             resultSummaryJson?: string;
+            /** Format: int32 */
+            planRevision?: number;
+        };
+        AppliedWeightView: {
+            key?: string;
+            label?: string;
+            level?: string;
+            /** Format: int64 */
+            weight?: number;
+        };
+        BrokenWishView: {
+            key?: string;
+            withPerson?: string;
+            /** Format: int64 */
+            weightApplied?: number;
+            messageSv?: string;
+            unassignedFriendParticipantProfileId?: string;
+        };
+        FactorView: {
+            messageSv?: string;
+        };
+        PersonExplanationResponse: {
+            runId?: string;
+            /** Format: int32 */
+            basedOnRevision?: number;
+            /** Format: int32 */
+            currentRevision?: number;
+            stale?: boolean;
+            participantProfileId?: string;
+            name?: string;
+            selectedGroup?: components["schemas"]["SelectedGroupView"];
+            positiveFactors?: components["schemas"]["FactorView"][];
+            negativeFactors?: components["schemas"]["FactorView"][];
+            brokenWishes?: components["schemas"]["BrokenWishView"][];
+            appliedWeights?: components["schemas"]["AppliedWeightView"][];
+            alternatives?: components["schemas"]["AlternativeGroupView"][];
+            waitlist?: components["schemas"]["WaitlistView"];
+        };
+        SelectedGroupView: {
+            groupId?: string;
+            name?: string;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int32 */
+            targetSize?: number;
+            /** Format: int32 */
+            maxSize?: number;
+            levelMeanSv?: string;
+            /** Format: int32 */
+            levelSpread?: number;
+        };
+        WaitlistBlockerView: {
+            groupId?: string;
+            name?: string;
+            blockerSv?: string;
+        };
+        WaitlistView: {
+            reasonSv?: string;
+            perGroupBlockers?: components["schemas"]["WaitlistBlockerView"][];
+            qualityWarningSv?: string;
+        };
+        ConstraintSummaryView: {
+            key?: string;
+            label?: string;
+            level?: string;
+            /** Format: int64 */
+            weightApplied?: number;
+            /** Format: int64 */
+            scoreTotal?: number;
+            /** Format: int32 */
+            matchCount?: number;
+        };
+        HardViolationView: {
+            key?: string;
+            messageSv?: string;
+        };
+        ManualReviewEntryView: {
+            participantProfileId?: string;
+            name?: string;
+            reasonSv?: string;
+        };
+        PlanExplanationResponse: {
+            runId?: string;
+            /** Format: int32 */
+            basedOnRevision?: number;
+            /** Format: int32 */
+            currentRevision?: number;
+            stale?: boolean;
+            score?: components["schemas"]["ScoreDeltaView"];
+            feasible?: boolean;
+            constraintSummaries?: components["schemas"]["ConstraintSummaryView"][];
+            hardViolations?: components["schemas"]["HardViolationView"][];
+            waitlist?: components["schemas"]["WaitlistEntryView"][];
+            problematicGroups?: components["schemas"]["ProblematicGroupView"][];
+            manualReview?: components["schemas"]["ManualReviewEntryView"][];
+        };
+        ProblematicGroupView: {
+            groupId?: string;
+            name?: string;
+            /** Format: int64 */
+            penaltySum?: number;
+        };
+        WaitlistEntryView: {
+            participantProfileId?: string;
+            name?: string;
+            /** Format: int32 */
+            priority?: number;
+            reasonSv?: string;
+        };
+        GroupBlockView: {
+            trainingBlockId?: string;
+            label?: string;
+        };
+        GroupCoachView: {
+            coachProfileId?: string;
+            name?: string;
+        };
+        GroupExplanationResponse: {
+            runId?: string;
+            /** Format: int32 */
+            basedOnRevision?: number;
+            /** Format: int32 */
+            currentRevision?: number;
+            stale?: boolean;
+            groupId?: string;
+            name?: string;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int32 */
+            targetSize?: number;
+            /** Format: int32 */
+            maxSize?: number;
+            levelMeanSv?: string;
+            /** Format: int32 */
+            levelSpread?: number;
+            coach?: components["schemas"]["GroupCoachView"];
+            block?: components["schemas"]["GroupBlockView"];
+            warnings?: string[];
+            matches?: components["schemas"]["GroupMatchView"][];
+            membersWithBrokenWishes?: components["schemas"]["GroupMemberBrokenWishView"][];
+        };
+        GroupMatchView: {
+            key?: string;
+            messageSv?: string;
+            scoreImpact?: components["schemas"]["ScoreDeltaView"];
+        };
+        GroupMemberBrokenWishView: {
+            participantProfileId?: string;
+            name?: string;
+            messageSv?: string;
         };
         PersonMatchProposal: {
             existingPersonId?: string;
@@ -1440,13 +1763,6 @@ export interface components {
         CoachAssignment: {
             id?: string;
             coachProfileId?: string;
-            groupId?: string;
-            locked?: boolean;
-            source?: string;
-        };
-        PlayerAssignment: {
-            id?: string;
-            participantProfileId?: string;
             groupId?: string;
             locked?: boolean;
             source?: string;
@@ -2090,6 +2406,58 @@ export interface operations {
             };
         };
     };
+    whyNot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["WhyNotRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WhatIfWhyNotResponse"];
+                };
+            };
+        };
+    };
+    move: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MoveRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WhatIfMoveResponse"];
+                };
+            };
+        };
+    };
     listForPlan: {
         parameters: {
             query?: never;
@@ -2159,7 +2527,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["StartSolveResponse"];
+                    "*/*": Record<string, never>;
                 };
             };
         };
@@ -2452,6 +2820,33 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["CoachProfile"];
+                };
+            };
+        };
+    };
+    move_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                participantProfileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MoveRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PlayerAssignment"];
                 };
             };
         };
@@ -3252,6 +3647,77 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["OptimizationRun"][];
+                };
+            };
+        };
+    };
+    player: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                runId: string;
+                participantProfileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PersonExplanationResponse"];
+                };
+            };
+        };
+    };
+    plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PlanExplanationResponse"];
+                };
+            };
+        };
+    };
+    group: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                runId: string;
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["GroupExplanationResponse"];
                 };
             };
         };

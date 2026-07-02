@@ -38,7 +38,12 @@ public class ConstraintWeightController {
     public List<ConstraintWeightView> update(
             @PathVariable String planId, @RequestBody List<ConstraintWeightOverrideRequest> requests) {
         requirePlanExists(planId);
-        return constraintWeightService.applyOverrides(planId, requests);
+        List<ConstraintWeightView> result = constraintWeightService.applyOverrides(planId, requests);
+        // M7 (design §11.6 lists "weight change" explicitly): explanations recompute against the
+        // plan's CURRENT weight config (SolverInputAssembler.buildConstraintWeightOverrides), so a
+        // weight edit changes appliedWeights and every probe's score delta for any cached/older run.
+        activityPlanRepository.bumpRevision(planId);
+        return result;
     }
 
     private void requirePlanExists(String planId) {

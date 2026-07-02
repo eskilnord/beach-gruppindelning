@@ -20,6 +20,10 @@ import se.klubb.groupplanner.repo.ParticipantProfileRepository;
  * structured-entry drawer) — {@code GET|PUT /api/plans/{planId}/participants/{pid}/field-values}.
  * Delegates all type validation to {@link FieldValueService}, which is generic over {@code
  * entityType} so the same service backs the coach-scoped endpoint arriving in M5.
+ *
+ * <p>M7: {@code PUT} bumps {@code activity_plan.plan_revision} — this is exactly where wishes/
+ * priority/time-availability edits land (docs/design/04-solver.md §11.6's "participant edits"
+ * invalidation trigger), which feed the solver's constraints directly.
  */
 @RestController
 public class ParticipantFieldValueController {
@@ -47,7 +51,9 @@ public class ParticipantFieldValueController {
     public List<FieldValueView> put(
             @PathVariable String planId, @PathVariable String pid, @RequestBody Map<String, JsonNode> values) {
         requireParticipantInPlan(planId, pid);
-        return fieldValueService.putValues(planId, CustomFieldValue.ENTITY_TYPE_PARTICIPANT, pid, values);
+        List<FieldValueView> result = fieldValueService.putValues(planId, CustomFieldValue.ENTITY_TYPE_PARTICIPANT, pid, values);
+        activityPlanRepository.bumpRevision(planId);
+        return result;
     }
 
     private void requireParticipantInPlan(String planId, String pid) {

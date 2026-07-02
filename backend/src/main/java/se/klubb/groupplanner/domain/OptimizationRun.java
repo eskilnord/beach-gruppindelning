@@ -9,6 +9,12 @@ package se.klubb.groupplanner.domain;
  * columns never reach the solver input in the first place ({@code SolverInputAssembler} never reads
  * them), so there is nothing sensitive to leak into these snapshots by construction. Covered by
  * {@code OptimizationRunSnapshotLeakTest}.
+ *
+ * <p>{@code planRevision} (M7, V7__explainability.sql) is the {@code activity_plan.plan_revision}
+ * value immediately AFTER this run's own writeback (+ bump) — the "basedOnRevision" every
+ * explanation/what-if response for this run compares against the plan's CURRENT plan_revision to
+ * compute the staleness envelope (docs/design/04-solver.md §11.6). {@code null}/0 for a run that
+ * never finished (QUEUED/SOLVING/FAILED before any writeback happened).
  */
 public record OptimizationRun(
         String id,
@@ -20,7 +26,8 @@ public record OptimizationRun(
         String startedAt,
         String finishedAt,
         Integer durationMs,
-        String resultSummaryJson) {
+        String resultSummaryJson,
+        int planRevision) {
 
     public static final String STATUS_QUEUED = "QUEUED";
     public static final String STATUS_SOLVING = "SOLVING";

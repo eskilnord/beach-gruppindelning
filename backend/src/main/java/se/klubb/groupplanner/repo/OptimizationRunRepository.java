@@ -25,10 +25,10 @@ public class OptimizationRunRepository {
         jdbcClient.sql("""
                         INSERT INTO optimization_run
                             (id, activity_plan_id, input_snapshot_json, constraint_weights_json, score, status,
-                             started_at, finished_at, duration_ms, result_summary_json)
+                             started_at, finished_at, duration_ms, result_summary_json, plan_revision)
                         VALUES
                             (:id, :activityPlanId, :inputSnapshotJson, :constraintWeightsJson, :score, :status,
-                             :startedAt, :finishedAt, :durationMs, :resultSummaryJson)
+                             :startedAt, :finishedAt, :durationMs, :resultSummaryJson, :planRevision)
                         """)
                 .param("id", run.id())
                 .param("activityPlanId", run.activityPlanId())
@@ -40,6 +40,7 @@ public class OptimizationRunRepository {
                 .param("finishedAt", run.finishedAt())
                 .param("durationMs", run.durationMs())
                 .param("resultSummaryJson", run.resultSummaryJson())
+                .param("planRevision", run.planRevision())
                 .update();
         return run;
     }
@@ -49,7 +50,8 @@ public class OptimizationRunRepository {
                         UPDATE optimization_run
                         SET input_snapshot_json = :inputSnapshotJson, constraint_weights_json = :constraintWeightsJson,
                             score = :score, status = :status, started_at = :startedAt, finished_at = :finishedAt,
-                            duration_ms = :durationMs, result_summary_json = :resultSummaryJson
+                            duration_ms = :durationMs, result_summary_json = :resultSummaryJson,
+                            plan_revision = :planRevision
                         WHERE id = :id
                         """)
                 .param("id", run.id())
@@ -61,6 +63,7 @@ public class OptimizationRunRepository {
                 .param("finishedAt", run.finishedAt())
                 .param("durationMs", run.durationMs())
                 .param("resultSummaryJson", run.resultSummaryJson())
+                .param("planRevision", run.planRevision())
                 .update();
         return run;
     }
@@ -121,6 +124,7 @@ public class OptimizationRunRepository {
                 rs.getString("started_at"),
                 rs.getString("finished_at"),
                 NullableColumns.nullableInt(rs, "duration_ms"),
-                rs.getString("result_summary_json"));
+                rs.getString("result_summary_json"),
+                rs.getInt("plan_revision"));
     }
 }

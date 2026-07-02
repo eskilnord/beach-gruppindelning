@@ -47,7 +47,9 @@ public class CoachFieldValueController {
     public List<FieldValueView> put(
             @PathVariable String planId, @PathVariable String cid, @RequestBody Map<String, JsonNode> values) {
         requireCoachInPlan(planId, cid);
-        return fieldValueService.putValues(planId, CustomFieldValue.ENTITY_TYPE_COACH, cid, values);
+        List<FieldValueView> result = fieldValueService.putValues(planId, CustomFieldValue.ENTITY_TYPE_COACH, cid, values);
+        activityPlanRepository.bumpRevision(planId); // M7 review fix M2: coach field values feed solver facts.
+        return result;
     }
 
     private void requireCoachInPlan(String planId, String cid) {

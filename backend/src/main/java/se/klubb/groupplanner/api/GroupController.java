@@ -16,6 +16,7 @@ import se.klubb.groupplanner.api.error.NotFoundException;
 import se.klubb.groupplanner.domain.CoachProfile;
 import se.klubb.groupplanner.domain.TrainingBlock;
 import se.klubb.groupplanner.domain.TrainingGroup;
+import se.klubb.groupplanner.repo.ActivityPlanRepository;
 import se.klubb.groupplanner.repo.CoachAssignmentRepository;
 import se.klubb.groupplanner.repo.CoachProfileRepository;
 import se.klubb.groupplanner.repo.TrainingBlockRepository;
@@ -45,6 +46,7 @@ public class GroupController {
     private final CoachProfileRepository coachProfileRepository;
     private final CoachAssignmentRepository coachAssignmentRepository;
     private final SolveCoordinator solveCoordinator;
+    private final ActivityPlanRepository activityPlanRepository;
 
     public GroupController(
             GroupGenerator groupGenerator,
@@ -52,20 +54,25 @@ public class GroupController {
             TrainingBlockRepository trainingBlockRepository,
             CoachProfileRepository coachProfileRepository,
             CoachAssignmentRepository coachAssignmentRepository,
-            SolveCoordinator solveCoordinator) {
+            SolveCoordinator solveCoordinator,
+            ActivityPlanRepository activityPlanRepository) {
         this.groupGenerator = groupGenerator;
         this.trainingGroupRepository = trainingGroupRepository;
         this.trainingBlockRepository = trainingBlockRepository;
         this.coachProfileRepository = coachProfileRepository;
         this.coachAssignmentRepository = coachAssignmentRepository;
         this.solveCoordinator = solveCoordinator;
+        this.activityPlanRepository = activityPlanRepository;
     }
 
     /** (Re)generates groups per §7's policy: count = clamp(ceil(active/target), 1, activeBlocks);
-     * refuses (409) if any existing group/assignment is locked. */
+     * refuses (409) if any existing group/assignment is locked. Bumps {@code plan_revision} (M7
+     * review fix M2): regeneration can reshape/clear the very groups an explanation refers to. */
     @PostMapping("/api/plans/{planId}/groups/generate")
     public List<TrainingGroup> generate(@PathVariable String planId) {
-        return groupGenerator.generate(planId);
+        List<TrainingGroup> groups = groupGenerator.generate(planId);
+        activityPlanRepository.bumpRevision(planId);
+        return groups;
     }
 
     @GetMapping("/api/plans/{planId}/groups")
@@ -86,6 +93,7 @@ public class GroupController {
                 .filter(b -> b.activityPlanId().equals(group.activityPlanId()))
                 .orElseThrow(() -> new BadRequestException("Training block not found in plan: " + request.trainingBlockId()));
         trainingGroupRepository.lockToBlock(groupId, block.id());
+        activityPlanRepository.bumpRevision(group.activityPlanId());
         return requireGroup(groupId);
     }
 
@@ -95,6 +103,7 @@ public class GroupController {
         TrainingGroup group = requireGroup(groupId);
         solveCoordinator.assertNoActiveSolve(group.activityPlanId());
         trainingGroupRepository.unlockBlock(groupId);
+        activityPlanRepository.bumpRevision(group.activityPlanId());
     }
 
     /** §15.3 "Lås tränare" (spec §15.3): pins a coach to the group. {@code slotIndex} (optional) is
@@ -116,6 +125,7 @@ public class GroupController {
                     "slotIndex " + request.slotIndex() + " is out of range for requiredCoachCount " + group.requiredCoachCount());
         }
         coachAssignmentRepository.lockToGroup(coach.id(), groupId);
+        activityPlanRepository.bumpRevision(group.activityPlanId());
         return group;
     }
 
@@ -125,6 +135,7 @@ public class GroupController {
         TrainingGroup group = requireGroup(groupId);
         solveCoordinator.assertNoActiveSolve(group.activityPlanId());
         coachAssignmentRepository.unlockForCoachAndGroup(coachProfileId, groupId);
+        activityPlanRepository.bumpRevision(group.activityPlanId());
     }
 
     private TrainingGroup requireGroup(String groupId) {

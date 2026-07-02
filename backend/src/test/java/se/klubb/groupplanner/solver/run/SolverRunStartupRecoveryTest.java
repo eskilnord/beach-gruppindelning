@@ -58,12 +58,12 @@ class SolverRunStartupRecoveryTest {
         String planId = createPlan();
         String now = Instant.now().toString();
         OptimizationRun stuckSolving = optimizationRunRepository.insert(new OptimizationRun(
-                Uuid7.generate(), planId, "{}", "{}", null, OptimizationRun.STATUS_SOLVING, now, null, null, null));
+                Uuid7.generate(), planId, "{}", "{}", null, OptimizationRun.STATUS_SOLVING, now, null, null, null, 0));
         OptimizationRun stuckQueued = optimizationRunRepository.insert(new OptimizationRun(
-                Uuid7.generate(), planId, "{}", "{}", null, OptimizationRun.STATUS_QUEUED, now, null, null, null));
+                Uuid7.generate(), planId, "{}", "{}", null, OptimizationRun.STATUS_QUEUED, now, null, null, null, 0));
         OptimizationRun finished = optimizationRunRepository.insert(new OptimizationRun(
                 Uuid7.generate(), planId, "{}", "{}", "0hard/0medium/0soft", OptimizationRun.STATUS_FINISHED,
-                now, now, 1234, "{\"hard\":0}"));
+                now, now, 1234, "{\"hard\":0}", 0));
 
         int swept = recovery.sweep();
 

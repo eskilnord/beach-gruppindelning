@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
-import type { AssignmentsView } from "./types";
+import { invalidateExplanationQueries } from "./explanations";
+import type { AssignmentsView, MoveAssignmentRequest, PlayerAssignment } from "./types";
 
 export const assignmentsKey = (planId: string) => ["plans", planId, "assignments"] as const;
 
@@ -33,6 +34,25 @@ export function useUnlockPlayerAssignment(planId: string) {
       api.delete<void>(`/api/plans/${planId}/assignments/${participantProfileId}/lock`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: assignmentsKey(planId) });
+    },
+  });
+}
+
+/** M7 "Flytta ändå"/"Lås & markera för omoptimering" (spec §18.2/§18.3, what-if dialog action
+ *  buttons): the actual MUTATING manual move behind the what-if consequence report, `source=manual`
+ *  on success (AssignmentController#move). `groupId: null` moves the participant to the kölista.
+ *  Bumps `plan_revision`, so every open explanation for this plan flips `stale=true` until the next
+ *  solve - invalidated here alongside assignments/groups. */
+export function useMoveAssignment(planId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ participantProfileId, groupId }: { participantProfileId: string; groupId: string | null }) =>
+      api.post<PlayerAssignment>(`/api/plans/${planId}/assignments/${participantProfileId}/move`, {
+        groupId,
+      } satisfies MoveAssignmentRequest),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: assignmentsKey(planId) });
+      invalidateExplanationQueries(queryClient, planId);
     },
   });
 }

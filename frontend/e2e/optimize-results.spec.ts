@@ -129,10 +129,10 @@ test("Optimering (generera+GREEDY+FAST) → Resultatvy (grupper+kölista+lås) �
   await expect(tovaRow.getByRole("button", { name: sv.results.groupCard.unlockButton, exact: true })).toBeVisible();
   await expect(tovaRow).toContainText(sv.results.groupCard.sourceBadge.locked);
 
-  // The spec's own [Förklara]/[Testa flytt] buttons are present but disabled (explainability/what-if
-  // is M7, backend/docs/m6b-notes.md "Known gaps / deferred to M7+").
-  await expect(tovaRow.getByRole("button", { name: sv.results.groupCard.explainButton })).toBeDisabled();
-  await expect(tovaRow.getByRole("button", { name: sv.results.groupCard.testMoveButton })).toBeDisabled();
+  // M7: the spec's own [Förklara]/[Testa flytt] buttons are enabled once a run exists (see
+  // explain-whatif.spec.ts for the full explain/what-if acceptance flow).
+  await expect(tovaRow.getByRole("button", { name: sv.results.groupCard.explainButton })).toBeEnabled();
+  await expect(tovaRow.getByRole("button", { name: sv.results.groupCard.testMoveButton })).toBeEnabled();
 
   // --- Planeringskarta (Schema sub-view): the group occupies its block, no conflicts ---
   await page.getByText(sv.results.viewToggle.schedule, { exact: true }).click();

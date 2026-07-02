@@ -1,6 +1,8 @@
 package se.klubb.groupplanner.solver.run;
 
+import ai.timefold.solver.core.api.score.analysis.ScoreAnalysis;
 import ai.timefold.solver.core.api.score.buildin.hardmediumsoftlong.HardMediumSoftLongScore;
+import ai.timefold.solver.core.api.solver.ScoreAnalysisFetchPolicy;
 import ai.timefold.solver.core.api.solver.SolutionManager;
 import ai.timefold.solver.core.api.solver.SolverConfigOverride;
 import ai.timefold.solver.core.api.solver.SolverManager;
@@ -15,6 +17,7 @@ import se.klubb.groupplanner.api.error.BadRequestException;
 import se.klubb.groupplanner.api.error.ConflictException;
 import se.klubb.groupplanner.domain.CoachAssignment;
 import se.klubb.groupplanner.domain.OptimizationRun;
+import se.klubb.groupplanner.repo.ActivityPlanRepository;
 import se.klubb.groupplanner.repo.CoachAssignmentRepository;
 import se.klubb.groupplanner.repo.PlayerAssignmentRepository;
 import se.klubb.groupplanner.repo.TrainingGroupRepository;
@@ -52,6 +55,7 @@ public class SolveCoordinator {
     private final PlayerAssignmentRepository playerAssignmentRepository;
     private final TrainingGroupRepository trainingGroupRepository;
     private final CoachAssignmentRepository coachAssignmentRepository;
+    private final ActivityPlanRepository activityPlanRepository;
 
     private final Map<String, AssembledProblem> assembledByActivityPlanId = new ConcurrentHashMap<>();
     private final Map<String, Boolean> cancelledByActivityPlanId = new ConcurrentHashMap<>();
@@ -74,7 +78,8 @@ public class SolveCoordinator {
             GreedyBaselineService greedyBaselineService,
             PlayerAssignmentRepository playerAssignmentRepository,
             TrainingGroupRepository trainingGroupRepository,
-            CoachAssignmentRepository coachAssignmentRepository) {
+            CoachAssignmentRepository coachAssignmentRepository,
+            ActivityPlanRepository activityPlanRepository) {
         this.solverManager = solverManager;
         this.solutionManager = solutionManager;
         this.assembler = assembler;
@@ -84,6 +89,7 @@ public class SolveCoordinator {
         this.playerAssignmentRepository = playerAssignmentRepository;
         this.trainingGroupRepository = trainingGroupRepository;
         this.coachAssignmentRepository = coachAssignmentRepository;
+        this.activityPlanRepository = activityPlanRepository;
     }
 
     /** Convenience overload: full optimize, no cross-plan blocking (M6a's exact behavior). */
@@ -183,9 +189,11 @@ public class SolveCoordinator {
         try {
             GroupPlanSolution result = greedyBaselineService.run(assembled.solution());
             HardMediumSoftLongScore score = solutionManager.update(result); // sets result.getScore() too
-            persistResult(assembled, result);
+            int planRevisionAtFinish = persistResult(assembled, result);
             int unassignedCount = ProgressRegistry.unassignedCount(result);
-            optimizationRunService.finishRun(run.id(), score, unassignedCount, false);
+            ScoreAnalysis<HardMediumSoftLongScore> analysis =
+                    solutionManager.analyze(result, ScoreAnalysisFetchPolicy.FETCH_ALL);
+            optimizationRunService.finishRun(run.id(), score, unassignedCount, false, analysis, planRevisionAtFinish);
             return new GreedyResult(run.id(), score);
         } catch (RuntimeException e) {
             optimizationRunService.failRun(run.id(), e);
@@ -220,10 +228,9 @@ public class SolveCoordinator {
     private void onFinalBestSolution(String activityPlanId, String runId, GroupPlanSolution finalSolution) {
         boolean cancelled = Boolean.TRUE.equals(cancelledByActivityPlanId.remove(activityPlanId));
         AssembledProblem assembled = assembledByActivityPlanId.remove(activityPlanId);
+        int planRevisionAtFinish;
         try {
-            if (assembled != null) {
-                persistResult(assembled, finalSolution);
-            }
+            planRevisionAtFinish = assembled != null ? persistResult(assembled, finalSolution) : activityPlanRepository.getPlanRevision(activityPlanId);
         } catch (RuntimeException e) {
             log.error("Failed to persist solver result for plan {}", activityPlanId, e);
             optimizationRunService.failRun(runId, e);
@@ -231,7 +238,9 @@ public class SolveCoordinator {
             return;
         }
         int unassignedCount = ProgressRegistry.unassignedCount(finalSolution);
-        optimizationRunService.finishRun(runId, finalSolution.getScore(), unassignedCount, cancelled);
+        ScoreAnalysis<HardMediumSoftLongScore> analysis =
+                solutionManager.analyze(finalSolution, ScoreAnalysisFetchPolicy.FETCH_ALL);
+        optimizationRunService.finishRun(runId, finalSolution.getScore(), unassignedCount, cancelled, analysis, planRevisionAtFinish);
         progressRegistry.clear(activityPlanId);
     }
 
@@ -245,9 +254,16 @@ public class SolveCoordinator {
 
     /** Writes the solved result back to {@code player_assignment}/{@code training_group}/{@code
      * coach_assignment} (source={@code solver}); locked rows are left untouched (both repository
-     * methods used here already scope their UPDATE/DELETE to unlocked rows). */
+     * methods used here already scope their UPDATE/DELETE to unlocked rows). Returns the plan's
+     * {@code plan_revision} immediately AFTER this writeback (M7, docs/design/04-solver.md §11.6):
+     * a fresh solve's writeback invalidates the meaning of "current DB state" for any previously
+     * cached explanation of an OLDER run (see backend/docs/m7-notes.md's "invalidation surface" note
+     * for the full correctness argument — {@code se.klubb.groupplanner.explain.ExplanationService}/
+     * {@code WhatIfService} always compute against current {@code player_assignment}/{@code
+     * training_group}/{@code coach_assignment} rows, so a solve that overwrites them must bump the
+     * revision exactly like a manual move or a lock change does). */
     @Transactional
-    void persistResult(AssembledProblem assembled, GroupPlanSolution solution) {
+    int persistResult(AssembledProblem assembled, GroupPlanSolution solution) {
         for (se.klubb.groupplanner.solver.domain.PlayerAssignment pa : solution.getPlayerAssignments()) {
             String participantDbId = assembled.participantProfileDbIdByLongId().get(pa.getId());
             if (participantDbId == null) {
@@ -286,5 +302,7 @@ public class SolveCoordinator {
                 coachAssignmentRepository.insert(coachDbId, groupDbId, false, CoachAssignment.SOURCE_SOLVER);
             }
         }
+
+        return activityPlanRepository.bumpRevision(assembled.solution().getActivityPlanId());
     }
 }

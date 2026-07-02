@@ -87,6 +87,34 @@ public class ActivityPlanRepository {
         return rows > 0;
     }
 
+    /**
+     * Current {@code plan_revision} (M7, docs/design/04-solver.md §11.6) — the "currentRevision" half
+     * of every explanation/what-if response's staleness envelope. 0 if the plan does not exist
+     * (callers are expected to have already validated existence for a 404).
+     */
+    public int getPlanRevision(String id) {
+        return jdbcClient.sql("SELECT plan_revision FROM activity_plan WHERE id = :id")
+                .param("id", id)
+                .query(Integer.class)
+                .optional()
+                .orElse(0);
+    }
+
+    /**
+     * Bumps and returns the new {@code plan_revision} — the single chokepoint every M7 "invalidation
+     * surface" call site uses (manual moves, lock/unlock, participant/field-value edits, and a solve/
+     * greedy run's own writeback — see V7__explainability.sql's header comment and
+     * backend/docs/m7-notes.md for why a fresh solve must bump it too). Two statements (UPDATE then
+     * SELECT) rather than an SQLite {@code RETURNING} clause, for the same JdbcClient
+     * update()-vs-query() simplicity every other repository in this codebase already follows.
+     */
+    public int bumpRevision(String id) {
+        jdbcClient.sql("UPDATE activity_plan SET plan_revision = plan_revision + 1 WHERE id = :id")
+                .param("id", id)
+                .update();
+        return getPlanRevision(id);
+    }
+
     private static ActivityPlan mapRow(ResultSet rs, int rowNum) throws SQLException {
         return new ActivityPlan(
                 rs.getString("id"),

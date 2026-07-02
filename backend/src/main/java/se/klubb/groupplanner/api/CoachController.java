@@ -101,7 +101,9 @@ public class CoachController {
                 request.maxGroupsPerWeek(),
                 request.canAlsoTrainAsParticipant() != null && request.canAlsoTrainAsParticipant(),
                 request.notes());
-        return coachProfileRepository.insert(profile);
+        CoachProfile created = coachProfileRepository.insert(profile);
+        activityPlanRepository.bumpRevision(planId); // M7 review fix M2: coaches feed CoachSlot/coach-wish probes.
+        return created;
     }
 
     private String resolvePersonId(CreateCoachRequest request) {
@@ -161,14 +163,17 @@ public class CoachController {
                 maxGroupsPerWeek,
                 requiredBoolean(body, "canAlsoTrainAsParticipant", existing.canAlsoTrainAsParticipant()),
                 nullableString(body, "notes", existing.notes()));
-        return coachProfileRepository.update(updated);
+        CoachProfile saved = coachProfileRepository.update(updated);
+        activityPlanRepository.bumpRevision(existing.activityPlanId()); // M7 review fix M2.
+        return saved;
     }
 
     @DeleteMapping("/api/coaches/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable String id) {
-        findOrThrow(id);
+        CoachProfile existing = findOrThrow(id);
         coachProfileRepository.deleteById(id);
+        activityPlanRepository.bumpRevision(existing.activityPlanId()); // M7 review fix M2.
     }
 
     @GetMapping("/api/plans/{planId}/coaches/{id}/availability")
@@ -215,6 +220,7 @@ public class CoachController {
             coachTimeSlotRepository.insert(new CoachTimeSlot(Uuid7.generate(), id, entry.timeSlotId(), entry.kind()));
             result.add(entry);
         }
+        activityPlanRepository.bumpRevision(planId); // M7 review fix M2: availability drives coachAvailabilityHard.
         return result;
     }
 

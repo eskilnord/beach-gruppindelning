@@ -57,7 +57,10 @@ public class TrainingBlockController {
         if (request == null || request.count() == null) {
             throw new BadRequestException("count is required");
         }
-        return generationService.generateForSlot(slot, request.count());
+        List<TrainingBlockView> blocks = generationService.generateForSlot(slot, request.count());
+        // M7 review fix M2: block availability changes what placements/probes are physically possible.
+        activityPlanRepository.bumpRevision(planId);
+        return blocks;
     }
 
     /**
@@ -82,6 +85,7 @@ public class TrainingBlockController {
                 .orElseThrow(() -> new IllegalStateException("Court not found: " + existing.courtId()));
         TrainingBlock updated = trainingBlockRepository.findById(id)
                 .orElseThrow(() -> new IllegalStateException("Training block vanished mid-update: " + id));
+        activityPlanRepository.bumpRevision(existing.activityPlanId()); // M7 review fix M2.
         return TrainingBlockView.of(updated, court);
     }
 

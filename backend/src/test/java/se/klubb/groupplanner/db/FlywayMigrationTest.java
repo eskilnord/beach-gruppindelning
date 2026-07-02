@@ -39,7 +39,7 @@ class FlywayMigrationTest {
             "coach_time_slot", "venue", "court", "time_slot", "training_block", "training_group",
             "player_assignment", "coach_assignment", "constraint_definition", "field_definition",
             "custom_field_value", "constraint_weight_config", "import_template", "import_run",
-            "optimization_run", "saved_plan", "saved_plan_resource_usage");
+            "optimization_run", "saved_plan", "saved_plan_resource_usage", "explanation_record");
 
     @Test
     void allExpectedTablesExist() {
@@ -59,7 +59,7 @@ class FlywayMigrationTest {
 
         assertThat(descriptions).containsExactly(
                 "core", "seed constraints and standard fields", "import", "resources", "solver runs",
-                "soft constraints locks saved plan");
+                "soft constraints locks saved plan", "explainability");
     }
 
     @Test

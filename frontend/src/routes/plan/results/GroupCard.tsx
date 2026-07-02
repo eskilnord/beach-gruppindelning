@@ -27,6 +27,12 @@ interface GroupCardProps {
   timeBanaLabel: string | null;
   coaches: GroupCardCoach[];
   members: GroupCardMember[];
+  /** The plan's latest run id (M7) - explain/what-if actions are disabled until the plan has been
+   *  solved at least once (spec §17/§18 need a run to explain/probe against). */
+  runId: string | undefined;
+  onExplain: (participantProfileId: string, name: string) => void;
+  onTestMove: (participantProfileId: string, name: string) => void;
+  onExplainGroup: (groupId: string, name: string) => void;
 }
 
 function showError(error: unknown, fallback: string) {
@@ -36,11 +42,11 @@ function showError(error: unknown, fallback: string) {
 /**
  * One group card in the Resultatvy (spec §19.10): name, tid+bana, tränare, spelarantal, nivåsnitt/
  * nivåspridning (computed client-side from members' levels, groupMetrics.ts), lock toggles for the
- * block/coaches/each member (spec §15.1-15.3 lock endpoints), and the spec's own [Förklara]/
- * [Testa flytt] buttons rendered disabled - explainability/what-if is M7 (backend/docs/m6b-notes.md
- * "Known gaps / deferred to M7+").
+ * block/coaches/each member (spec §15.1-15.3 lock endpoints), a group-level "Förklara grupp" action
+ * (M7, kravspec §17.1 "Gruppnivå"), and per-member [Förklara]/[Testa flytt] buttons (M7, spec §19.10)
+ * - all three disabled with a tooltip until the plan has a `runId` to explain/probe against.
  */
-export function GroupCard({ planId, group, timeBanaLabel, coaches, members }: GroupCardProps) {
+export function GroupCard({ planId, group, timeBanaLabel, coaches, members, runId, onExplain, onTestMove, onExplainGroup }: GroupCardProps) {
   const lockBlock = useLockGroupBlock(planId);
   const unlockBlock = useUnlockGroupBlock(planId);
   const lockCoach = useLockGroupCoach(planId);
@@ -92,7 +98,19 @@ export function GroupCard({ planId, group, timeBanaLabel, coaches, members }: Gr
   return (
     <Card withBorder padding="md" data-testid="group-card">
       <Group justify="space-between" mb={4}>
-        <Title order={5}>{group.name}</Title>
+        <Group gap={6}>
+          <Title order={5}>{group.name}</Title>
+          <Tooltip label={sv.results.noRunTooltip} disabled={runId !== undefined}>
+            <Button
+              size="compact-xs"
+              variant="subtle"
+              disabled={runId === undefined}
+              onClick={() => onExplainGroup(group.id, group.name)}
+            >
+              {sv.results.groupCard.explainGroupButton}
+            </Button>
+          </Tooltip>
+        </Group>
         <Text size="sm" c="dimmed">
           {sv.results.groupCard.playersCount(members.length, group.targetSize ?? null, group.maxSize ?? null)}
         </Text>
@@ -189,13 +207,23 @@ export function GroupCard({ planId, group, timeBanaLabel, coaches, members }: Gr
                   >
                     {member.locked ? sv.results.groupCard.unlockButton : sv.results.groupCard.lockButton}
                   </Button>
-                  <Tooltip label={sv.results.groupCard.comingSoonTooltip}>
-                    <Button size="compact-xs" variant="subtle" disabled>
+                  <Tooltip label={sv.results.noRunTooltip} disabled={runId !== undefined}>
+                    <Button
+                      size="compact-xs"
+                      variant="subtle"
+                      disabled={runId === undefined}
+                      onClick={() => onExplain(member.participantProfileId, member.name)}
+                    >
                       {sv.results.groupCard.explainButton}
                     </Button>
                   </Tooltip>
-                  <Tooltip label={sv.results.groupCard.comingSoonTooltip}>
-                    <Button size="compact-xs" variant="subtle" disabled>
+                  <Tooltip label={sv.results.noRunTooltip} disabled={runId !== undefined}>
+                    <Button
+                      size="compact-xs"
+                      variant="subtle"
+                      disabled={runId === undefined}
+                      onClick={() => onTestMove(member.participantProfileId, member.name)}
+                    >
                       {sv.results.groupCard.testMoveButton}
                     </Button>
                   </Tooltip>

@@ -9,8 +9,13 @@ import { useGroups } from "../../../api/groups";
 import { useParticipantFieldValues, useParticipants } from "../../../api/participants";
 import { usePersons } from "../../../api/persons";
 import { usePlan } from "../../../api/plans";
+import { useOptimizationRuns } from "../../../api/runs";
 import { useTrainingBlocksForPlan } from "../../../api/trainingBlocks";
 import { sv } from "../../../i18n/sv";
+import { formatDateTime } from "../../../lib/formatDateTime";
+import { ExplainDrawer, type GroupOption } from "./explain/ExplainDrawer";
+import { GroupExplainDrawer } from "./explain/GroupExplainDrawer";
+import { WhatIfDialog } from "./explain/WhatIfDialog";
 import { GroupCard } from "./GroupCard";
 import { ScheduleView } from "./ScheduleView";
 import { WaitlistCard, type WaitlistEntry } from "./WaitlistCard";
@@ -39,6 +44,14 @@ export function ResultsPanel() {
   const navigate = useNavigate();
   const [view, setView] = useState<ResultView>("cards");
 
+  // M7 explain/what-if drawer & dialog state - lifted to this shared parent (rather than living
+  // inside each GroupCard/WaitlistCard) so there is exactly ONE of each mounted at a time and the
+  // "waitlisted friend" link in the explain drawer can jump straight to a different participant
+  // anywhere in the plan by just updating this state.
+  const [explainTarget, setExplainTarget] = useState<{ id: string; name: string } | null>(null);
+  const [whatIfTarget, setWhatIfTarget] = useState<{ id: string; name: string; currentGroupId: string | null } | null>(null);
+  const [explainGroup, setExplainGroup] = useState<{ id: string; name: string } | null>(null);
+
   const plan = usePlan(planId);
   const groups = useGroups(planId);
   const assignments = useAssignments(planId);
@@ -47,6 +60,11 @@ export function ResultsPanel() {
   const coaches = useCoaches(planId);
   const trainingBlocks = useTrainingBlocksForPlan(planId);
   const fieldDefinitions = useFieldDefinitions(planId);
+  const runs = useOptimizationRuns(planId);
+
+  const latestRun = runs.data?.[0];
+  const latestRunId = latestRun?.id;
+  const runStartedAtLabel = latestRun ? formatDateTime(latestRun.startedAt) : undefined;
 
   const waitlistedParticipantIds = useMemo(
     () => (assignments.data?.players ?? []).filter((p) => p.groupId == null).map((p) => p.participantProfileId),
@@ -152,6 +170,8 @@ export function ResultsPanel() {
     );
   }
 
+  const allGroups: GroupOption[] = model.sortedGroups.map((g) => ({ id: g.id, name: g.name }));
+
   return (
     <Stack gap="md">
       <Card withBorder padding="lg">
@@ -166,6 +186,11 @@ export function ResultsPanel() {
             { label: sv.results.viewToggle.schedule, value: "schedule" },
           ]}
         />
+        {latestRun && (
+          <Text size="xs" c="dimmed" mt="xs" data-testid="explain-based-on">
+            {sv.results.explainBasedOn(runStartedAtLabel ?? "")}
+          </Text>
+        )}
       </Card>
 
       {view === "cards" && planId && (
@@ -199,11 +224,20 @@ export function ResultsPanel() {
                   timeBanaLabel={timeBanaLabel}
                   coaches={groupCoaches}
                   members={members}
+                  runId={latestRunId}
+                  onExplain={(id, name) => setExplainTarget({ id, name })}
+                  onTestMove={(id, name) => setWhatIfTarget({ id, name, currentGroupId: group.id })}
+                  onExplainGroup={(id, name) => setExplainGroup({ id, name })}
                 />
               );
             })}
           </SimpleGrid>
-          <WaitlistCard entries={model.waitlist} />
+          <WaitlistCard
+            entries={model.waitlist}
+            runId={latestRunId}
+            onExplain={(id, name) => setExplainTarget({ id, name })}
+            onTestMove={(id, name) => setWhatIfTarget({ id, name, currentGroupId: null })}
+          />
         </>
       )}
 
@@ -217,6 +251,36 @@ export function ResultsPanel() {
             coachNameByGroupId={model.coachNameByGroupId}
           />
         </Card>
+      )}
+
+      {planId && (
+        <>
+          <ExplainDrawer
+            planId={planId}
+            runId={latestRunId}
+            participantProfileId={explainTarget?.id ?? null}
+            participantName={explainTarget?.name ?? ""}
+            allGroups={allGroups}
+            onClose={() => setExplainTarget(null)}
+            onNavigateToParticipant={(id, name) => setExplainTarget({ id, name })}
+          />
+          <WhatIfDialog
+            planId={planId}
+            runId={latestRunId}
+            participantProfileId={whatIfTarget?.id ?? null}
+            participantName={whatIfTarget?.name ?? ""}
+            currentGroupId={whatIfTarget?.currentGroupId ?? null}
+            allGroups={allGroups}
+            onClose={() => setWhatIfTarget(null)}
+          />
+          <GroupExplainDrawer
+            planId={planId}
+            runId={latestRunId}
+            groupId={explainGroup?.id ?? null}
+            groupName={explainGroup?.name ?? ""}
+            onClose={() => setExplainGroup(null)}
+          />
+        </>
       )}
     </Stack>
   );
