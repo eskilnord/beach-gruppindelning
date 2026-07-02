@@ -99,11 +99,13 @@ class WaitlistContractTest {
 
         // Runtime sanity gate (m6a-notes "Review fix 1"): this exact fixture used to take ~106 s at
         // stepCountLimit=1000 - CH is already optimal here, so every second LS step churned
-        // 10^5-10^6 rejected move selections. The unimproved-step cutoff must keep it well under 10 s.
+        // 10^5-10^6 rejected move selections. The unimproved-step cutoff cures it (2.6 s locally).
+        // Bound is 45 s, not 10 s: the assertion exists to catch the ~106 s pathology returning,
+        // and windows-latest runners measured 12.8 s for the identical cured code.
         long startMillis = System.currentTimeMillis();
         GroupPlanSolution solved = TestSolverFactory.solve(problem, STEP_LIMIT, UNIMPROVED_TIGHT);
         long elapsedMillis = System.currentTimeMillis() - startMillis;
-        assertThat(elapsedMillis).isLessThan(10_000L);
+        assertThat(elapsedMillis).isLessThan(45_000L);
 
         assertThat(solved.getScore().hardScore()).isZero();
         PlayerAssignment stillPinned = solved.getPlayerAssignments().stream().filter(p -> p.getId() == 1L).findFirst().orElseThrow();
