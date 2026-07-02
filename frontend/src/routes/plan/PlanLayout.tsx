@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   ActionIcon,
@@ -22,6 +22,7 @@ import { useSeason } from "../../api/seasons";
 import { ApiError } from "../../api/client";
 import { sv } from "../../i18n/sv";
 import { EditPlanModal } from "./EditPlanModal";
+import { useEditPlanModalStore } from "./editPlanModalStore";
 import { DeleteConfirmModal } from "../../components/DeleteConfirmModal";
 
 const TABS = [
@@ -44,8 +45,13 @@ export function PlanLayout() {
   const season = useSeason(plan.data?.seasonPlanId);
   const deletePlan = useDeletePlan(plan.data?.seasonPlanId ?? "");
 
-  const [editOpen, setEditOpen] = useState(false);
+  const editOpen = useEditPlanModalStore((state) => state.opened);
   const [deleteOpen, setDeleteOpen] = useState(false);
+
+  // v0.3.0 review fix: the modal-open state lives in a global zustand store (so OptimizePanel's
+  // "Ändra…" link can open it) - reset it whenever this layout unmounts or switches to another
+  // plan, so an open modal never leaks opened=true into the next plan's layout.
+  useEffect(() => () => useEditPlanModalStore.getState().close(), [planId]);
 
   if (plan.isLoading) {
     return <Loader />;
@@ -94,7 +100,7 @@ export function PlanLayout() {
               🔍
             </ActionIcon>
           </Tooltip>
-          <Button variant="default" onClick={() => setEditOpen(true)}>
+          <Button variant="default" onClick={() => useEditPlanModalStore.getState().open()}>
             {sv.plan.editButton}
           </Button>
           <Button variant="default" color="red" onClick={() => setDeleteOpen(true)}>
@@ -122,7 +128,7 @@ export function PlanLayout() {
 
       <Outlet />
 
-      <EditPlanModal opened={editOpen} plan={data} onClose={() => setEditOpen(false)} />
+      <EditPlanModal opened={editOpen} plan={data} onClose={() => useEditPlanModalStore.getState().close()} />
 
       <DeleteConfirmModal
         opened={deleteOpen}

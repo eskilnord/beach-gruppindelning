@@ -122,7 +122,7 @@ public final class TestDatasetLoader {
                 ? seasonPlanId
                 : seasonPlanRepository.insert(new SeasonPlan(Uuid7.generate(), "VT-test", null, null, "active", now, now)).id();
         ActivityPlan plan = activityPlanRepository.insert(
-                new ActivityPlan(Uuid7.generate(), resolvedSeasonPlanId, category, category, "draft", target, min, max, now, now));
+                new ActivityPlan(Uuid7.generate(), resolvedSeasonPlanId, category, category, "draft", target, min, max, null, now, now));
         String planId = plan.id();
 
         Map<String, String> timeSlotIdByShortId = loadTimeSlotsAndBlocks(dir.resolve("timeslots.csv"), planId);

@@ -82,14 +82,17 @@ public class GroupGenerator {
         List<ParticipantProfile> active = participants.stream().filter(p -> !p.waitlisted()).toList();
         int activeBlockCount = trainingBlockRepository.countActiveByActivityPlanId(activityPlanId);
 
-        int target = plan.defaultGroupTargetSize() != null ? plan.defaultGroupTargetSize() : FALLBACK_TARGET_SIZE;
-        int max = plan.defaultGroupMaxSize() != null ? plan.defaultGroupMaxSize() : target + 2;
-        int min = plan.defaultGroupMinSize() != null ? plan.defaultGroupMinSize() : Math.max(1, target - 2);
+        EffectiveSizes sizes = effectiveSizes(
+                plan.defaultGroupTargetSize(), plan.defaultGroupMinSize(), plan.defaultGroupMaxSize());
+        int target = sizes.target();
+        int max = sizes.max();
+        int min = sizes.min();
 
         int groupCount = clamp(ceilDiv(Math.max(active.size(), 1), Math.max(target, 1)), 1, Math.max(activeBlockCount, 1));
 
         String prefix = (plan.category() != null && !plan.category().isBlank()) ? plan.category() : plan.name();
         List<double[]> bands = computeLevelBands(active, groupCount); // [min, max] per group, 1-indexed by list order
+        applyLevelMinDefault(bands, plan.defaultLevelMin(), active.isEmpty());
 
         Map<Integer, TrainingGroup> existingByOrder = new HashMap<>();
         for (TrainingGroup g : existing) {
@@ -193,6 +196,43 @@ public class GroupGenerator {
             index += sliceSize;
         }
         return bands;
+    }
+
+    /** The post-fallback ("effective") group sizes, min/target/max. See {@link #effectiveSizes}. */
+    public record EffectiveSizes(int min, int target, int max) {
+    }
+
+    /**
+     * The group sizes generation will ACTUALLY use once fallbacks are applied to the plan's
+     * (nullable) defaults: {@code target ?? 10}, {@code max ?? target+2}, {@code min ?? max(1,
+     * target-2)}. Single source of truth for this formula - shared with {@code
+     * ActivityPlanController#requireValidDefaults} (a partially-set triple like "only min=20" must
+     * be rejected when it contradicts the fallback-derived values, v0.3.0 review fix) and mirrored
+     * by {@code frontend/src/lib/planDefaults.ts#effectiveGroupSizeDefaults}.
+     */
+    public static EffectiveSizes effectiveSizes(Integer targetSize, Integer minSize, Integer maxSize) {
+        int target = targetSize != null ? targetSize : FALLBACK_TARGET_SIZE;
+        int max = maxSize != null ? maxSize : target + 2;
+        int min = minSize != null ? minSize : Math.max(1, target - 2);
+        return new EffectiveSizes(min, target, max);
+    }
+
+    /**
+     * "Standard min-nivå" (v0.3.0 user feedback): a plan-level floor below which groups should not be
+     * defined. {@code bands} is ordered highest-level-first (index 0 = group 1, per {@link
+     * #computeLevelBands}), so the LOWEST group is always the last element. When {@code
+     * defaultLevelMin} is set, that band's floor is raised to it in place - but never above the same
+     * band's own ceiling, which would otherwise invert {@code levelMin > levelMax} if the configured
+     * floor happens to sit above every participant in the lowest group. No-op when unset or when
+     * there were no active participants (bands then holds the unused {@code FALLBACK_LEVEL} sentinel,
+     * not a real band - see {@link #generate} which nulls out levelMin/levelMax in that case anyway).
+     */
+    private static void applyLevelMinDefault(List<double[]> bands, Double defaultLevelMin, boolean noActiveParticipants) {
+        if (defaultLevelMin == null || noActiveParticipants || bands.isEmpty()) {
+            return;
+        }
+        double[] lowestBand = bands.get(bands.size() - 1);
+        lowestBand[0] = Math.min(Math.max(lowestBand[0], defaultLevelMin), lowestBand[1]);
     }
 
     private static int ceilDiv(int a, int b) {

@@ -58,7 +58,7 @@ class RepositoryRoundTripTest {
         assertThat(seasonPlanRepository.findById(season.id())).contains(season);
 
         ActivityPlan plan = activityPlanRepository.insert(new ActivityPlan(
-                Uuid7.generate(), season.id(), "Herr", "beach", "draft", 10, 8, 12, now, now));
+                Uuid7.generate(), season.id(), "Herr", "beach", "draft", 10, 8, 12, 300.0, now, now));
         assertThat(activityPlanRepository.findById(plan.id())).contains(plan);
         assertThat(activityPlanRepository.findBySeasonPlanId(season.id())).containsExactly(plan);
 
@@ -96,7 +96,7 @@ class RepositoryRoundTripTest {
         SeasonPlan season = seasonPlanRepository.insert(new SeasonPlan(
                 Uuid7.generate(), "VT27", null, null, "active", now, now));
         ActivityPlan plan = activityPlanRepository.insert(new ActivityPlan(
-                Uuid7.generate(), season.id(), "Dam", "beach", "draft", 10, 8, 12, now, now));
+                Uuid7.generate(), season.id(), "Dam", "beach", "draft", 10, 8, 12, null, now, now));
         Person person = personRepository.insert(new Person(
                 Uuid7.generate(), "Anna", "Andersson", null, null, null, null, true, false, null, now, now));
 

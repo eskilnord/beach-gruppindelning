@@ -40,11 +40,11 @@ public class ActivityPlanRepository {
                         INSERT INTO activity_plan
                             (id, season_plan_id, name, category, status,
                              default_group_target_size, default_group_min_size, default_group_max_size,
-                             created_at, updated_at)
+                             default_level_min, created_at, updated_at)
                         VALUES
                             (:id, :seasonPlanId, :name, :category, :status,
                              :defaultGroupTargetSize, :defaultGroupMinSize, :defaultGroupMaxSize,
-                             :createdAt, :updatedAt)
+                             :defaultLevelMin, :createdAt, :updatedAt)
                         """)
                 .param("id", plan.id())
                 .param("seasonPlanId", plan.seasonPlanId())
@@ -54,6 +54,7 @@ public class ActivityPlanRepository {
                 .param("defaultGroupTargetSize", plan.defaultGroupTargetSize())
                 .param("defaultGroupMinSize", plan.defaultGroupMinSize())
                 .param("defaultGroupMaxSize", plan.defaultGroupMaxSize())
+                .param("defaultLevelMin", plan.defaultLevelMin())
                 .param("createdAt", plan.createdAt().toString())
                 .param("updatedAt", plan.updatedAt().toString())
                 .update();
@@ -67,6 +68,7 @@ public class ActivityPlanRepository {
                             default_group_target_size = :defaultGroupTargetSize,
                             default_group_min_size = :defaultGroupMinSize,
                             default_group_max_size = :defaultGroupMaxSize,
+                            default_level_min = :defaultLevelMin,
                             updated_at = :updatedAt
                         WHERE id = :id
                         """)
@@ -77,6 +79,7 @@ public class ActivityPlanRepository {
                 .param("defaultGroupTargetSize", plan.defaultGroupTargetSize())
                 .param("defaultGroupMinSize", plan.defaultGroupMinSize())
                 .param("defaultGroupMaxSize", plan.defaultGroupMaxSize())
+                .param("defaultLevelMin", plan.defaultLevelMin())
                 .param("updatedAt", plan.updatedAt().toString())
                 .update();
         return plan;
@@ -125,6 +128,7 @@ public class ActivityPlanRepository {
                 NullableColumns.nullableInt(rs, "default_group_target_size"),
                 NullableColumns.nullableInt(rs, "default_group_min_size"),
                 NullableColumns.nullableInt(rs, "default_group_max_size"),
+                NullableColumns.nullableDouble(rs, "default_level_min"),
                 Instant.parse(rs.getString("created_at")),
                 Instant.parse(rs.getString("updated_at")));
     }

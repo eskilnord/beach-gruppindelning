@@ -63,7 +63,7 @@ class CoachControllerTest {
         SeasonPlan season = seasonPlanRepository.insert(
                 new SeasonPlan(Uuid7.generate(), "VT26", null, null, "active", now, now));
         ActivityPlan plan = activityPlanRepository.insert(
-                new ActivityPlan(Uuid7.generate(), season.id(), "Herr", "beach", "draft", 10, 8, 12, now, now));
+                new ActivityPlan(Uuid7.generate(), season.id(), "Herr", "beach", "draft", 10, 8, 12, null, now, now));
         return plan.id();
     }
 

@@ -1183,6 +1183,8 @@ export interface components {
             defaultGroupMinSize?: number;
             /** Format: int32 */
             defaultGroupMaxSize?: number;
+            /** Format: double */
+            defaultLevelMin?: number;
         };
         ActivityPlan: {
             id?: string;
@@ -1196,6 +1198,8 @@ export interface components {
             defaultGroupMinSize?: number;
             /** Format: int32 */
             defaultGroupMaxSize?: number;
+            /** Format: double */
+            defaultLevelMin?: number;
             /** Format: date-time */
             createdAt?: string;
             /** Format: date-time */
@@ -1577,6 +1581,8 @@ export interface components {
             defaultGroupMinSize?: number;
             /** Format: int32 */
             defaultGroupMaxSize?: number;
+            /** Format: double */
+            defaultLevelMin?: number;
         };
         UpdatePersonRequest: {
             firstName?: string;

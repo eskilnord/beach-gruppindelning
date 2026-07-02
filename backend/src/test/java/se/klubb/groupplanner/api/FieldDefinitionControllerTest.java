@@ -54,7 +54,7 @@ class FieldDefinitionControllerTest {
         SeasonPlan season = seasonPlanRepository.insert(
                 new SeasonPlan(Uuid7.generate(), "VT26", null, null, "active", now, now));
         ActivityPlan plan = activityPlanRepository.insert(
-                new ActivityPlan(Uuid7.generate(), season.id(), "Herr", "beach", "draft", null, null, null, now, now));
+                new ActivityPlan(Uuid7.generate(), season.id(), "Herr", "beach", "draft", null, null, null, null, now, now));
 
         mockMvc.perform(get("/api/plans/" + plan.id() + "/field-definitions").header("X-GP-Token", VALID_TOKEN))
                 .andExpect(status().isOk())

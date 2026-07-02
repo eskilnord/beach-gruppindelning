@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   Accordion,
   Alert,
+  Anchor,
   Badge,
   Button,
   Card,
@@ -23,11 +24,14 @@ import { notifications } from "@mantine/notifications";
 import { ApiError } from "../../../api/client";
 import { useConstraintWeights } from "../../../api/constraintWeights";
 import { useGenerateGroups, useGroups } from "../../../api/groups";
+import { usePlan } from "../../../api/plans";
 import { runsKey, useOptimizationRuns } from "../../../api/runs";
 import { invalidateResultQueries, isSolveRunning, useCancelSolve, useSolveStatus, useStartSolve } from "../../../api/solve";
 import type { SolveProfile, SolveRequestBody } from "../../../api/types";
 import { sv } from "../../../i18n/sv";
 import { formatDateTime } from "../../../lib/formatDateTime";
+import { effectiveGroupSizeDefaults } from "../../../lib/planDefaults";
+import { useEditPlanModalStore } from "../editPlanModalStore";
 import { PlanAnalysisSection } from "./PlanAnalysisSection";
 import { formatScoreLine } from "./scoreFormat";
 import { parseResultSummary, runDurationSeconds } from "./runSummary";
@@ -62,6 +66,7 @@ export function OptimizePanel() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  const plan = usePlan(planId);
   const groups = useGroups(planId);
   const generateGroups = useGenerateGroups(planId ?? "");
   const weights = useConstraintWeights(planId);
@@ -106,6 +111,15 @@ export function OptimizePanel() {
   if (!planId) {
     return null;
   }
+
+  // Mirrors GroupGenerator's own fallback formula (lib/planDefaults.ts) so this hint always
+  // describes what "Generera grupper" will actually use, whether or not the plan has explicit
+  // defaults set yet.
+  const groupSizeDefaults = effectiveGroupSizeDefaults(
+    plan.data?.defaultGroupTargetSize,
+    plan.data?.defaultGroupMinSize,
+    plan.data?.defaultGroupMaxSize,
+  );
 
   const handleGenerateGroups = () => {
     generateGroups.mutate(undefined, {
@@ -182,6 +196,19 @@ export function OptimizePanel() {
             <Text size="sm" c="dimmed">
               {sv.optimize.groups.count(groups.data?.length ?? 0)}
             </Text>
+            {plan.data && (
+              <Text size="xs" c="dimmed" data-testid="group-defaults-summary">
+                {sv.optimize.groups.defaultsSummary(
+                  groupSizeDefaults.target,
+                  groupSizeDefaults.min,
+                  groupSizeDefaults.max,
+                  plan.data.defaultLevelMin ?? null,
+                )}{" "}
+                <Anchor size="xs" component="button" type="button" onClick={() => useEditPlanModalStore.getState().open()}>
+                  {sv.optimize.groups.changeDefaultsLink}
+                </Anchor>
+              </Text>
+            )}
           </div>
           <Button variant="default" size="xs" loading={generateGroups.isPending} onClick={handleGenerateGroups}>
             {sv.optimize.groups.generateButton}

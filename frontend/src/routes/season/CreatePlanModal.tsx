@@ -1,9 +1,15 @@
-import { Button, Group, Modal, Stack, TextInput } from "@mantine/core";
+import { Button, Group, Modal, NumberInput, Stack, Text, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { useCreatePlan } from "../../api/plans";
 import { ApiError } from "../../api/client";
 import { sv } from "../../i18n/sv";
+import {
+  PLAN_DEFAULTS_EMPTY_VALUES,
+  type PlanDefaultsFormValues,
+  planDefaultsToCreateRequest,
+  planDefaultsValidation,
+} from "../../lib/planDefaults";
 
 interface CreatePlanModalProps {
   opened: boolean;
@@ -12,7 +18,7 @@ interface CreatePlanModalProps {
   onCreated: (planId: string) => void;
 }
 
-interface FormValues {
+interface FormValues extends PlanDefaultsFormValues {
   name: string;
   category: string;
 }
@@ -21,9 +27,10 @@ export function CreatePlanModal({ opened, seasonId, onClose, onCreated }: Create
   const createPlan = useCreatePlan(seasonId);
 
   const form = useForm<FormValues>({
-    initialValues: { name: "", category: "" },
+    initialValues: { name: "", category: "", ...PLAN_DEFAULTS_EMPTY_VALUES },
     validate: {
       name: (value) => (value.trim().length === 0 ? sv.common.nameRequired : null),
+      ...planDefaultsValidation,
     },
   });
 
@@ -38,9 +45,7 @@ export function CreatePlanModal({ opened, seasonId, onClose, onCreated }: Create
         name: values.name.trim(),
         category: values.category.trim().length > 0 ? values.category.trim() : undefined,
         status: undefined,
-        defaultGroupTargetSize: undefined,
-        defaultGroupMinSize: undefined,
-        defaultGroupMaxSize: undefined,
+        ...planDefaultsToCreateRequest(values),
       });
       form.reset();
       onCreated(created.id);
@@ -69,6 +74,48 @@ export function CreatePlanModal({ opened, seasonId, onClose, onCreated }: Create
             placeholder={sv.createPlanModal.categoryPlaceholder}
             {...form.getInputProps("category")}
           />
+
+          <Text fw={500} size="sm" mt="xs">
+            {sv.planDefaults.heading}
+          </Text>
+          <Text size="xs" c="dimmed" mt={-8}>
+            {sv.planDefaults.subheading}
+          </Text>
+          <Group grow>
+            <NumberInput
+              label={sv.planDefaults.targetLabel}
+              description={sv.planDefaults.targetDescription}
+              placeholder="10"
+              min={1}
+              {...form.getInputProps("defaultGroupTargetSize")}
+            />
+            <NumberInput
+              label={sv.planDefaults.minLabel}
+              description={sv.planDefaults.minDescription}
+              placeholder="8"
+              min={1}
+              {...form.getInputProps("defaultGroupMinSize")}
+            />
+          </Group>
+          <Group grow>
+            <NumberInput
+              label={sv.planDefaults.maxLabel}
+              description={sv.planDefaults.maxDescription}
+              placeholder="12"
+              min={1}
+              {...form.getInputProps("defaultGroupMaxSize")}
+            />
+            <NumberInput
+              label={sv.planDefaults.levelMinLabel}
+              description={sv.planDefaults.levelMinDescription}
+              placeholder={sv.planDefaults.levelMinPlaceholder}
+              min={0}
+              max={1000}
+              clampBehavior="none"
+              {...form.getInputProps("defaultLevelMin")}
+            />
+          </Group>
+
           <Group justify="flex-end" mt="md">
             <Button variant="default" onClick={handleClose}>
               {sv.common.cancel}

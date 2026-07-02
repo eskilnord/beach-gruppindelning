@@ -75,10 +75,14 @@ class GroupGeneratorTest {
     private JdbcClient jdbcClient;
 
     private String createPlan(String category, Integer target, Integer min, Integer max) {
+        return createPlan(category, target, min, max, null);
+    }
+
+    private String createPlan(String category, Integer target, Integer min, Integer max, Double defaultLevelMin) {
         Instant now = Instant.now();
         SeasonPlan season = seasonPlanRepository.insert(new SeasonPlan(Uuid7.generate(), "VT26", null, null, "active", now, now));
         ActivityPlan plan = activityPlanRepository.insert(
-                new ActivityPlan(Uuid7.generate(), season.id(), "Herr", category, "draft", target, min, max, now, now));
+                new ActivityPlan(Uuid7.generate(), season.id(), "Herr", category, "draft", target, min, max, defaultLevelMin, now, now));
         return plan.id();
     }
 
@@ -144,6 +148,64 @@ class GroupGeneratorTest {
 
         assertThat(groups.get(0).levelMin()).isGreaterThan(groups.get(1).levelMin());
         assertThat(groups.get(0).levelMax()).isGreaterThan(groups.get(1).levelMax());
+    }
+
+    /**
+     * "Standard min-nivå" (v0.3.0 user feedback) clamp semantics on the LOWEST group's computed
+     * band, per {@code GroupGenerator#applyLevelMinDefault}. All four scenarios below share the same
+     * 10-participant/2-group setup as {@link #topGroupGetsTheHighestLevelBand}: levels 300..309 sort
+     * into a highest band [305,309] (group 1) and a lowest band [300,304] (group 2).
+     */
+    @Test
+    void unsetDefaultLevelMinLeavesTheLowestBandAtItsComputedFloor() {
+        String planId = createPlan("Torsdag Herr", 5, 4, 6, null);
+        addParticipants(planId, 10, 300);
+        addActiveBlocks(planId, 2);
+
+        List<TrainingGroup> groups = groupGenerator.generate(planId);
+
+        assertThat(groups.get(1).levelMin()).isEqualTo(300.0);
+        assertThat(groups.get(1).levelMax()).isEqualTo(304.0);
+    }
+
+    @Test
+    void defaultLevelMinBelowTheComputedFloorLeavesTheLowestBandUnchanged() {
+        String planId = createPlan("Torsdag Herr", 5, 4, 6, 250.0);
+        addParticipants(planId, 10, 300);
+        addActiveBlocks(planId, 2);
+
+        List<TrainingGroup> groups = groupGenerator.generate(planId);
+
+        assertThat(groups.get(1).levelMin()).isEqualTo(300.0); // computed floor (300) already above the 250 default
+        assertThat(groups.get(1).levelMax()).isEqualTo(304.0);
+        assertThat(groups.get(0).levelMin()).isEqualTo(305.0); // top group untouched
+    }
+
+    @Test
+    void defaultLevelMinInsideTheComputedBandRaisesOnlyTheLowestGroupsFloor() {
+        String planId = createPlan("Torsdag Herr", 5, 4, 6, 302.0);
+        addParticipants(planId, 10, 300);
+        addActiveBlocks(planId, 2);
+
+        List<TrainingGroup> groups = groupGenerator.generate(planId);
+
+        assertThat(groups.get(1).levelMin()).isEqualTo(302.0); // raised from the computed 300
+        assertThat(groups.get(1).levelMax()).isEqualTo(304.0); // ceiling untouched
+        assertThat(groups.get(0).levelMin()).isEqualTo(305.0); // top group untouched
+        assertThat(groups.get(0).levelMax()).isEqualTo(309.0);
+    }
+
+    @Test
+    void defaultLevelMinAboveTheLowestBandsCeilingClampsToItInsteadOfInvertingMinAboveMax() {
+        String planId = createPlan("Torsdag Herr", 5, 4, 6, 500.0); // above every participant's level (300..309)
+        addParticipants(planId, 10, 300);
+        addActiveBlocks(planId, 2);
+
+        List<TrainingGroup> groups = groupGenerator.generate(planId);
+
+        assertThat(groups.get(1).levelMin()).isEqualTo(304.0); // clamped down to the band's own ceiling
+        assertThat(groups.get(1).levelMax()).isEqualTo(304.0);
+        assertThat(groups.get(1).levelMin()).isLessThanOrEqualTo(groups.get(1).levelMax()); // invariant
     }
 
     @Test

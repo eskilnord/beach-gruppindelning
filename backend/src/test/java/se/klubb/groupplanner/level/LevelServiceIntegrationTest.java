@@ -58,7 +58,7 @@ class LevelServiceIntegrationTest {
         SeasonPlan season = seasonPlanRepository.insert(
                 new SeasonPlan(Uuid7.generate(), "VT26", null, null, "active", now, now));
         ActivityPlan plan = activityPlanRepository.insert(
-                new ActivityPlan(Uuid7.generate(), season.id(), "Herr", "beach", "draft", null, null, null, now, now));
+                new ActivityPlan(Uuid7.generate(), season.id(), "Herr", "beach", "draft", null, null, null, null, now, now));
         Person person = personRepository.insert(new Person(
                 Uuid7.generate(), "Kalle", "Karlsson", null, null, null, null, true, false, null, now, now));
         ParticipantProfile profile = participantProfileRepository.insert(new ParticipantProfile(

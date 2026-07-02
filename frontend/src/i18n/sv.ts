@@ -118,6 +118,23 @@ export const sv = {
     submit: "Spara",
     updateFailed: "Kunde inte spara aktivitetsplanen",
   },
+  planDefaults: {
+    heading: "Standardvärden för grupper",
+    subheading: "Används av \"Generera grupper\" på Optimering-fliken. Lämna fälten tomma för att använda de inbyggda standardvärdena.",
+    targetLabel: "Standard målstorlek",
+    targetDescription: "Antal deltagare grupperna siktar mot vid gruppgenerering.",
+    minLabel: "Standard minsta storlek",
+    minDescription: "Minsta gruppstorlek innan gruppen räknas som för liten.",
+    maxLabel: "Standard maxstorlek",
+    maxDescription: "Största tillåtna gruppstorlek.",
+    levelMinLabel: "Standard min-nivå",
+    levelMinDescription:
+      "Nivågolv för den lägsta gruppen - gruppen läggs aldrig lägre än detta, även om deltagarnas nivåer skulle motivera det.",
+    levelMinPlaceholder: "beräknas från deltagarnas nivåer",
+    effectiveSizeError: (min: number, target: number, max: number) =>
+      `Storlekarna motsäger varandra: med standardvärden för tomma fält blir minsta ${min}, mål ${target} och max ${max} – minsta ≤ mål ≤ max måste gälla`,
+    levelMinRangeError: "Min-nivå måste vara mellan 0 och 1000",
+  },
   deletePlanModal: {
     title: "Ta bort aktivitetsplan",
     message: (name: string) =>
@@ -609,6 +626,9 @@ export const sv = {
       generateButton: "Generera grupper",
       generateFailed: "Kunde inte generera grupper",
       generateSuccess: (n: number) => (n === 1 ? "1 grupp genererad." : `${n} grupper genererade.`),
+      defaultsSummary: (target: number, min: number, max: number, levelMin: number | null) =>
+        `Standard: mål ${target} · min ${min} · max ${max} · min-nivå ${levelMin ?? "—"}`,
+      changeDefaultsLink: "Ändra…",
     },
     suggest: {
       heading: "Föreslagen optimeringstid",

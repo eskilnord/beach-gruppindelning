@@ -84,7 +84,7 @@ public final class ExplanationTestFixture {
         Instant now = Instant.now();
         SeasonPlan season = seasonPlanRepository.insert(new SeasonPlan(Uuid7.generate(), "VT-explain-test", null, null, "active", now, now));
         ActivityPlan plan = activityPlanRepository.insert(
-                new ActivityPlan(Uuid7.generate(), season.id(), "Explain Test", "beach", "draft", 5, 1, 5, now, now));
+                new ActivityPlan(Uuid7.generate(), season.id(), "Explain Test", "beach", "draft", 5, 1, 5, null, now, now));
         this.planId = plan.id();
     }
 

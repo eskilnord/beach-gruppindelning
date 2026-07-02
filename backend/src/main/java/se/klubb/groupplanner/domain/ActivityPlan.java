@@ -15,6 +15,7 @@ public record ActivityPlan(
         Integer defaultGroupTargetSize,
         Integer defaultGroupMinSize,
         Integer defaultGroupMaxSize,
+        Double defaultLevelMin,
         Instant createdAt,
         Instant updatedAt) {
 }

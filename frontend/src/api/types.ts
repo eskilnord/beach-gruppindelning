@@ -26,7 +26,22 @@ export type CreateSeasonPlanRequest = components["schemas"]["CreateSeasonPlanReq
 export type UpdateSeasonPlanRequest = components["schemas"]["UpdateSeasonPlanRequest"];
 
 export type CreateActivityPlanRequest = components["schemas"]["CreateActivityPlanRequest"];
-export type UpdateActivityPlanRequest = components["schemas"]["UpdateActivityPlanRequest"];
+
+/** PATCH body for `/api/plans/{id}`. The four group-default fields are THREE-STATE server-side
+ *  (absent = keep, explicit null = clear back to unset, value = set - see
+ *  ActivityPlanController.UpdateActivityPlanRequest's presence-tracking bean, v0.3.0 review fix);
+ *  the generated schema types them as plain optional numbers, which cannot express the explicit
+ *  null needed to clear a saved default - hand-widened for the same reason MoveAssignmentRequest
+ *  below is hand-written for its nullable groupId. */
+export type UpdateActivityPlanRequest = Omit<
+  components["schemas"]["UpdateActivityPlanRequest"],
+  "defaultGroupTargetSize" | "defaultGroupMinSize" | "defaultGroupMaxSize" | "defaultLevelMin"
+> & {
+  defaultGroupTargetSize?: number | null;
+  defaultGroupMinSize?: number | null;
+  defaultGroupMaxSize?: number | null;
+  defaultLevelMin?: number | null;
+};
 
 export type Person = WithRequired<
   components["schemas"]["Person"],
