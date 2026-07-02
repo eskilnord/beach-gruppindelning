@@ -77,4 +77,60 @@ final class Justifications {
     record UnassignedPlayerJustification(long participantId, String displayName, int priority)
             implements ConstraintJustification {
     }
+
+    // ─────────────────────────────────────────────────────────────── M6b: SOFT constraint justifications
+
+    /** 10.4 groupSizeTarget / groupSizeTargetEmpty: a group's size deviates from targetSize
+     * ({@code size == 0} for the empty-group complement). */
+    record GroupSizeDeviationJustification(long groupId, int size, int targetSize) implements ConstraintJustification {
+    }
+
+    /** 10.5 groupMinSizeSoft / groupMinSizeEmpty: a group is under minSize. */
+    record GroupUnderMinJustification(long groupId, int size, int minSize) implements ConstraintJustification {
+    }
+
+    /** 10.6 levelBalance: a group's level spread (LevelMath.sadPoints), for display parity with the
+     * constraint's own matchWeight. */
+    record LevelSpreadJustification(long groupId, int spreadPoints, long meanScaled) implements ConstraintJustification {
+    }
+
+    /** 10.7 groupOrderByLevel: an adjacent pair of groups whose mean levels are inverted relative to
+     * groupOrder (the higher-ordered/better group's mean is not above the lower-ordered one's). */
+    record GroupOrderInversionJustification(long higherGroupId, long lowerGroupId, int meanDiffPoints)
+            implements ConstraintJustification {
+    }
+
+    /** 10.8 previousGroupContinuity: distance (in groupOrder steps) between a player's previous and
+     * newly placed group. */
+    record ContinuityJustification(long participantId, int previousGroupOrder, int newGroupOrder)
+            implements ConstraintJustification {
+    }
+
+    /** 10.10 timePreferenceSoft: a player placed on an allowed-but-not-preferred time. */
+    record TimePreferenceMissedJustification(long participantId, long groupId, long timeSlotId)
+            implements ConstraintJustification {
+    }
+
+    /** 10.12/10.14 sameGroupSoft/differentGroupSoft: a WANT_SAME/WANT_DIFFERENT wish not honored. */
+    record PairWishSoftJustification(long wishFieldId, long aParticipantId, long bParticipantId, String type)
+            implements ConstraintJustification {
+    }
+
+    /** 10.20 coachLevelFit: a coach's [canCoachMin, canCoachMax] band vs. the group's actual mean
+     * level (both scaled x100). */
+    record CoachLevelMismatchJustification(long coachPersonId, long groupId, long groupMeanScaled, int canMinScaled, int canMaxScaled)
+            implements ConstraintJustification {
+    }
+
+    /** 10.22a/b lateTimeForLowerGroups: {@code direction} is TOP_LATE_PENALIZED or
+     * BOTTOM_LATE_REWARDED (see {@code GroupPlanConstraintProvider#lateTimeForLowerGroups}). */
+    record LateTimeJustification(long groupId, int groupOrder, String timeLabel, String direction)
+            implements ConstraintJustification {
+    }
+
+    /** coachPreferredTimeSlot (new M6b constraint, the M5 tri-state's SOFT consumer): a CoachSlot
+     * landed on a time slot the coach marked PREFERRED. */
+    record CoachPreferredTimeSlotJustification(long coachPersonId, long groupId, long timeSlotId)
+            implements ConstraintJustification {
+    }
 }

@@ -123,3 +123,74 @@ export type CapacityResponse = Omit<
 > & {
   perTimeSlot: TimeSlotCapacityView[];
 };
+
+// --- M6b: Optimering / Resultat / Planeringskarta ---
+
+export type TrainingGroup = WithRequired<
+  components["schemas"]["TrainingGroup"],
+  "id" | "activityPlanId" | "name" | "requiredCoachCount" | "locked"
+>;
+
+export type PlayerAssignment = WithRequired<
+  components["schemas"]["PlayerAssignment"],
+  "id" | "participantProfileId" | "locked" | "source"
+>;
+export type CoachAssignment = WithRequired<
+  components["schemas"]["CoachAssignment"],
+  "id" | "coachProfileId" | "groupId" | "locked" | "source"
+>;
+
+/** Hand-written for the same reason as SlotBlocksView above (nested list narrowing). */
+export interface AssignmentsView {
+  players: PlayerAssignment[];
+  coaches: CoachAssignment[];
+}
+
+export type SolveProfile = "FAST" | "NORMAL" | "THOROUGH" | "GREEDY";
+
+export interface OptimizeSelectionRequest {
+  players?: boolean;
+  schedule?: boolean;
+  coaches?: boolean;
+}
+
+/** Hand-written request body for `POST .../solve` (blocking/§14.4 omitted - out of scope for this
+ *  milestone's UI, see docs/plan.md M8 "spara plan"). */
+export interface SolveRequestBody {
+  profile: SolveProfile;
+  optimize?: OptimizeSelectionRequest;
+}
+
+export type StartSolveResponse = WithRequired<components["schemas"]["StartSolveResponse"], "runId" | "status">;
+export type CancelSolveResponse = WithRequired<components["schemas"]["CancelSolveResponse"], "finalRunId">;
+
+/** `GET .../solve/status` (docs/design/04-solver.md §14.2) - score/progress fields are `null` when
+ *  no run has ever happened for this plan, hence no WithRequired narrowing beyond `status`. */
+export type SolveStatus = WithRequired<components["schemas"]["SolveStatus"], "status">;
+
+/** {@code GET /api/plans/{planId}/runs} (körhistorik) - {@code resultSummaryJson} is a small JSON
+ *  blob ({@code {hard,medium,soft,feasible,unassignedCount}}), parsed client-side (see
+ *  `optimize/runSummary.ts`) rather than modeled as nested schema here. */
+export type OptimizationRun = WithRequired<
+  components["schemas"]["OptimizationRun"],
+  "id" | "activityPlanId" | "status" | "startedAt"
+>;
+
+export interface RunResultSummary {
+  hard: number;
+  medium: number;
+  soft: number;
+  feasible: boolean;
+  unassignedCount: number;
+}
+
+export type ConflictUsage = WithRequired<
+  components["schemas"]["ConflictUsage"],
+  "planId" | "planName" | "groupName" | "time"
+>;
+export type SeasonConflict = Omit<
+  WithRequired<components["schemas"]["SeasonConflict"], "type" | "severity">,
+  "usages"
+> & {
+  usages: ConflictUsage[];
+};

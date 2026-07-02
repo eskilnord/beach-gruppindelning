@@ -329,6 +329,8 @@ Worst cases per level, with max UI weight 10 000:
 
 ## 4. Standard constraints §10.1–§10.24
 
+> **Default weights superseded by the V2/V5/V6 seeds — see backend/docs/m6b-notes.md ("Weight reconciliation vs design §4"); kravspec §17.2's worked example is the authority.** The per-constraint "Level / default" weights in the table below diverge from the actually-seeded `constraint_definition` defaults in several rows (notably `levelBalance` 2/pt vs seeded 100); the seeds follow the spec's intended priority ordering (level balance dominates friend wishes) and are what a fresh install applies. The table's weights are retained below only as historical design context.
+
 Provider: `se.klubb.groupplanner.solver.constraints.GroupPlanConstraintProvider implements ConstraintProvider`. Every constraint: stable **key** (used in `.asConstraint(key)`, in `ConstraintWeightOverrides` maps, and in DB `ConstraintWeightConfig.constraintKey`), a typed justification record (all implement `ConstraintJustification`, carry only ids + Swedish-formattable data), and a `ConstraintVerifier` test. Default weights are defaults only — every one is user-overridable (§10 of this doc).
 
 Shared helper streams:

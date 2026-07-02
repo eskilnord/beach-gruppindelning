@@ -1,5 +1,14 @@
 {
-  "small-10" : "0hard/0medium/0soft",
-  "coach-overlap-20" : "0hard/0medium/0soft",
-  "large-120" : "0hard/-1600medium/0soft"
+  "small-10" : {
+    "solver" : "0hard/0medium/-83600soft",
+    "greedy" : "0hard/0medium/-88600soft"
+  },
+  "coach-overlap-20" : {
+    "solver" : "0hard/0medium/-95050soft",
+    "greedy" : "-3hard/0medium/-93300soft"
+  },
+  "large-120" : {
+    "solver" : "0hard/-1200medium/-2344940soft",
+    "greedy" : "-17hard/0medium/-212100soft"
+  }
 }

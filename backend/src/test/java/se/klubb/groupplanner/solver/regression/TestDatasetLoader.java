@@ -93,8 +93,23 @@ public final class TestDatasetLoader {
     }
 
     /** Loads {@code test-data/datasets/{name}} and returns the created plan's id, fully ready for
-     * {@code SolverInputAssembler.assemble} (groups generated, levels recomputed). */
+     * {@code SolverInputAssembler.assemble} (groups generated, levels recomputed). Creates a FRESH
+     * season for this plan. */
     public String load(String datasetName) {
+        return load(datasetName, null);
+    }
+
+    /**
+     * Same as {@link #load(String)}, but the plan is created under an EXISTING season ({@code
+     * seasonPlanId}, e.g. another plan's {@code activityPlan.seasonPlanId()}) instead of a fresh
+     * one — {@code activity_plan.season_plan_id} is set once at creation and never changes
+     * afterward ({@code ActivityPlanRepository.update} deliberately excludes it, matching the
+     * domain model: a plan belongs to one season permanently), so cross-plan-in-the-same-season
+     * tests (§10.24 blocking, {@code ConflictService}) must specify the season up front rather than
+     * "move" a plan into it after the fact. {@code seasonPlanId == null} behaves exactly like
+     * {@link #load(String)} (a fresh season).
+     */
+    public String load(String datasetName, String seasonPlanId) {
         Path dir = Path.of("..", "test-data", "datasets", datasetName);
         Map<String, String> config = readKeyValueCsv(dir.resolve("config.csv"));
         String category = config.get("category");
@@ -103,9 +118,11 @@ public final class TestDatasetLoader {
         Integer max = Integer.valueOf(config.get("max_size"));
 
         Instant now = Instant.now();
-        SeasonPlan season = seasonPlanRepository.insert(new SeasonPlan(Uuid7.generate(), "VT-test", null, null, "active", now, now));
+        String resolvedSeasonPlanId = seasonPlanId != null
+                ? seasonPlanId
+                : seasonPlanRepository.insert(new SeasonPlan(Uuid7.generate(), "VT-test", null, null, "active", now, now)).id();
         ActivityPlan plan = activityPlanRepository.insert(
-                new ActivityPlan(Uuid7.generate(), season.id(), category, category, "draft", target, min, max, now, now));
+                new ActivityPlan(Uuid7.generate(), resolvedSeasonPlanId, category, category, "draft", target, min, max, now, now));
         String planId = plan.id();
 
         Map<String, String> timeSlotIdByShortId = loadTimeSlotsAndBlocks(dir.resolve("timeslots.csv"), planId);

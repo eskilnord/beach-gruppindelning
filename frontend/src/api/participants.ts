@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
-import type { ParticipantProfile, RecomputeLevelsResult } from "./types";
+import type { FieldValueView, ParticipantProfile, RecomputeLevelsResult } from "./types";
 
 export const participantsKey = (planId: string) => ["plans", planId, "participants"] as const;
 
@@ -40,4 +40,31 @@ export function useRecomputeLevels(planId: string) {
       void queryClient.invalidateQueries({ queryKey: participantsKey(planId) });
     },
   });
+}
+
+/**
+ * Fans out one field-values fetch per participant (same `useQueries` pattern as coaches.ts'
+ * `useCoachAvailabilitySummaries`) - used by the Resultatvy's OPLACERAD/KÖLISTA card (spec §19.10)
+ * to resolve each waitlisted player's "Prioritet" custom field value, if the plan has one configured
+ * (constraintType PRIORITY - the same field the solver's `unassignedPlayer` waitlist penalty scales
+ * by, per backend/docs/m6b-notes.md). Bounded fan-out is fine here: only waitlisted participants
+ * (usually a handful) are ever passed in, never the whole roster.
+ */
+export function useParticipantFieldValues(
+  planId: string | undefined,
+  participantIds: string[],
+): Record<string, FieldValueView[]> {
+  const results = useQueries({
+    queries: participantIds.map((id) => ({
+      queryKey: ["plans", planId ?? "", "participants", id, "field-values"] as const,
+      queryFn: () => api.get<FieldValueView[]>(`/api/plans/${planId}/participants/${id}/field-values`),
+      enabled: planId !== undefined,
+    })),
+  });
+
+  const byParticipantId: Record<string, FieldValueView[]> = {};
+  participantIds.forEach((id, index) => {
+    byParticipantId[id] = results[index]?.data ?? [];
+  });
+  return byParticipantId;
 }

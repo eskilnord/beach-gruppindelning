@@ -92,6 +92,44 @@ public class PlayerAssignmentRepository {
         return assignment;
     }
 
+    /**
+     * §15.1 "Lås spelare" (spec §15.1) — locks a participant to a group, creating the {@code
+     * player_assignment} row if none exists yet (a participant may never have been touched by the
+     * solver/import before being explicitly locked). {@code source} becomes {@link
+     * PlayerAssignment#SOURCE_LOCKED}.
+     */
+    public void lockToGroup(String participantProfileId, String groupId) {
+        Optional<PlayerAssignment> existing = findByParticipantProfileId(participantProfileId);
+        if (existing.isEmpty()) {
+            jdbcClient.sql("""
+                            INSERT INTO player_assignment (id, participant_profile_id, group_id, locked, source)
+                            VALUES (:id, :participantProfileId, :groupId, 1, :source)
+                            """)
+                    .param("id", Uuid7.generate())
+                    .param("participantProfileId", participantProfileId)
+                    .param("groupId", groupId)
+                    .param("source", PlayerAssignment.SOURCE_LOCKED)
+                    .update();
+            return;
+        }
+        jdbcClient.sql("""
+                        UPDATE player_assignment SET group_id = :groupId, locked = 1, source = :source
+                        WHERE participant_profile_id = :participantProfileId
+                        """)
+                .param("participantProfileId", participantProfileId)
+                .param("groupId", groupId)
+                .param("source", PlayerAssignment.SOURCE_LOCKED)
+                .update();
+    }
+
+    /** Unlocks a participant's assignment (keeps whatever group it currently points at, if any —
+     * only the {@code locked} flag flips, so the next solve is free to move it). */
+    public void unlock(String participantProfileId) {
+        jdbcClient.sql("UPDATE player_assignment SET locked = 0 WHERE participant_profile_id = :participantProfileId")
+                .param("participantProfileId", participantProfileId)
+                .update();
+    }
+
     private static PlayerAssignment mapRow(ResultSet rs, int rowNum) throws SQLException {
         return new PlayerAssignment(
                 rs.getString("id"),

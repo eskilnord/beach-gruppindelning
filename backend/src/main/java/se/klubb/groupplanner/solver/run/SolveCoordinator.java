@@ -1,5 +1,7 @@
 package se.klubb.groupplanner.solver.run;
 
+import ai.timefold.solver.core.api.score.buildin.hardmediumsoftlong.HardMediumSoftLongScore;
+import ai.timefold.solver.core.api.solver.SolutionManager;
 import ai.timefold.solver.core.api.solver.SolverConfigOverride;
 import ai.timefold.solver.core.api.solver.SolverManager;
 import ai.timefold.solver.core.api.solver.SolverStatus;
@@ -17,6 +19,8 @@ import se.klubb.groupplanner.repo.CoachAssignmentRepository;
 import se.klubb.groupplanner.repo.PlayerAssignmentRepository;
 import se.klubb.groupplanner.repo.TrainingGroupRepository;
 import se.klubb.groupplanner.solver.assemble.AssembledProblem;
+import se.klubb.groupplanner.solver.assemble.BlockingOptions;
+import se.klubb.groupplanner.solver.assemble.OptimizeSelection;
 import se.klubb.groupplanner.solver.assemble.SolverInputAssembler;
 import se.klubb.groupplanner.solver.domain.CoachSlot;
 import se.klubb.groupplanner.solver.domain.Group;
@@ -40,9 +44,11 @@ public class SolveCoordinator {
     private static final Logger log = LoggerFactory.getLogger(SolveCoordinator.class);
 
     private final SolverManager<GroupPlanSolution, String> solverManager;
+    private final SolutionManager<GroupPlanSolution, HardMediumSoftLongScore> solutionManager;
     private final SolverInputAssembler assembler;
     private final OptimizationRunService optimizationRunService;
     private final ProgressRegistry progressRegistry;
+    private final GreedyBaselineService greedyBaselineService;
     private final PlayerAssignmentRepository playerAssignmentRepository;
     private final TrainingGroupRepository trainingGroupRepository;
     private final CoachAssignmentRepository coachAssignmentRepository;
@@ -61,25 +67,34 @@ public class SolveCoordinator {
 
     public SolveCoordinator(
             SolverManager<GroupPlanSolution, String> solverManager,
+            SolutionManager<GroupPlanSolution, HardMediumSoftLongScore> solutionManager,
             SolverInputAssembler assembler,
             OptimizationRunService optimizationRunService,
             ProgressRegistry progressRegistry,
+            GreedyBaselineService greedyBaselineService,
             PlayerAssignmentRepository playerAssignmentRepository,
             TrainingGroupRepository trainingGroupRepository,
             CoachAssignmentRepository coachAssignmentRepository) {
         this.solverManager = solverManager;
+        this.solutionManager = solutionManager;
         this.assembler = assembler;
         this.optimizationRunService = optimizationRunService;
         this.progressRegistry = progressRegistry;
+        this.greedyBaselineService = greedyBaselineService;
         this.playerAssignmentRepository = playerAssignmentRepository;
         this.trainingGroupRepository = trainingGroupRepository;
         this.coachAssignmentRepository = coachAssignmentRepository;
     }
 
+    /** Convenience overload: full optimize, no cross-plan blocking (M6a's exact behavior). */
+    public String startSolve(String activityPlanId, SolveProfile profile) {
+        return startSolve(activityPlanId, profile, OptimizeSelection.ALL, BlockingOptions.NONE);
+    }
+
     /** Starts an async solve; returns the new {@code optimization_run} id. 409 if already solving
      * (including a concurrent racing start — see {@link #startingByActivityPlanId}), 404/400 (via
      * {@code SolverInputAssembler}) if the plan/pins/weights are invalid. */
-    public String startSolve(String activityPlanId, SolveProfile profile) {
+    public String startSolve(String activityPlanId, SolveProfile profile, OptimizeSelection optimize, BlockingOptions blocking) {
         if (startingByActivityPlanId.putIfAbsent(activityPlanId, Boolean.TRUE) != null) {
             throw new ConflictException("A solve is already being started for plan " + activityPlanId);
         }
@@ -88,7 +103,7 @@ public class SolveCoordinator {
                 throw new ConflictException("A solve is already running for plan " + activityPlanId);
             }
 
-            AssembledProblem assembled = assembler.assemble(activityPlanId);
+            AssembledProblem assembled = assembler.assemble(activityPlanId, optimize, blocking);
             OptimizationRun run = optimizationRunService.startRun(activityPlanId, assembled.solution());
             try {
                 assembledByActivityPlanId.put(activityPlanId, assembled);
@@ -114,6 +129,67 @@ public class SolveCoordinator {
             return run.id();
         } finally {
             startingByActivityPlanId.remove(activityPlanId);
+        }
+    }
+
+    /** The synchronous GREEDY run's outcome (M6b review fix F6): greedy is a naive baseline that
+     * routinely produces hard violations by design (spec §16.7's "enklast möjligt"), so its HTTP
+     * response must surface the score honestly rather than let a bare {@code FINISHED} read as
+     * success — the UI needs {@code feasible}/{@code hardViolations} to banner a hard-violating
+     * baseline correctly. {@code hardViolations} is {@code -hardScore} (exact violation count at
+     * the seeded weight-1 HARD defaults; an upper-bound proxy if a HARD weight was raised). */
+    public record GreedyResult(String runId, HardMediumSoftLongScore score) {
+
+        public long hardViolations() {
+            return Math.max(0, -score.hardScore());
+        }
+
+        public boolean feasible() {
+            return score.isFeasible();
+        }
+    }
+
+    /**
+     * Guard for mutating endpoints (design §9.4: "mutating endpoints return 409 while
+     * SOLVING_ACTIVE"; M6b review fix F5 applies it to the lock/unlock endpoints specifically — a
+     * lock flipped mid-solve would be invisible to the running solve's already-assembled snapshot
+     * AND could be overwritten by its writeback, so the DB change must wait until the solve is
+     * done). Covers SOLVING_SCHEDULED, SOLVING_ACTIVE and the brief racing-start window ({@link
+     * #startingByActivityPlanId}) alike.
+     */
+    public void assertNoActiveSolve(String activityPlanId) {
+        if (startingByActivityPlanId.containsKey(activityPlanId)
+                || solverManager.getSolverStatus(activityPlanId) != SolverStatus.NOT_SOLVING) {
+            throw new ConflictException(
+                    "A solve is currently running for plan " + activityPlanId + " - wait for it to finish or cancel it first");
+        }
+    }
+
+    /**
+     * Runs the deterministic {@link GreedyBaselineService} synchronously (no Timefold, no {@code
+     * SolverManager} job) and writes the result back exactly like a normal solve (spec §16.7: greedy
+     * output "uses the same persistence shape"). 409 if a real solve is currently running for this
+     * plan — greedy and Timefold never touch the plan's rows concurrently. Does not support §15.5
+     * class-pinning or §14.4 cross-plan blocking (out of scope for a simple baseline; see {@code
+     * GreedyBaselineService}'s javadoc).
+     */
+    @Transactional
+    public GreedyResult runGreedy(String activityPlanId) {
+        if (solverManager.getSolverStatus(activityPlanId) != SolverStatus.NOT_SOLVING) {
+            throw new ConflictException("A solve is already running for plan " + activityPlanId);
+        }
+        AssembledProblem assembled = assembler.assemble(activityPlanId);
+        OptimizationRun run = optimizationRunService.startRun(activityPlanId, assembled.solution());
+        try {
+            GroupPlanSolution result = greedyBaselineService.run(assembled.solution());
+            HardMediumSoftLongScore score = solutionManager.update(result); // sets result.getScore() too
+            persistResult(assembled, result);
+            int unassignedCount = ProgressRegistry.unassignedCount(result);
+            optimizationRunService.finishRun(run.id(), score, unassignedCount, false);
+            return new GreedyResult(run.id(), score);
+        } catch (RuntimeException e) {
+            optimizationRunService.failRun(run.id(), e);
+            throw e;
         }
     }
 

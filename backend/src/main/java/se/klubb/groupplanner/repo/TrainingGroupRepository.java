@@ -114,6 +114,25 @@ public class TrainingGroupRepository {
         return rows > 0;
     }
 
+    /** §15.2 "Lås gruppens tid/bana" (spec §15.2) — pins {@link
+     * se.klubb.groupplanner.solver.domain.GroupSchedule#isPinned()} via {@code
+     * training_group.locked} (unlike the player/coach writeback methods, this one is deliberately
+     * NOT scoped to {@code locked = 0}: it is the very method that SETS the lock). */
+    public void lockToBlock(String groupId, String trainingBlockId) {
+        jdbcClient.sql("UPDATE training_group SET assigned_training_block_id = :trainingBlockId, locked = 1 WHERE id = :id")
+                .param("id", groupId)
+                .param("trainingBlockId", trainingBlockId)
+                .update();
+    }
+
+    /** Unlocks a group's schedule (keeps its current training block; a future solve is free to
+     * move it). */
+    public void unlockBlock(String groupId) {
+        jdbcClient.sql("UPDATE training_group SET locked = 0 WHERE id = :id")
+                .param("id", groupId)
+                .update();
+    }
+
     private static TrainingGroup mapRow(ResultSet rs, int rowNum) throws SQLException {
         return new TrainingGroup(
                 rs.getString("id"),

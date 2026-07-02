@@ -2,6 +2,8 @@ package se.klubb.groupplanner.solver.regression;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ai.timefold.solver.core.api.score.buildin.hardmediumsoftlong.HardMediumSoftLongScore;
+import ai.timefold.solver.core.api.solver.SolutionManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -32,6 +34,7 @@ import se.klubb.groupplanner.solver.assemble.GroupGenerator;
 import se.klubb.groupplanner.solver.assemble.SolverInputAssembler;
 import se.klubb.groupplanner.solver.domain.GroupPlanSolution;
 import se.klubb.groupplanner.solver.domain.GroupSchedule;
+import se.klubb.groupplanner.solver.run.GreedyBaselineService;
 
 /**
  * THE golden gate (docs/plan.md M6a exit criteria; docs/design/04-solver.md §9.3/§15 M-S1 gate c/d):
@@ -122,6 +125,10 @@ class SolverRegressionTest {
     private SolverInputAssembler assembler;
     @Autowired
     private ObjectMapper objectMapper;
+    @Autowired
+    private SolutionManager<GroupPlanSolution, HardMediumSoftLongScore> solutionManager;
+    @Autowired
+    private GreedyBaselineService greedyBaselineService;
 
     private TestDatasetLoader newLoader() {
         return new TestDatasetLoader(
@@ -131,23 +138,37 @@ class SolverRegressionTest {
                 groupGenerator);
     }
 
+    /**
+     * Golden shape: {@code {dataset: {"solver": "<score>", "greedy": "<score>"}}}. Greedy is
+     * included per the M6b brief ("greedy MUST be deterministic cross-OS") — {@link
+     * GreedyBaselineService} has no Timefold randomness at all (plain Java, pure sorts/comparators),
+     * so its score is expected to be bit-identical across macOS/Windows runners exactly like the
+     * solver's own golden scores, and drift here is just as build-breaking.
+     */
     @Test
     void allDatasetsSolveFeasibleAndMatchGoldenScoresExactly() throws IOException {
-        Map<String, String> actualScores = new LinkedHashMap<>();
+        Map<String, Map<String, String>> actualScores = new LinkedHashMap<>();
         for (String dataset : DATASETS) {
             String planId = newLoader().load(dataset);
-            GroupPlanSolution solution = TestSolverFactory.solve(assembler.assemble(planId).solution(), STEP_COUNT_LIMIT);
 
-            assertThat(solution.getScore().hardScore())
+            GroupPlanSolution solved = TestSolverFactory.solve(assembler.assemble(planId).solution(), STEP_COUNT_LIMIT);
+            assertThat(solved.getScore().hardScore())
                     .as("dataset '%s' must solve hard-feasible", dataset)
                     .isZero();
-            for (GroupSchedule gs : solution.getGroupSchedules()) {
+            for (GroupSchedule gs : solved.getGroupSchedules()) {
                 assertThat(gs.getTrainingBlock())
                         .as("dataset '%s': group '%s' must always resolve a training block (10.2, satisfied by construction)",
                                 dataset, gs.getGroup().name())
                         .isNotNull();
             }
-            actualScores.put(dataset, solution.getScore().toString());
+
+            GroupPlanSolution greedy = greedyBaselineService.run(assembler.assemble(planId).solution());
+            HardMediumSoftLongScore greedyScore = solutionManager.update(greedy);
+
+            Map<String, String> scores = new LinkedHashMap<>();
+            scores.put("solver", solved.getScore().toString());
+            scores.put("greedy", greedyScore.toString());
+            actualScores.put(dataset, scores);
         }
 
         if (Boolean.getBoolean("updateGoldenScores")) {
@@ -160,7 +181,7 @@ class SolverRegressionTest {
                 .as("%s must exist - run with -DupdateGoldenScores=true once to generate it", GOLDEN_FILE)
                 .isTrue();
         @SuppressWarnings("unchecked")
-        Map<String, String> expectedScores = objectMapper.readValue(GOLDEN_FILE.toFile(), Map.class);
+        Map<String, Map<String, String>> expectedScores = objectMapper.readValue(GOLDEN_FILE.toFile(), Map.class);
         assertThat(actualScores).as("golden score drift - see %s", GOLDEN_FILE).isEqualTo(expectedScores);
     }
 

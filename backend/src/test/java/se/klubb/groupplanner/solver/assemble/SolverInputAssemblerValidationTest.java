@@ -47,6 +47,8 @@ class SolverInputAssemblerValidationTest {
     private ActivityPlanRepository activityPlanRepository;
     @Autowired
     private TrainingGroupRepository trainingGroupRepository;
+    @Autowired
+    private org.springframework.jdbc.core.simple.JdbcClient jdbcClient;
 
     private String createPlan() {
         Instant now = Instant.now();
@@ -79,5 +81,49 @@ class SolverInputAssemblerValidationTest {
         assertThat(assembled.solution().getGroupSchedules()).hasSize(1);
         assertThat(assembled.solution().getGroupSchedules().get(0).getTrainingBlock()).isNull();
         assertThat(assembled.solution().getGroupSchedules().get(0).isPinned()).isFalse();
+    }
+
+    /**
+     * M6b review fix F3: the reserved-MEDIUM guardrail must be SYMMETRIC — the {@code
+     * constraint_definition} seed row is just as reachable by a rogue migration/manual SQL edit as
+     * the per-plan {@code constraint_weight_config} override (already guarded since M6a), and a
+     * corrupted seed would destroy the §2 waitlist invariant for every plan at once. The API layer
+     * never writes {@code constraint_definition} at all, so corruption is simulated the only way it
+     * can actually happen: direct SQL.
+     */
+    @Test
+    void corruptedUnassignedPlayerDefinitionRowIsRejectedBeforeSolve() {
+        String planId = createPlan();
+        trainingGroupRepository.insert(new TrainingGroup(
+                Uuid7.generate(), planId, "Grupp 1", 1, "beach", 8, 10, 12, 0, null, null, null, false));
+
+        try {
+            // Corruption variant 1: reclassified away from MEDIUM.
+            jdbcClient.sql("UPDATE constraint_definition SET hard_or_soft = 'SOFT' WHERE key = 'unassignedPlayer'").update();
+            assertThatThrownBy(() -> assembler.assemble(planId))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("unassignedPlayer constraint_definition");
+
+            // Corruption variant 2: disabled (with the classification restored).
+            jdbcClient.sql("UPDATE constraint_definition SET hard_or_soft = 'MEDIUM', enabled = 0 WHERE key = 'unassignedPlayer'").update();
+            assertThatThrownBy(() -> assembler.assemble(planId))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("unassignedPlayer constraint_definition");
+
+            // Corruption variant 3: zero-weighted.
+            jdbcClient.sql("UPDATE constraint_definition SET enabled = 1, default_weight = 0 WHERE key = 'unassignedPlayer'").update();
+            assertThatThrownBy(() -> assembler.assemble(planId))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("unassignedPlayer constraint_definition");
+        } finally {
+            // This test class shares one DB (and Spring context) across its methods - always
+            // restore the V5-seeded values so sibling tests never see the corruption.
+            jdbcClient.sql("UPDATE constraint_definition SET hard_or_soft = 'MEDIUM', enabled = 1, default_weight = 100 "
+                            + "WHERE key = 'unassignedPlayer'")
+                    .update();
+        }
+
+        // Restored row assembles fine again.
+        assertThat(assembler.assemble(planId).solution().getGroupSchedules()).hasSize(1);
     }
 }

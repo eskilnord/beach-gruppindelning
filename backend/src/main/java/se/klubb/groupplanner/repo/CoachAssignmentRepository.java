@@ -3,6 +3,7 @@ package se.klubb.groupplanner.repo;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import se.klubb.groupplanner.domain.CoachAssignment;
@@ -78,6 +79,45 @@ public class CoachAssignmentRepository {
     public boolean deleteById(String id) {
         int rows = jdbcClient.sql("DELETE FROM coach_assignment WHERE id = :id").param("id", id).update();
         return rows > 0;
+    }
+
+    public Optional<CoachAssignment> findByGroupIdAndCoachProfileId(String groupId, String coachProfileId) {
+        return jdbcClient.sql("SELECT * FROM coach_assignment WHERE group_id = :groupId AND coach_profile_id = :coachProfileId")
+                .param("groupId", groupId)
+                .param("coachProfileId", coachProfileId)
+                .query(CoachAssignmentRepository::mapRow)
+                .optional();
+    }
+
+    /**
+     * §15.3 "Lås tränare" (spec §15.3) — locks a coach to a group, creating the {@code
+     * coach_assignment} row if none exists yet. Per design §5 ("pins the lowest-index free slot,
+     * deterministically"): {@code SolverInputAssembler} maps {@code CoachSlot} slot index to the
+     * Nth {@code coach_assignment} row (by id order) for a group, so a brand-new locked row for a
+     * group with no prior coach assignment naturally becomes slot 0 — the lowest-index slot — with
+     * zero extra bookkeeping. An explicit numbered {@code slotIndex} beyond that is accepted at the
+     * API layer for validation only (must be &lt; the group's requiredCoachCount); the schema has no
+     * dedicated slot-index column (see backend/docs/m6b-notes.md for the full reasoning).
+     */
+    public void lockToGroup(String coachProfileId, String groupId) {
+        Optional<CoachAssignment> existing = findByGroupIdAndCoachProfileId(groupId, coachProfileId);
+        if (existing.isEmpty()) {
+            insert(coachProfileId, groupId, true, CoachAssignment.SOURCE_LOCKED);
+            return;
+        }
+        jdbcClient.sql("UPDATE coach_assignment SET locked = 1, source = :source WHERE id = :id")
+                .param("id", existing.get().id())
+                .param("source", CoachAssignment.SOURCE_LOCKED)
+                .update();
+    }
+
+    /** Unlocks a specific coach's assignment to a group (keeps the assignment; a future solve is
+     * free to move it). No-op if no such assignment exists. */
+    public void unlockForCoachAndGroup(String coachProfileId, String groupId) {
+        jdbcClient.sql("UPDATE coach_assignment SET locked = 0 WHERE group_id = :groupId AND coach_profile_id = :coachProfileId")
+                .param("groupId", groupId)
+                .param("coachProfileId", coachProfileId)
+                .update();
     }
 
     private static CoachAssignment mapRow(ResultSet rs, int rowNum) throws SQLException {

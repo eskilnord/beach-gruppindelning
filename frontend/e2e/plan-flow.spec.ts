@@ -76,7 +76,19 @@ test("create season → open it → create activity plan → navigate tabs → d
   await expect(page.getByRole("tab", { name: sv.plan.tabs.capacity })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByText(sv.capacity.empty)).toBeVisible();
 
-  const placeholderTabs = [sv.plan.tabs.optimize, sv.plan.tabs.results, sv.plan.tabs.export];
+  // Optimering (M6b: Optimeringsvy, not a placeholder anymore — see optimize-results.spec.ts for the
+  // full solve/results/schedule flow). No groups generated yet for this fresh plan.
+  await page.getByRole("tab", { name: sv.plan.tabs.optimize }).click();
+  await expect(page.getByRole("tab", { name: sv.plan.tabs.optimize })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("heading", { name: sv.optimize.heading })).toBeVisible();
+  await expect(page.getByText(sv.optimize.groups.count(0))).toBeVisible();
+
+  // Resultat (M6b: Resultatvy, not a placeholder anymore) - empty state before any groups exist.
+  await page.getByRole("tab", { name: sv.plan.tabs.results }).click();
+  await expect(page.getByRole("tab", { name: sv.plan.tabs.results })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByText(sv.results.empty)).toBeVisible();
+
+  const placeholderTabs = [sv.plan.tabs.export];
 
   for (const tabLabel of placeholderTabs) {
     await page.getByRole("tab", { name: tabLabel }).click();

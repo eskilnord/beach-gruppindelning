@@ -25,10 +25,17 @@ public record CoachFact(
         int canCoachMinScaled,
         int canCoachMaxScaled,
         long[] unavailableTimeSlotIds,
-        int maxGroups) {
+        int maxGroups,
+        long[] preferredTimeSlotIds) {
 
     public boolean availableAt(long timeSlotId) {
         return Arrays.binarySearch(unavailableTimeSlotIds, timeSlotId) < 0;
+    }
+
+    /** M6b addition: backs the {@code coachPreferredTimeSlot} SOFT constraint — the M5 tri-state's
+     * {@code PREFERRED} kind, mirroring {@link PlayerAssignment#prefers(long)}. */
+    public boolean prefersTimeSlot(long timeSlotId) {
+        return Arrays.binarySearch(preferredTimeSlotIds, timeSlotId) >= 0;
     }
 
     @Override
@@ -46,7 +53,8 @@ public record CoachFact(
                 && canCoachMaxScaled == other.canCoachMaxScaled
                 && maxGroups == other.maxGroups
                 && java.util.Objects.equals(displayName, other.displayName)
-                && Arrays.equals(unavailableTimeSlotIds, other.unavailableTimeSlotIds);
+                && Arrays.equals(unavailableTimeSlotIds, other.unavailableTimeSlotIds)
+                && Arrays.equals(preferredTimeSlotIds, other.preferredTimeSlotIds);
     }
 
     @Override
@@ -54,6 +62,7 @@ public record CoachFact(
         int result = java.util.Objects.hash(
                 coachProfileId, personId, displayName, coachLevelScaled, canCoachMinScaled, canCoachMaxScaled, maxGroups);
         result = 31 * result + Arrays.hashCode(unavailableTimeSlotIds);
+        result = 31 * result + Arrays.hashCode(preferredTimeSlotIds);
         return result;
     }
 }

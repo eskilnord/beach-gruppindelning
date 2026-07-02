@@ -1,5 +1,9 @@
 package se.klubb.groupplanner.common.time;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalTime;
+
 /**
  * A pure-integer, deterministic representation of "when" a {@code TrainingBlock} or a resource
  * usage happens (docs/design/04-solver.md §6.1), shared between the solver (time-availability/
@@ -52,5 +56,30 @@ public record TimeKey(int epochDay, int dayOfWeek, int startMinuteOfDay, int end
             return false;
         }
         return startMinuteOfDay < other.endMinuteOfDay && other.startMinuteOfDay < endMinuteOfDay;
+    }
+
+    /**
+     * Shared factory from the raw text fields every {@code TimeSlot}-shaped row stores (day-of-week
+     * name OR ISO date, plus {@code "HH:mm"} start/end) — used by {@code SolverInputAssembler}, the
+     * cross-plan blocking usage assembly, and {@code se.klubb.groupplanner.season.ConflictService},
+     * so every caller builds a {@code TimeKey} identically (docs/design/04-solver.md §6.1: "single
+     * implementation"). Exactly one of {@code dayOfWeek}/{@code date} must be non-null.
+     */
+    public static TimeKey of(String dayOfWeek, String date, String startTime, String endTime) {
+        int epochDay = NO_DATE;
+        int dow;
+        if (date != null) {
+            LocalDate d = LocalDate.parse(date);
+            epochDay = (int) d.toEpochDay();
+            dow = d.getDayOfWeek().getValue();
+        } else {
+            dow = DayOfWeek.valueOf(dayOfWeek).getValue();
+        }
+        return new TimeKey(epochDay, dow, minuteOfDay(startTime), minuteOfDay(endTime));
+    }
+
+    private static int minuteOfDay(String hhmm) {
+        LocalTime t = LocalTime.parse(hhmm);
+        return t.getHour() * 60 + t.getMinute();
     }
 }

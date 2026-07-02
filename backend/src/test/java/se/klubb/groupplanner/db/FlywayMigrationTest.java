@@ -39,7 +39,7 @@ class FlywayMigrationTest {
             "coach_time_slot", "venue", "court", "time_slot", "training_block", "training_group",
             "player_assignment", "coach_assignment", "constraint_definition", "field_definition",
             "custom_field_value", "constraint_weight_config", "import_template", "import_run",
-            "optimization_run");
+            "optimization_run", "saved_plan", "saved_plan_resource_usage");
 
     @Test
     void allExpectedTablesExist() {
@@ -58,22 +58,24 @@ class FlywayMigrationTest {
                 .list();
 
         assertThat(descriptions).containsExactly(
-                "core", "seed constraints and standard fields", "import", "resources", "solver runs");
+                "core", "seed constraints and standard fields", "import", "resources", "solver runs",
+                "soft constraints locks saved plan");
     }
 
     @Test
-    void exactlyThirtyOneConstraintsAreSeeded() {
+    void exactlyThirtyTwoConstraintsAreSeeded() {
         Integer count = jdbcClient.sql("SELECT COUNT(*) FROM constraint_definition").query(Integer.class).single();
 
-        assertThat(count).isEqualTo(31);
+        assertThat(count).isEqualTo(32);
     }
 
     /**
      * The exact seed contract for all 24 spec-numbered standard constraints (§10.1-10.24) plus the
      * 7 M6a additions (backend/docs/m6a-notes.md - coachMaxGroups, coachWishRequired/Forbidden,
-     * savedPlanPersonBlocked/CoachBlocked/CourtBlocked, unassignedPlayer): key AND hard-or-soft
-     * classification. A future edit that flips a classification (e.g. groupMaxSizeHard -> SOFT)
-     * fails here, not silently in the solver.
+     * savedPlanPersonBlocked/CoachBlocked/CourtBlocked, unassignedPlayer) plus the 1 M6b addition
+     * (backend/docs/m6b-notes.md - coachPreferredTimeSlot, V6): key AND hard-or-soft classification.
+     * A future edit that flips a classification (e.g. groupMaxSizeHard -> SOFT) fails here, not
+     * silently in the solver.
      */
     private static final Map<String, String> EXPECTED_CONSTRAINT_CLASSIFICATIONS = Map.ofEntries(
             Map.entry("trainingBlockCapacity", "HARD"),              // §10.1
@@ -106,7 +108,8 @@ class FlywayMigrationTest {
             Map.entry("savedPlanPersonBlocked", "HARD"),             // §10.24a
             Map.entry("savedPlanCoachBlocked", "HARD"),              // §10.24b
             Map.entry("savedPlanCourtBlocked", "HARD"),              // §10.24c
-            Map.entry("unassignedPlayer", "MEDIUM"));                // reserved waitlist penalty (ADR-006)
+            Map.entry("unassignedPlayer", "MEDIUM"),                 // reserved waitlist penalty (ADR-006)
+            Map.entry("coachPreferredTimeSlot", "SOFT"));            // M6b addition (V6): coach PREFERRED-slot reward
 
     @Test
     void constraintKeyToHardOrSoftMapMatchesSpecSection10Exactly() {

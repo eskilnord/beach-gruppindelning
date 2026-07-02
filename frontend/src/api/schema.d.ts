@@ -132,6 +132,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{planId}/assignments/{participantProfileId}/lock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["lock"];
+        post?: never;
+        delete: operations["unlock"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/groups/{groupId}/lock-coach": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["lockCoach"];
+        post?: never;
+        delete: operations["unlockCoach"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/groups/{groupId}/lock-block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["lockBlock"];
+        post?: never;
+        delete: operations["unlockBlock"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/venues": {
         parameters: {
             query?: never;
@@ -212,6 +260,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{planId}/solve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["solve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/solve/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans/{planId}/participants": {
         parameters: {
             query?: never;
@@ -270,6 +350,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["commit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/groups/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["generate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -516,6 +612,22 @@ export interface paths {
         patch: operations["update_9"];
         trace?: never;
     };
+    "/api/seasons/{seasonId}/conflicts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["conflicts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans/{planId}/training-blocks": {
         parameters: {
             query?: never;
@@ -524,6 +636,38 @@ export interface paths {
             cookie?: never;
         };
         get: operations["listForPlan_4"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/solve/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_5"];
         put?: never;
         post?: never;
         delete?: never;
@@ -580,6 +724,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{planId}/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_6"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans/{planId}/capacity": {
         parameters: {
             query?: never;
@@ -588,6 +748,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["getCapacity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_7"];
         put?: never;
         post?: never;
         delete?: never;
@@ -635,7 +811,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_5"];
+        get: operations["list_8"];
         put?: never;
         post?: never;
         delete?: never;
@@ -750,6 +926,39 @@ export interface components {
             timeSlotId?: string;
             kind?: string;
         };
+        LockRequest: {
+            groupId?: string;
+        };
+        LockCoachRequest: {
+            coachProfileId?: string;
+            /** Format: int32 */
+            slotIndex?: number;
+        };
+        TrainingGroup: {
+            id?: string;
+            activityPlanId?: string;
+            name?: string;
+            /** Format: int32 */
+            groupOrder?: number;
+            category?: string;
+            /** Format: int32 */
+            minSize?: number;
+            /** Format: int32 */
+            targetSize?: number;
+            /** Format: int32 */
+            maxSize?: number;
+            /** Format: int32 */
+            requiredCoachCount?: number;
+            /** Format: double */
+            levelMin?: number;
+            /** Format: double */
+            levelMax?: number;
+            assignedTrainingBlockId?: string;
+            locked?: boolean;
+        };
+        LockBlockRequest: {
+            trainingBlockId?: string;
+        };
         CreateVenueRequest: {
             name?: string;
             notes?: string;
@@ -833,6 +1042,29 @@ export interface components {
             /** Format: int32 */
             durationMinutes?: number;
             label?: string;
+        };
+        BlockingRequest: {
+            blockPlayers?: boolean;
+            blockCoaches?: boolean;
+            blockCourts?: boolean;
+            conflictsAsWarnings?: boolean;
+        };
+        OptimizeRequest: {
+            players?: boolean;
+            schedule?: boolean;
+            coaches?: boolean;
+        };
+        SolveRequest: {
+            profile?: string;
+            optimize?: components["schemas"]["OptimizeRequest"];
+            blocking?: components["schemas"]["BlockingRequest"];
+        };
+        StartSolveResponse: {
+            runId?: string;
+            status?: string;
+        };
+        CancelSolveResponse: {
+            finalRunId?: string;
         };
         CreateParticipantProfileRequest: {
             personId?: string;
@@ -1068,9 +1300,56 @@ export interface components {
             active?: boolean;
             notes?: string;
         };
+        ConflictUsage: {
+            planId?: string;
+            planName?: string;
+            groupName?: string;
+            time?: string;
+        };
+        SeasonConflict: {
+            type?: string;
+            severity?: string;
+            personId?: string;
+            personName?: string;
+            courtId?: string;
+            courtName?: string;
+            usages?: components["schemas"]["ConflictUsage"][];
+        };
         SlotBlocksView: {
             timeSlot?: components["schemas"]["TimeSlot"];
             blocks?: components["schemas"]["TrainingBlockView"][];
+        };
+        SolveStatus: {
+            status?: string;
+            runId?: string;
+            /** Format: int64 */
+            hard?: number;
+            /** Format: int64 */
+            medium?: number;
+            /** Format: int64 */
+            soft?: number;
+            feasible?: boolean;
+            /** Format: int32 */
+            unassignedCount?: number;
+            /** Format: int64 */
+            elapsedMs?: number;
+            /** Format: int64 */
+            limitMs?: number;
+            /** Format: int32 */
+            improvementCount?: number;
+        };
+        OptimizationRun: {
+            id?: string;
+            activityPlanId?: string;
+            inputSnapshotJson?: string;
+            constraintWeightsJson?: string;
+            score?: string;
+            status?: string;
+            startedAt?: string;
+            finishedAt?: string;
+            /** Format: int32 */
+            durationMs?: number;
+            resultSummaryJson?: string;
         };
         PersonMatchProposal: {
             existingPersonId?: string;
@@ -1153,6 +1432,24 @@ export interface components {
             coachesAvailableCount?: number;
             /** Format: int32 */
             coachesPreferredCount?: number;
+        };
+        AssignmentsView: {
+            players?: components["schemas"]["PlayerAssignment"][];
+            coaches?: components["schemas"]["CoachAssignment"][];
+        };
+        CoachAssignment: {
+            id?: string;
+            coachProfileId?: string;
+            groupId?: string;
+            locked?: boolean;
+            source?: string;
+        };
+        PlayerAssignment: {
+            id?: string;
+            participantProfileId?: string;
+            groupId?: string;
+            locked?: boolean;
+            source?: string;
         };
         ImportTemplate: {
             id?: string;
@@ -1495,6 +1792,146 @@ export interface operations {
             };
         };
     };
+    lock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                participantProfileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LockRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    unlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                participantProfileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    lockCoach: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LockCoachRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TrainingGroup"];
+                };
+            };
+        };
+    };
+    unlockCoach: {
+        parameters: {
+            query: {
+                coachProfileId: string;
+            };
+            header?: never;
+            path: {
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    lockBlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LockBlockRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TrainingGroup"];
+                };
+            };
+        };
+    };
+    unlockBlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     list_1: {
         parameters: {
             query?: never;
@@ -1701,6 +2138,54 @@ export interface operations {
             };
         };
     };
+    solve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SolveRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["StartSolveResponse"];
+                };
+            };
+        };
+    };
+    cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CancelSolveResponse"];
+                };
+            };
+        };
+    };
     listForPlan_1: {
         parameters: {
             query?: never;
@@ -1823,6 +2308,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["CommitResult"];
+                };
+            };
+        };
+    };
+    generate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TrainingGroup"][];
                 };
             };
         };
@@ -2661,6 +3168,28 @@ export interface operations {
             };
         };
     };
+    conflicts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasonId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SeasonConflict"][];
+                };
+            };
+        };
+    };
     listForPlan_4: {
         parameters: {
             query?: never;
@@ -2679,6 +3208,50 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["SlotBlocksView"][];
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SolveStatus"];
+                };
+            };
+        };
+    };
+    list_5: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["OptimizationRun"][];
                 };
             };
         };
@@ -2755,6 +3328,28 @@ export interface operations {
             };
         };
     };
+    list_6: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TrainingGroup"][];
+                };
+            };
+        };
+    };
     getCapacity: {
         parameters: {
             query?: never;
@@ -2773,6 +3368,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["CapacityResponse"];
+                };
+            };
+        };
+    };
+    list_7: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AssignmentsView"];
                 };
             };
         };
@@ -2819,7 +3436,7 @@ export interface operations {
             };
         };
     };
-    list_5: {
+    list_8: {
         parameters: {
             query?: never;
             header?: never;

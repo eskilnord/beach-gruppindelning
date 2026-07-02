@@ -1,0 +1,7 @@
+Förnamn,Efternamn,E-post,Ranking
+Tova,Lindberg,tova.lindberg@example.se,600
+Isak,Nyström,isak.nystrom@example.se,550
+Wilma,Sjögren,wilma.sjogren@example.se,580
+Axel,Ahlgren,axel.ahlgren@example.se,520
+Elin,Book,elin.book@example.se,610
+Rasmus,Falk,rasmus.falk@example.se,540

@@ -63,13 +63,13 @@ class ConstraintWeightControllerTest {
     }
 
     @Test
-    void listReturnsAllThirtyOneConstraintsWithDefaultsAndNoneOverridden() throws Exception {
+    void listReturnsAllThirtyTwoConstraintsWithDefaultsAndNoneOverridden() throws Exception {
         String planId = createPlan();
 
-        // 24 from spec §10.1-10.24 + 7 M6a additions (backend/docs/m6a-notes.md).
+        // 24 from spec §10.1-10.24 + 7 M6a additions + 1 M6b addition (coachPreferredTimeSlot, V6).
         mockMvc.perform(get("/api/plans/" + planId + "/constraint-weights").header("X-GP-Token", VALID_TOKEN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(31))
+                .andExpect(jsonPath("$.length()").value(32))
                 .andExpect(jsonPath("$[?(@.key=='sameGroupSoft')].weight").value(80))
                 .andExpect(jsonPath("$[?(@.key=='sameGroupSoft')].overridden").value(false));
     }

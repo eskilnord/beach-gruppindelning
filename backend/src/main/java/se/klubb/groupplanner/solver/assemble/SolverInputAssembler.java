@@ -4,9 +4,6 @@ import ai.timefold.solver.core.api.domain.solution.ConstraintWeightOverrides;
 import ai.timefold.solver.core.api.score.buildin.hardmediumsoftlong.HardMediumSoftLongScore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.time.DayOfWeek;
-import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -29,6 +26,7 @@ import se.klubb.groupplanner.domain.FieldDefinition;
 import se.klubb.groupplanner.domain.ParticipantProfile;
 import se.klubb.groupplanner.domain.Person;
 import se.klubb.groupplanner.domain.PlayerAssignment;
+import se.klubb.groupplanner.domain.SavedPlan;
 import se.klubb.groupplanner.domain.TimeSlot;
 import se.klubb.groupplanner.domain.TrainingGroup;
 import se.klubb.groupplanner.fields.ConstraintTypes;
@@ -45,6 +43,8 @@ import se.klubb.groupplanner.repo.FieldDefinitionRepository;
 import se.klubb.groupplanner.repo.ParticipantProfileRepository;
 import se.klubb.groupplanner.repo.PersonRepository;
 import se.klubb.groupplanner.repo.PlayerAssignmentRepository;
+import se.klubb.groupplanner.repo.SavedPlanRepository;
+import se.klubb.groupplanner.repo.SavedPlanResourceUsageRepository;
 import se.klubb.groupplanner.repo.TimeSlotRepository;
 import se.klubb.groupplanner.repo.TrainingBlockRepository;
 import se.klubb.groupplanner.repo.TrainingGroupRepository;
@@ -59,6 +59,7 @@ import se.klubb.groupplanner.solver.domain.GroupSchedule;
 import se.klubb.groupplanner.solver.domain.LateTimePolicy;
 import se.klubb.groupplanner.solver.domain.PersonPairWish;
 import se.klubb.groupplanner.solver.domain.SavedPlanResourceUsage;
+import se.klubb.groupplanner.solver.domain.UsageType;
 import se.klubb.groupplanner.solver.domain.WishType;
 
 /**
@@ -110,6 +111,8 @@ public class SolverInputAssembler {
     private final ConstraintWeightConfigRepository constraintWeightConfigRepository;
     private final PlayerAssignmentRepository playerAssignmentRepository;
     private final CoachAssignmentRepository coachAssignmentRepository;
+    private final SavedPlanRepository savedPlanRepository;
+    private final SavedPlanResourceUsageRepository savedPlanResourceUsageRepository;
     private final ObjectMapper objectMapper;
 
     public SolverInputAssembler(
@@ -128,6 +131,8 @@ public class SolverInputAssembler {
             ConstraintWeightConfigRepository constraintWeightConfigRepository,
             PlayerAssignmentRepository playerAssignmentRepository,
             CoachAssignmentRepository coachAssignmentRepository,
+            SavedPlanRepository savedPlanRepository,
+            SavedPlanResourceUsageRepository savedPlanResourceUsageRepository,
             ObjectMapper objectMapper) {
         this.activityPlanRepository = activityPlanRepository;
         this.participantProfileRepository = participantProfileRepository;
@@ -144,10 +149,19 @@ public class SolverInputAssembler {
         this.constraintWeightConfigRepository = constraintWeightConfigRepository;
         this.playerAssignmentRepository = playerAssignmentRepository;
         this.coachAssignmentRepository = coachAssignmentRepository;
+        this.savedPlanRepository = savedPlanRepository;
+        this.savedPlanResourceUsageRepository = savedPlanResourceUsageRepository;
         this.objectMapper = objectMapper;
     }
 
+    /** Convenience overload: full optimize (nothing class-pinned beyond individual locks) and no
+     * cross-plan blocking — M6a's exact behavior, still used by tests and any caller that doesn't
+     * need §15.5/§14.4. */
     public AssembledProblem assemble(String activityPlanId) {
+        return assemble(activityPlanId, OptimizeSelection.ALL, BlockingOptions.NONE);
+    }
+
+    public AssembledProblem assemble(String activityPlanId, OptimizeSelection optimize, BlockingOptions blocking) {
         ActivityPlan plan = activityPlanRepository.findById(activityPlanId)
                 .orElseThrow(() -> new NotFoundException("Activity plan not found: " + activityPlanId));
 
@@ -242,8 +256,19 @@ public class SolverInputAssembler {
             Person person = personRepository.findById(cp.personId()).orElse(null);
             personById.put(cp.personId(), person);
             String displayName = displayNameOf(person);
-            long[] unavailable = coachTimeSlotRepository.findByCoachProfileId(cp.id()).stream()
+            List<CoachTimeSlot> coachTimeSlots = coachTimeSlotRepository.findByCoachProfileId(cp.id());
+            long[] unavailable = coachTimeSlots.stream()
                     .filter(ct -> CoachTimeSlot.UNAVAILABLE.equals(ct.kind()))
+                    .map(CoachTimeSlot::timeSlotId)
+                    .filter(timeSlotIdx::contains)
+                    .mapToLong(timeSlotIdx::id)
+                    .distinct()
+                    .sorted()
+                    .toArray();
+            // M6b: backs coachPreferredTimeSlot (the M5 tri-state's PREFERRED kind, its first solver
+            // consumer).
+            long[] preferred = coachTimeSlots.stream()
+                    .filter(ct -> CoachTimeSlot.PREFERRED.equals(ct.kind()))
                     .map(CoachTimeSlot::timeSlotId)
                     .filter(timeSlotIdx::contains)
                     .mapToLong(timeSlotIdx::id)
@@ -259,7 +284,8 @@ public class SolverInputAssembler {
                     cp.canCoachMinLevel() != null ? scaled(cp.canCoachMinLevel()) : 0,
                     cp.canCoachMaxLevel() != null ? scaled(cp.canCoachMaxLevel()) : 100_000,
                     unavailable,
-                    maxGroups);
+                    maxGroups,
+                    preferred);
             coachFacts.add(fact);
             coachFactByDbId.put(cp.id(), fact);
             coachPersonLongIdByProfileId.put(cp.id(), fact.personId());
@@ -428,7 +454,12 @@ public class SolverInputAssembler {
             }
         }
 
-        ConstraintWeightOverrides<HardMediumSoftLongScore> overrides = buildConstraintWeightOverrides(activityPlanId);
+        applyOptimizeSelection(optimize, solverPlayerAssignments, groupSchedules, coachSlots);
+
+        List<SavedPlanResourceUsage> savedPlanResourceUsages =
+                collectSavedPlanUsages(plan, blocking, personIdx, courtIdx);
+
+        ConstraintWeightOverrides<HardMediumSoftLongScore> overrides = buildConstraintWeightOverrides(activityPlanId, blocking);
 
         GroupPlanSolution solution = new GroupPlanSolution(
                 activityPlanId,
@@ -440,7 +471,7 @@ public class SolverInputAssembler {
                 coachFacts,
                 personPairWishes,
                 coachWishes,
-                List.<SavedPlanResourceUsage>of(),
+                savedPlanResourceUsages,
                 LateTimePolicy.DISABLED,
                 overrides);
 
@@ -459,16 +490,49 @@ public class SolverInputAssembler {
         return new AssembledProblem(solution, participantDbIdByLongId, coachDbIdByLongId, groupDbIdByLongId, blockDbIdByLongId);
     }
 
-    private ConstraintWeightOverrides<HardMediumSoftLongScore> buildConstraintWeightOverrides(String activityPlanId) {
+    /**
+     * Builds the per-solve {@code ConstraintWeightOverrides}, including the verifier-mandated
+     * complement-key fan-out ({@link ConstraintKeys#COMPLEMENTS_OF}: a parent constraint's weight
+     * also drives its empty-group complement's weight, since the complement has no {@code
+     * constraint_definition}/{@code constraint_weight_config} row of its own) and the §14.4 "visa
+     * konflikter men tillåt ändå" downgrade (the three {@code savedPlan*} HARD constraints become
+     * {@code ofSoft(1)} for THIS solve only when {@code blocking.conflictsAsWarnings()} - never
+     * written back to the DB, so it never leaks into another solve or into {@code
+     * ConstraintWeightController}'s view of the plan's persisted weights).
+     */
+    private ConstraintWeightOverrides<HardMediumSoftLongScore> buildConstraintWeightOverrides(
+            String activityPlanId, BlockingOptions blocking) {
         Map<String, HardMediumSoftLongScore> weights = new HashMap<>();
         for (ConstraintDefinition def : constraintDefinitionRepository.findAll()) {
-            if (!ConstraintKeys.IMPLEMENTED.contains(def.key())) {
-                continue;
+            boolean directlyImplemented = ConstraintKeys.IMPLEMENTED.contains(def.key());
+            java.util.Set<String> complements = ConstraintKeys.complementsOf(def.key());
+            if (!directlyImplemented && complements.isEmpty()) {
+                continue; // not a code key AND not a fan-out parent - nothing to apply.
             }
-            weights.put(def.key(), scoreFor(def.hardOrSoft(), def.enabled() ? def.defaultWeight() : 0));
+            if (ConstraintKeys.UNASSIGNED_PLAYER.equals(def.key())) {
+                // Symmetric counterpart of the per-plan override guardrail below (M6b review fix
+                // F3): the DEFINITION row is equally reachable by a rogue migration or manual SQL
+                // edit, and a corrupted seed (disabled, reclassified off MEDIUM, or zero-weighted)
+                // would silently destroy the §2 waitlist invariant for EVERY plan at once. Same
+                // fail-closed policy: refuse to solve rather than solve wrong.
+                if (!def.enabled() || !HardOrSoft.MEDIUM.equals(def.hardOrSoft()) || def.defaultWeight() < 1) {
+                    throw new IllegalStateException(
+                            "unassignedPlayer constraint_definition row violates the reserved-MEDIUM guardrail "
+                                    + "(ADR-006) - refusing to solve");
+                }
+            }
+            HardMediumSoftLongScore score = scoreFor(def.hardOrSoft(), def.enabled() ? def.defaultWeight() : 0);
+            if (directlyImplemented) {
+                weights.put(def.key(), score);
+            }
+            for (String complement : complements) {
+                weights.put(complement, score);
+            }
         }
         for (ConstraintWeightConfig cfg : constraintWeightConfigRepository.findByActivityPlanId(activityPlanId)) {
-            if (!ConstraintKeys.IMPLEMENTED.contains(cfg.constraintKey())) {
+            boolean directlyImplemented = ConstraintKeys.IMPLEMENTED.contains(cfg.constraintKey());
+            java.util.Set<String> complements = ConstraintKeys.complementsOf(cfg.constraintKey());
+            if (!directlyImplemented && complements.isEmpty()) {
                 continue;
             }
             if (ConstraintKeys.UNASSIGNED_PLAYER.equals(cfg.constraintKey())) {
@@ -481,9 +545,109 @@ public class SolverInputAssembler {
                                     + "(ADR-006) for plan " + activityPlanId + " - refusing to solve");
                 }
             }
-            weights.put(cfg.constraintKey(), scoreFor(cfg.hardOrSoft(), cfg.enabled() ? cfg.weight() : 0));
+            HardMediumSoftLongScore score = scoreFor(cfg.hardOrSoft(), cfg.enabled() ? cfg.weight() : 0);
+            if (directlyImplemented) {
+                weights.put(cfg.constraintKey(), score);
+            }
+            for (String complement : complements) {
+                weights.put(complement, score);
+            }
+        }
+        if (blocking.conflictsAsWarnings()) {
+            HardMediumSoftLongScore warning = HardMediumSoftLongScore.ofSoft(1);
+            weights.put(ConstraintKeys.SAVED_PLAN_PERSON_BLOCKED, warning);
+            weights.put(ConstraintKeys.SAVED_PLAN_COACH_BLOCKED, warning);
+            weights.put(ConstraintKeys.SAVED_PLAN_COURT_BLOCKED, warning);
         }
         return ConstraintWeightOverrides.of(weights);
+    }
+
+    /**
+     * §15.5 "optimera endast X" (design §5 note, spec §15.5): pins every entity of a class whose
+     * {@code OptimizeSelection} field is {@code false}, regardless of individual {@code locked}
+     * flags. 400s if the class isn't fully assigned yet - a class-level pin only makes sense on a
+     * previously-solved plan (see {@link OptimizeSelection}'s javadoc).
+     */
+    private void applyOptimizeSelection(
+            OptimizeSelection optimize,
+            List<se.klubb.groupplanner.solver.domain.PlayerAssignment> players,
+            List<GroupSchedule> schedules,
+            List<CoachSlot> coachSlots) {
+        if (!optimize.players()) {
+            for (se.klubb.groupplanner.solver.domain.PlayerAssignment pa : players) {
+                if (pa.getGroup() == null) {
+                    throw new BadRequestException(
+                            "Cannot pin all players (optimize.players=false): participant " + pa.getId()
+                                    + " has no assigned group yet - run a full solve first");
+                }
+            }
+            players.forEach(pa -> pa.setPinned(true));
+        }
+        if (!optimize.schedule()) {
+            for (GroupSchedule gs : schedules) {
+                if (gs.getTrainingBlock() == null) {
+                    throw new BadRequestException(
+                            "Cannot pin all group schedules (optimize.schedule=false): group '" + gs.getGroup().name()
+                                    + "' has no assigned training block yet - run a full solve first");
+                }
+            }
+            schedules.forEach(gs -> gs.setPinned(true));
+        }
+        if (!optimize.coaches()) {
+            for (CoachSlot cs : coachSlots) {
+                if (cs.getCoach() == null) {
+                    throw new BadRequestException(
+                            "Cannot pin all coach slots (optimize.coaches=false): group '" + cs.getGroup().name()
+                                    + "' slot " + cs.getSlotIndex() + " has no assigned coach yet - run a full solve first");
+                }
+            }
+            coachSlots.forEach(cs -> cs.setPinned(true));
+        }
+    }
+
+    /**
+     * Cross-plan blocking assembly (design §6.2, spec §14.3/§14.4): loads every LOCKED {@code
+     * saved_plan} in the same season as {@code plan}, excluding {@code plan} itself, and turns their
+     * {@code saved_plan_resource_usage} rows into {@link SavedPlanResourceUsage} facts per the
+     * §14.4 checkboxes. A usage whose person/court is not even present in THIS plan's solver id
+     * indexes is skipped - it can never match any constraint anyway (no {@code PlayerAssignment}/
+     * {@code CoachSlot}/{@code TrainingBlock} in this solve could reference it), so including it
+     * would be pure overhead.
+     */
+    private List<SavedPlanResourceUsage> collectSavedPlanUsages(
+            ActivityPlan plan, BlockingOptions blocking, SolverIdIndex personIdx, SolverIdIndex courtIdx) {
+        if (!blocking.anyBlockingEnabled()) {
+            return List.of();
+        }
+        List<SavedPlanResourceUsage> usages = new ArrayList<>();
+        for (SavedPlan savedPlan : savedPlanRepository.findLockedInSeasonExcludingPlan(plan.seasonPlanId(), plan.id())) {
+            for (se.klubb.groupplanner.domain.SavedPlanResourceUsage row
+                    : savedPlanResourceUsageRepository.findBySavedPlanId(savedPlan.id())) {
+                TimeKey timeKey = TimeKey.of(row.dayOfWeek(), row.date(), row.startTime(), row.endTime());
+                boolean isPlayer = se.klubb.groupplanner.domain.SavedPlanResourceUsage.ROLE_PLAYER.equals(row.role());
+                boolean isCoach = se.klubb.groupplanner.domain.SavedPlanResourceUsage.ROLE_COACH.equals(row.role());
+                boolean personBlockingApplies = (isPlayer && blocking.blockPlayers()) || (isCoach && blocking.blockCoaches());
+                if (personBlockingApplies && row.personId() != null && personIdx.contains(row.personId())) {
+                    usages.add(new SavedPlanResourceUsage(
+                            UsageType.PERSON, personIdx.id(row.personId()), -1L, timeKey, savedPlan.name(), row.role()));
+                }
+                if (blocking.blockCourts() && row.courtId() != null && courtIdx.contains(row.courtId())) {
+                    usages.add(new SavedPlanResourceUsage(
+                            UsageType.COURT, -1L, courtIdx.id(row.courtId()), timeKey, savedPlan.name(), row.role()));
+                }
+            }
+        }
+        // Determinism (ADR-007): built from already-ordered repository queries (both ORDER BY id),
+        // but an explicit final sort makes the invariant self-evident regardless of upstream order.
+        usages.sort(java.util.Comparator
+                .comparing((SavedPlanResourceUsage u) -> u.type().name())
+                .thenComparingLong(SavedPlanResourceUsage::personId)
+                .thenComparingLong(SavedPlanResourceUsage::courtId)
+                .thenComparingInt(u -> u.timeKey().epochDay())
+                .thenComparingInt(u -> u.timeKey().dayOfWeek())
+                .thenComparingInt(u -> u.timeKey().startMinuteOfDay())
+                .thenComparing(SavedPlanResourceUsage::sourcePlanName));
+        return usages;
     }
 
     private static HardMediumSoftLongScore scoreFor(String hardOrSoft, int weight) {
@@ -563,21 +727,7 @@ public class SolverInputAssembler {
     }
 
     private static TimeKey timeKeyOf(TimeSlot slot) {
-        int epochDay = TimeKey.NO_DATE;
-        int dayOfWeek;
-        if (slot.date() != null) {
-            LocalDate date = LocalDate.parse(slot.date());
-            epochDay = (int) date.toEpochDay();
-            dayOfWeek = date.getDayOfWeek().getValue();
-        } else {
-            dayOfWeek = DayOfWeek.valueOf(slot.dayOfWeek()).getValue();
-        }
-        return new TimeKey(epochDay, dayOfWeek, minuteOfDay(slot.startTime()), minuteOfDay(slot.endTime()));
-    }
-
-    private static int minuteOfDay(String hhmm) {
-        LocalTime t = LocalTime.parse(hhmm);
-        return t.getHour() * 60 + t.getMinute();
+        return TimeKey.of(slot.dayOfWeek(), slot.date(), slot.startTime(), slot.endTime());
     }
 
     private static String displayNameOf(Person person) {
