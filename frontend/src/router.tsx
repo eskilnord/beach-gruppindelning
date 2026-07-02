@@ -4,7 +4,8 @@ import { StartPage } from "./routes/start/StartPage";
 import { SeasonPage } from "./routes/season/SeasonPage";
 import { PlanLayout } from "./routes/plan/PlanLayout";
 import { PlaceholderPanel } from "./routes/plan/PlaceholderPanel";
-import { ParticipantsPanel } from "./routes/plan/ParticipantsPanel";
+import { ParticipantsPanel } from "./routes/plan/participants/ParticipantsPanel";
+import { FieldsPanel } from "./routes/plan/fields/FieldsPanel";
 import { ImportWizardPage } from "./routes/import/ImportWizardPage";
 import { sv } from "./i18n/sv";
 
@@ -27,7 +28,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="deltagare" replace /> },
           { path: "deltagare", element: <ParticipantsPanel /> },
-          { path: "falt", element: <PlaceholderPanel title={sv.plan.tabs.fields} /> },
+          { path: "falt", element: <FieldsPanel /> },
           { path: "resurser", element: <PlaceholderPanel title={sv.plan.tabs.resources} /> },
           { path: "tranare", element: <PlaceholderPanel title={sv.plan.tabs.coaches} /> },
           { path: "kapacitet", element: <PlaceholderPanel title={sv.plan.tabs.capacity} /> },

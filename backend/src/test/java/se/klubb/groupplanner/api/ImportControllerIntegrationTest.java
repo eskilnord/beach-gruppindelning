@@ -205,6 +205,12 @@ class ImportControllerIntegrationTest {
         assertThat(johanProfile.importedComment()).isEqualTo("Vill helst spela med kompisar");
         assertThat(johanProfile.rankingPoints()).isEqualTo(940.0);
 
+        // docs/plan.md M4 row: LevelService recompute auto-runs after every import commit - johan
+        // has rankingPoints but no manualLevelScore, so estimatedLevel = rankingPoints (identity
+        // mapping) at MEDIUM confidence (0.6).
+        assertThat(johanProfile.estimatedLevel()).isEqualTo(940.0);
+        assertThat(johanProfile.levelConfidence()).isEqualTo(0.6);
+
         // The coach-import row created a coach_profile, not a participant_profile.
         Person coach = findPersonByEmail("coach.persson@example.se");
         assertThat(coach.canBeCoach()).isTrue();

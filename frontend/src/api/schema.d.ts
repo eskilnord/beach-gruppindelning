@@ -4,6 +4,22 @@
  */
 
 export interface paths {
+    "/api/plans/{planId}/participants/{pid}/field-values": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get"];
+        put: operations["put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans/{planId}/import/sessions/{sid}/mapping": {
         parameters: {
             query?: never;
@@ -52,6 +68,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{planId}/constraint-weights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list"];
+        put: operations["update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/system/shutdown": {
         parameters: {
             query?: never;
@@ -75,7 +107,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list"];
+        get: operations["list_1"];
         put?: never;
         post: operations["create"];
         delete?: never;
@@ -116,6 +148,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{planId}/participants/recompute-levels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["recomputeLevels"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans/{planId}/import/sessions": {
         parameters: {
             query?: never;
@@ -148,6 +196,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{planId}/field-definitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listForPlan_1"];
+        put?: never;
+        post: operations["create_3"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/comments/anonymize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["anonymizeAll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/persons": {
         parameters: {
             query?: never;
@@ -155,9 +235,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_1"];
+        get: operations["list_2"];
         put?: never;
-        post: operations["create_3"];
+        post: operations["create_4"];
         delete?: never;
         options?: never;
         head?: never;
@@ -171,13 +251,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get"];
+        get: operations["get_1"];
         put?: never;
         post?: never;
         delete: operations["delete"];
         options?: never;
         head?: never;
-        patch: operations["update"];
+        patch: operations["update_1"];
         trace?: never;
     };
     "/api/plans/{id}": {
@@ -187,13 +267,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_1"];
+        get: operations["get_2"];
         put?: never;
         post?: never;
         delete: operations["delete_1"];
         options?: never;
         head?: never;
-        patch: operations["update_1"];
+        patch: operations["update_2"];
         trace?: never;
     };
     "/api/persons/{id}": {
@@ -203,13 +283,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_2"];
+        get: operations["get_3"];
         put?: never;
         post?: never;
         delete: operations["delete_2"];
         options?: never;
         head?: never;
-        patch: operations["update_2"];
+        patch: operations["update_3"];
         trace?: never;
     };
     "/api/participants/{id}": {
@@ -219,13 +299,29 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_3"];
+        get: operations["get_4"];
         put?: never;
         post?: never;
         delete: operations["delete_3"];
         options?: never;
         head?: never;
-        patch: operations["update_3"];
+        patch: operations["update_4"];
+        trace?: never;
+    };
+    "/api/field-definitions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["delete_4"];
+        options?: never;
+        head?: never;
+        patch: operations["update_5"];
         trace?: never;
     };
     "/api/plans/{planId}/import/sessions/{sid}/validate": {
@@ -276,22 +372,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/plans/{planId}/field-definitions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["listForPlan_1"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/import/templates": {
         parameters: {
             query?: never;
@@ -331,10 +411,26 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_2"];
+        get: operations["list_3"];
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/participants/{pid}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteOne"];
         options?: never;
         head?: never;
         patch?: never;
@@ -360,6 +456,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        JsonNode: unknown;
+        FieldValueView: {
+            fieldDefinitionId?: string;
+            key?: string;
+            label?: string;
+            fieldType?: string;
+            value?: components["schemas"]["JsonNode"];
+        };
         ColumnMappingDto: {
             /** Format: int32 */
             columnIndex?: number;
@@ -386,6 +490,24 @@ export interface components {
         DecisionDto: {
             action?: string;
             personId?: string;
+        };
+        ConstraintWeightOverrideRequest: {
+            key?: string;
+            hardOrSoft?: string;
+            /** Format: int32 */
+            weight?: number;
+            enabled?: boolean;
+        };
+        ConstraintWeightView: {
+            key?: string;
+            label?: string;
+            description?: string;
+            constraintCategory?: string;
+            hardOrSoft?: string;
+            /** Format: int32 */
+            weight?: number;
+            enabled?: boolean;
+            overridden?: boolean;
         };
         CreateSeasonPlanRequest: {
             name?: string;
@@ -476,6 +598,10 @@ export interface components {
             manualReviewFlag?: boolean;
             waitlisted?: boolean;
         };
+        RecomputeLevelsResult: {
+            /** Format: int32 */
+            recomputedCount?: number;
+        };
         CreatedSession: {
             sessionId?: string;
             sheets?: components["schemas"]["SheetSummary"][];
@@ -499,6 +625,48 @@ export interface components {
             warnings?: string[];
             importRunId?: string;
             savedTemplateId?: string;
+        };
+        CreateFieldDefinitionRequest: {
+            key?: string;
+            label?: string;
+            fieldType?: string;
+            affectsOptimization?: boolean;
+            constraintType?: string;
+            hardOrSoft?: string;
+            /** Format: int32 */
+            weight?: number;
+            direction?: string;
+            explanationText?: string;
+            optionsJson?: string;
+            /** Format: int32 */
+            sortOrder?: number;
+        };
+        FieldDefinition: {
+            id?: string;
+            activityPlanId?: string;
+            key?: string;
+            label?: string;
+            fieldType?: string;
+            isStandard?: boolean;
+            storageKind?: string;
+            columnName?: string;
+            affectsOptimization?: boolean;
+            constraintType?: string;
+            hardOrSoft?: string;
+            /** Format: int32 */
+            weight?: number;
+            direction?: string;
+            explanationText?: string;
+            optionsJson?: string;
+            /** Format: int32 */
+            sortOrder?: number;
+        };
+        AnonymizeRequest: {
+            confirm?: boolean;
+        };
+        AnonymizeResult: {
+            /** Format: int32 */
+            clearedCount?: number;
         };
         CreatePersonRequest: {
             firstName?: string;
@@ -557,23 +725,18 @@ export interface components {
             canBeCoach?: boolean;
             notes?: string;
         };
-        UpdateParticipantProfileRequest: {
-            /** Format: double */
-            rankingPoints?: number;
-            rankingSource?: string;
-            previousGroupName?: string;
-            /** Format: double */
-            previousGroupLevel?: number;
-            /** Format: double */
-            estimatedLevel?: number;
-            /** Format: double */
-            levelConfidence?: number;
-            /** Format: double */
-            manualLevelScore?: number;
-            importedComment?: string;
-            internalNote?: string;
-            manualReviewFlag?: boolean;
-            waitlisted?: boolean;
+        UpdateFieldDefinitionRequest: {
+            label?: string;
+            affectsOptimization?: boolean;
+            constraintType?: string;
+            hardOrSoft?: string;
+            /** Format: int32 */
+            weight?: number;
+            direction?: string;
+            explanationText?: string;
+            optionsJson?: string;
+            /** Format: int32 */
+            sortOrder?: number;
         };
         PersonMatchProposal: {
             existingPersonId?: string;
@@ -622,26 +785,6 @@ export interface components {
             headerRowIndex?: number;
             columns?: components["schemas"]["ColumnInfo"][];
         };
-        FieldDefinition: {
-            id?: string;
-            activityPlanId?: string;
-            key?: string;
-            label?: string;
-            fieldType?: string;
-            isStandard?: boolean;
-            storageKind?: string;
-            columnName?: string;
-            affectsOptimization?: boolean;
-            constraintType?: string;
-            hardOrSoft?: string;
-            /** Format: int32 */
-            weight?: number;
-            direction?: string;
-            explanationText?: string;
-            optionsJson?: string;
-            /** Format: int32 */
-            sortOrder?: number;
-        };
         ImportTemplate: {
             id?: string;
             name?: string;
@@ -669,6 +812,58 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FieldValueView"][];
+                };
+            };
+        };
+    };
+    put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: components["schemas"]["JsonNode"];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FieldValueView"][];
+                };
+            };
+        };
+    };
     setMapping: {
         parameters: {
             query?: never;
@@ -754,6 +949,54 @@ export interface operations {
             };
         };
     };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ConstraintWeightView"][];
+                };
+            };
+        };
+    };
+    update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConstraintWeightOverrideRequest"][];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ConstraintWeightView"][];
+                };
+            };
+        };
+    };
     shutdown: {
         parameters: {
             query?: never;
@@ -776,7 +1019,7 @@ export interface operations {
             };
         };
     };
-    list: {
+    list_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -916,6 +1159,28 @@ export interface operations {
             };
         };
     };
+    recomputeLevels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RecomputeLevelsResult"];
+                };
+            };
+        };
+    };
     createSession: {
         parameters: {
             query?: never;
@@ -972,7 +1237,81 @@ export interface operations {
             };
         };
     };
-    list_1: {
+    listForPlan_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FieldDefinition"][];
+                };
+            };
+        };
+    };
+    create_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateFieldDefinitionRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FieldDefinition"];
+                };
+            };
+        };
+    };
+    anonymizeAll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AnonymizeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AnonymizeResult"];
+                };
+            };
+        };
+    };
+    list_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -992,7 +1331,7 @@ export interface operations {
             };
         };
     };
-    create_3: {
+    create_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -1016,7 +1355,7 @@ export interface operations {
             };
         };
     };
-    get: {
+    get_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1058,7 +1397,7 @@ export interface operations {
             };
         };
     };
-    update: {
+    update_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1084,7 +1423,7 @@ export interface operations {
             };
         };
     };
-    get_1: {
+    get_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -1126,7 +1465,7 @@ export interface operations {
             };
         };
     };
-    update_1: {
+    update_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -1152,7 +1491,7 @@ export interface operations {
             };
         };
     };
-    get_2: {
+    get_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -1194,7 +1533,7 @@ export interface operations {
             };
         };
     };
-    update_2: {
+    update_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -1220,7 +1559,7 @@ export interface operations {
             };
         };
     };
-    get_3: {
+    get_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -1262,7 +1601,7 @@ export interface operations {
             };
         };
     };
-    update_3: {
+    update_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -1271,9 +1610,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["UpdateParticipantProfileRequest"];
+                "application/json": {
+                    [key: string]: components["schemas"]["JsonNode"];
+                };
             };
         };
         responses: {
@@ -1284,6 +1625,52 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ParticipantProfile"];
+                };
+            };
+        };
+    };
+    delete_4: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_5: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateFieldDefinitionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FieldDefinition"];
                 };
             };
         };
@@ -1360,28 +1747,6 @@ export interface operations {
             };
         };
     };
-    listForPlan_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                planId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["FieldDefinition"][];
-                };
-            };
-        };
-    };
     listTemplates: {
         parameters: {
             query?: never;
@@ -1424,7 +1789,7 @@ export interface operations {
             };
         };
     };
-    list_2: {
+    list_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -1441,6 +1806,27 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["ConstraintDefinition"][];
                 };
+            };
+        };
+    };
+    deleteOne: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -6,6 +6,14 @@ import react from "@vitejs/plugin-react";
 // "dev"). This lets the frontend run fully in a plain browser without the Tauri shell.
 export default defineConfig({
   plugins: [react()],
+  // Pre-bundle AG Grid eagerly at server startup instead of lazily on first import: AG Grid
+  // Community ships many internal submodules, and letting Vite discover them mid-session triggers
+  // a dependency re-optimization + full page reload the first time any route imports DataGrid.tsx
+  // (jarring for real dev use, and a source of flaky timing in Playwright specs whose first
+  // navigation hits a grid route, e.g. Deltagarvy/Fältbyggare).
+  optimizeDeps: {
+    include: ["ag-grid-community", "ag-grid-react"],
+  },
   server: {
     port: 5173,
     // Bind explicitly to the "localhost" hostname (not the 127.0.0.1 literal): the backend's

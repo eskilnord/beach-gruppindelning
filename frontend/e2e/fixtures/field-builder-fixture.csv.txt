@@ -1,0 +1,4 @@
+Förnamn,Efternamn,E-post,Ranking,Kommentar
+Karin,Lindqvist,karin.lindqvist@example.se,500,Allergisk mot jordnötter
+Oskar,Bergman,oskar.bergman@example.se,480,
+Sara,Ekström,sara.ekstrom@example.se,510,

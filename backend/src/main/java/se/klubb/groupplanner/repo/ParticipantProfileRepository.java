@@ -110,6 +110,56 @@ public class ParticipantProfileRepository {
         return rows > 0;
     }
 
+    /**
+     * Nulls {@code imported_comment}/{@code internal_note} for one participant (spec §21.2 "ska
+     * kunna raderas/anonymiseras" — {@code DELETE /api/plans/{planId}/participants/{pid}/comments}).
+     */
+    public boolean clearComments(String id) {
+        int rows = jdbcClient.sql(
+                        "UPDATE participant_profile SET imported_comment = NULL, internal_note = NULL WHERE id = :id")
+                .param("id", id)
+                .update();
+        return rows > 0;
+    }
+
+    /**
+     * Nulls {@code imported_comment}/{@code internal_note} for every participant in a plan (spec
+     * §21.2 plan-wide anonymize — {@code POST /api/plans/{planId}/comments/anonymize}). Returns the
+     * number of rows affected (participants whose comments were actually cleared).
+     */
+    public int clearAllCommentsForPlan(String activityPlanId) {
+        return jdbcClient.sql(
+                        "UPDATE participant_profile SET imported_comment = NULL, internal_note = NULL "
+                                + "WHERE activity_plan_id = :activityPlanId "
+                                + "AND (imported_comment IS NOT NULL OR internal_note IS NOT NULL)")
+                .param("activityPlanId", activityPlanId)
+                .update();
+    }
+
+    /**
+     * Persists {@code estimatedLevel}/{@code levelConfidence} for one participant — used by {@code
+     * se.klubb.groupplanner.level.LevelService} so a plan-wide recompute doesn't have to round-trip
+     * every other column through {@link #update}.
+     *
+     * <p>{@code forceManualReviewFlag} only ever turns {@code manual_review_flag} ON (spec §11.2:
+     * no level source at all -&gt; "flagga för manuell bedömning"); it never clears an existing
+     * {@code true} flag, since that may have been set by the council for reasons unrelated to level
+     * confidence and a routine recompute must not silently un-flag it.
+     */
+    public void updateComputedLevel(String id, Double estimatedLevel, Double levelConfidence, boolean forceManualReviewFlag) {
+        jdbcClient.sql("""
+                        UPDATE participant_profile
+                        SET estimated_level = :estimatedLevel, level_confidence = :levelConfidence,
+                            manual_review_flag = CASE WHEN :forceManualReviewFlag = 1 THEN 1 ELSE manual_review_flag END
+                        WHERE id = :id
+                        """)
+                .param("id", id)
+                .param("estimatedLevel", estimatedLevel)
+                .param("levelConfidence", levelConfidence)
+                .param("forceManualReviewFlag", forceManualReviewFlag ? 1 : 0)
+                .update();
+    }
+
     private static ParticipantProfile mapRow(ResultSet rs, int rowNum) throws SQLException {
         return new ParticipantProfile(
                 rs.getString("id"),

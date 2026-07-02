@@ -38,6 +38,13 @@ public class CoachProfileRepository {
                 .optional();
     }
 
+    public Optional<CoachProfile> findById(String id) {
+        return jdbcClient.sql("SELECT * FROM coach_profile WHERE id = :id")
+                .param("id", id)
+                .query(CoachProfileRepository::mapRow)
+                .optional();
+    }
+
     public CoachProfile insert(CoachProfile profile) {
         jdbcClient.sql("""
                         INSERT INTO coach_profile

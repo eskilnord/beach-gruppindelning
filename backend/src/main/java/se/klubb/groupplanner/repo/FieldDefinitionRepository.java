@@ -64,6 +64,34 @@ public class FieldDefinitionRepository {
                 .optional();
     }
 
+    public Optional<FieldDefinition> findById(String id) {
+        return jdbcClient.sql("SELECT * FROM field_definition WHERE id = :id")
+                .param("id", id)
+                .query(FieldDefinitionRepository::mapRow)
+                .optional();
+    }
+
+    /** This plan's own custom fields only (excludes globals) — the Fältbyggare CRUD listing (M4). */
+    public List<FieldDefinition> findCustomFieldsForPlan(String activityPlanId) {
+        return jdbcClient.sql("SELECT * FROM field_definition WHERE activity_plan_id = :activityPlanId ORDER BY sort_order, key")
+                .param("activityPlanId", activityPlanId)
+                .query(FieldDefinitionRepository::mapRow)
+                .list();
+    }
+
+    /** {@code COALESCE(MAX(sort_order), 100) + 1} among fields visible to the plan — used to append
+     * newly-created custom fields after the standard fields in listing order without requiring the
+     * caller to pick a sort_order. */
+    public int nextSortOrderForPlan(String activityPlanId) {
+        Integer max = jdbcClient.sql(
+                        "SELECT MAX(sort_order) FROM field_definition WHERE activity_plan_id IS NULL OR activity_plan_id = :activityPlanId")
+                .param("activityPlanId", activityPlanId)
+                .query(Integer.class)
+                .optional()
+                .orElse(100);
+        return (max == null ? 100 : max) + 1;
+    }
+
     public FieldDefinition insert(FieldDefinition field) {
         jdbcClient.sql("""
                         INSERT INTO field_definition
@@ -93,6 +121,44 @@ public class FieldDefinitionRepository {
                 .param("sortOrder", field.sortOrder())
                 .update();
         return field;
+    }
+
+    /**
+     * Full-row update. {@code key}/{@code fieldType}/{@code storageKind}/{@code columnName}/{@code
+     * isStandard}/{@code activityPlanId} are treated as immutable identity by callers (validated in
+     * {@code se.klubb.groupplanner.fields.FieldDefinitionValidator}, not here) — this method itself
+     * updates every column so it stays a simple full-record replace like the rest of this codebase's
+     * repositories.
+     */
+    public FieldDefinition update(FieldDefinition field) {
+        jdbcClient.sql("""
+                        UPDATE field_definition
+                        SET label = :label, affects_optimization = :affectsOptimization,
+                            constraint_type = :constraintType, hard_or_soft = :hardOrSoft, weight = :weight,
+                            direction = :direction, explanation_text = :explanationText, options_json = :optionsJson,
+                            sort_order = :sortOrder
+                        WHERE id = :id
+                        """)
+                .param("id", field.id())
+                .param("label", field.label())
+                .param("affectsOptimization", field.affectsOptimization() ? 1 : 0)
+                .param("constraintType", field.constraintType())
+                .param("hardOrSoft", field.hardOrSoft())
+                .param("weight", field.weight())
+                .param("direction", field.direction())
+                .param("explanationText", field.explanationText())
+                .param("optionsJson", field.optionsJson())
+                .param("sortOrder", field.sortOrder())
+                .update();
+        return field;
+    }
+
+    /** Cascades to {@code custom_field_value} rows (ON DELETE CASCADE, V2). Only ever called for
+     * plan-scoped CUSTOM fields — standard/global fields are never deletable (enforced in the
+     * controller). */
+    public boolean deleteById(String id) {
+        int rows = jdbcClient.sql("DELETE FROM field_definition WHERE id = :id").param("id", id).update();
+        return rows > 0;
     }
 
     private static FieldDefinition mapRow(ResultSet rs, int rowNum) throws SQLException {

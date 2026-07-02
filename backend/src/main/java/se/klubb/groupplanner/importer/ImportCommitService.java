@@ -18,6 +18,7 @@ import se.klubb.groupplanner.domain.ImportTemplate;
 import se.klubb.groupplanner.domain.ParticipantProfile;
 import se.klubb.groupplanner.domain.Person;
 import se.klubb.groupplanner.importer.parse.ParsedSheet;
+import se.klubb.groupplanner.level.LevelService;
 import se.klubb.groupplanner.repo.CoachProfileRepository;
 import se.klubb.groupplanner.repo.CustomFieldValueRepository;
 import se.klubb.groupplanner.repo.FieldDefinitionRepository;
@@ -35,6 +36,9 @@ import se.klubb.groupplanner.util.Uuid7;
  * the {@code coachName}/{@code isCoach} coach-import targets (docs/plan.md red-team correction),
  * writes {@code custom_field_value}s for {@code customField:} mappings, records the {@code
  * import_run} audit row, and optionally saves the mapping as a reusable {@code import_template}.
+ * Finally recomputes {@code estimatedLevel}/{@code levelConfidence} for the whole plan (docs/plan.md
+ * M4 row: "estimatedLevel service ... also auto-run after import commit") — in the same transaction,
+ * so a commit and its level recompute always succeed or roll back together.
  *
  * <p>Nothing here ever reads/writes {@code importedComment}/{@code internalNote} for any purpose
  * other than the {@code participant_profile} columns themselves (CLAUDE.md confidentiality rules).
@@ -58,6 +62,7 @@ public class ImportCommitService {
     private final CustomFieldValueRepository customFieldValueRepository;
     private final ImportRunRepository importRunRepository;
     private final ImportTemplateRepository importTemplateRepository;
+    private final LevelService levelService;
     private final ObjectMapper objectMapper;
 
     public ImportCommitService(
@@ -70,6 +75,7 @@ public class ImportCommitService {
             CustomFieldValueRepository customFieldValueRepository,
             ImportRunRepository importRunRepository,
             ImportTemplateRepository importTemplateRepository,
+            LevelService levelService,
             ObjectMapper objectMapper) {
         this.importValidationService = importValidationService;
         this.personRepository = personRepository;
@@ -80,6 +86,7 @@ public class ImportCommitService {
         this.customFieldValueRepository = customFieldValueRepository;
         this.importRunRepository = importRunRepository;
         this.importTemplateRepository = importTemplateRepository;
+        this.levelService = levelService;
         this.objectMapper = objectMapper;
     }
 
@@ -155,6 +162,8 @@ public class ImportCommitService {
         if (options.saveAsTemplate()) {
             savedTemplateId = saveTemplate(sheet, session.headerRowIndex(sheetName), mappings, options.templateName());
         }
+
+        levelService.recomputeForPlan(activityPlanId);
 
         return new CommitResult(imported, skipped, warnings, importRun.id(), savedTemplateId);
     }

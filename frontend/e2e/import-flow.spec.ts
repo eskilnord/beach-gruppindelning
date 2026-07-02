@@ -107,8 +107,8 @@ test("import wizard: upload → preview → map → validate → decide duplicat
   await expect(page).toHaveURL(/\/deltagare$/);
 
   for (const name of ["Anna Åkesson", "Björn Öberg", "Erik Käring", "Nils Fagerström", "Ida Håkansson"]) {
-    await expect(page.getByRole("cell", { name })).toBeVisible();
+    await expect(page.getByRole("gridcell", { name })).toBeVisible();
   }
-  await expect(page.getByRole("cell", { name: "Maria Söderström" })).toHaveCount(0);
+  await expect(page.getByRole("gridcell", { name: "Maria Söderström" })).toHaveCount(0);
   await expect(page.getByText(sv.participants.empty)).toHaveCount(0);
 });

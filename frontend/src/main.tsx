@@ -22,7 +22,11 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <MantineProvider theme={theme} defaultColorScheme="light">
-      <Notifications />
+      {/* top-right, not the Mantine default bottom-right: M4 adds a right-side Drawer
+          (Deltagarvy detail) whose own action buttons live in its bottom-right corner - a
+          bottom-right toast would visually stack on top of them (real usability issue, not just a
+          test artifact - Playwright caught it via a genuine pointer-event interception). */}
+      <Notifications position="top-right" />
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
       </QueryClientProvider>

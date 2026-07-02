@@ -38,5 +38,29 @@ export type ParticipantProfile = WithRequired<
 >;
 export type FieldDefinition = WithRequired<
   components["schemas"]["FieldDefinition"],
-  "id" | "key" | "label" | "fieldType" | "isStandard" | "storageKind" | "affectsOptimization"
+  "id" | "key" | "label" | "fieldType" | "isStandard" | "storageKind" | "affectsOptimization" | "constraintType"
 >;
+
+export type CreateFieldDefinitionRequest = components["schemas"]["CreateFieldDefinitionRequest"];
+export type UpdateFieldDefinitionRequest = components["schemas"]["UpdateFieldDefinitionRequest"];
+
+export type ConstraintDefinition = WithRequired<
+  components["schemas"]["ConstraintDefinition"],
+  "key" | "label" | "description" | "constraintCategory" | "defaultWeight" | "hardOrSoft" | "enabled"
+>;
+export type ConstraintWeightView = WithRequired<
+  components["schemas"]["ConstraintWeightView"],
+  "key" | "label" | "description" | "constraintCategory" | "hardOrSoft" | "weight" | "enabled" | "overridden"
+>;
+export type ConstraintWeightOverrideRequest = components["schemas"]["ConstraintWeightOverrideRequest"];
+
+export type FieldValueView = WithRequired<
+  components["schemas"]["FieldValueView"],
+  "fieldDefinitionId" | "key" | "label" | "fieldType"
+>;
+
+export type RecomputeLevelsResult = WithRequired<
+  components["schemas"]["RecomputeLevelsResult"],
+  "recomputedCount"
+>;
+export type AnonymizeResult = WithRequired<components["schemas"]["AnonymizeResult"], "clearedCount">;

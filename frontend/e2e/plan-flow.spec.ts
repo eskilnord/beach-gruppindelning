@@ -44,8 +44,18 @@ test("create season → open it → create activity plan → navigate tabs → d
   await expect(page.getByText(sv.participants.empty)).toBeVisible();
   await expect(page.getByRole("button", { name: sv.participants.importButton })).toBeVisible();
 
+  // Fält (M4: Fältbyggaren, not a placeholder anymore — see field-builder.spec.ts for the full flow).
+  // exact: true — Fältbyggaren has its own inner "Alla fält" sub-tab, whose label otherwise
+  // substring-matches "Fält" (Playwright role-name matching is case-insensitive substring by default).
+  await page.getByRole("tab", { name: sv.plan.tabs.fields, exact: true }).click();
+  await expect(page.getByRole("tab", { name: sv.plan.tabs.fields, exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.getByRole("heading", { name: sv.fieldBuilder.heading })).toBeVisible();
+  await expect(page.getByRole("button", { name: sv.fieldBuilder.newFieldButton })).toBeVisible();
+
   const placeholderTabs = [
-    sv.plan.tabs.fields,
     sv.plan.tabs.resources,
     sv.plan.tabs.coaches,
     sv.plan.tabs.capacity,
