@@ -27,7 +27,7 @@ public class WhatIfController {
     }
 
     @PostMapping("/api/plans/{planId}/whatif/move")
-    public WhatIfMoveResponse move(@PathVariable String planId, @RequestBody(required = false) MoveRequest request) {
+    public WhatIfMoveResponse move(@PathVariable String planId, @RequestBody(required = false) WhatIfMoveRequest request) {
         require(request != null && request.participantProfileId() != null && request.runId() != null, "participantProfileId and runId are required");
         return whatIfService.move(planId, request.runId(), request.participantProfileId(), request.targetGroupId());
     }
@@ -46,8 +46,11 @@ public class WhatIfController {
         }
     }
 
+    // M8 task item 3: renamed from MoveRequest - collided with AssignmentController.MoveRequest's
+    // simple class name in the generated OpenAPI schema (see that class's ApplyMoveRequest javadoc
+    // for the full explanation).
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record MoveRequest(String participantProfileId, String targetGroupId, String runId) {
+    public record WhatIfMoveRequest(String participantProfileId, String targetGroupId, String runId) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

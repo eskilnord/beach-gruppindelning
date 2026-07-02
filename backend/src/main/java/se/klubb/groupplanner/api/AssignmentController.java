@@ -80,7 +80,7 @@ public class AssignmentController {
     @PostMapping("/api/plans/{planId}/assignments/{participantProfileId}/move")
     @Transactional // M7 review fix m5: insert-if-absent + update + revision bump are one atomic unit.
     public PlayerAssignment move(
-            @PathVariable String planId, @PathVariable String participantProfileId, @RequestBody(required = false) MoveRequest request) {
+            @PathVariable String planId, @PathVariable String participantProfileId, @RequestBody(required = false) ApplyMoveRequest request) {
         solveCoordinator.assertNoActiveSolve(planId);
         participantProfileRepository.findById(participantProfileId)
                 .filter(p -> p.activityPlanId().equals(planId))
@@ -114,7 +114,12 @@ public class AssignmentController {
         return playerAssignmentRepository.findByParticipantProfileId(participantProfileId).orElseThrow();
     }
 
-    public record MoveRequest(String groupId) {
+    // M8 task item 3: renamed from MoveRequest, which collided with WhatIfController.MoveRequest's
+    // simple class name in the generated OpenAPI schema (springdoc's components/schemas map is keyed
+    // by simple class name by default - two distinct records both called "MoveRequest" in different
+    // controllers clobbered each other in /v3/api-docs, so only one of the two request shapes ever
+    // actually made it into the spec the frontend's openapi-typescript step consumes).
+    public record ApplyMoveRequest(String groupId) {
     }
 
     public record AssignmentsView(List<PlayerAssignment> players, List<CoachAssignment> coaches) {

@@ -1,6 +1,16 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
-import type { ActivityPlan, CreateActivityPlanRequest, UpdateActivityPlanRequest } from "./types";
+import { coachesKey } from "./coaches";
+import { groupsKey } from "./groups";
+import { participantsKey } from "./participants";
+import type {
+  ActivityPlan,
+  CoachProfile,
+  CreateActivityPlanRequest,
+  ParticipantProfile,
+  TrainingGroup,
+  UpdateActivityPlanRequest,
+} from "./types";
 
 const plansForSeasonKey = (seasonId: string) => ["seasons", seasonId, "plans"] as const;
 const planKey = (id: string) => ["plans", id] as const;
@@ -64,6 +74,56 @@ export function useRecentPlans(seasonIds: string[], limit = 5) {
     .slice(0, limit);
 
   return { plans: recent, isLoading };
+}
+
+export interface PlanCounts {
+  participants: number;
+  groups: number;
+  coaches: number;
+}
+
+/**
+ * Deltagare/Grupper/Tränare counts per plan for the Säsongsvy table (spec §19.2). `ActivityPlan`
+ * carries no count fields and the M8 backend exposes no plan-summary/resource-usage aggregate
+ * endpoint (SavedPlanResourceUsage is internal-only, consumed only by ConflictService/the solver's
+ * cross-plan blocking assembler) - adding one is out of scope for this milestone's frontend-only
+ * half, so this fans out the existing per-plan list endpoints instead, one `useQueries` batch per
+ * resource type (same N+1 fan-out shape as `useRecentPlans` above). Reuses the exact query keys
+ * `useParticipants`/`useGroups`/`useCoaches` already use, so navigating from Säsongsvy into a plan's
+ * own tabs hits a warm cache instead of refetching.
+ */
+export function usePlanCounts(planIds: string[]): { counts: Record<string, PlanCounts>; isLoading: boolean } {
+  const participantResults = useQueries({
+    queries: planIds.map((planId) => ({
+      queryKey: participantsKey(planId),
+      queryFn: () => api.get<ParticipantProfile[]>(`/api/plans/${planId}/participants`),
+    })),
+  });
+  const groupResults = useQueries({
+    queries: planIds.map((planId) => ({
+      queryKey: groupsKey(planId),
+      queryFn: () => api.get<TrainingGroup[]>(`/api/plans/${planId}/groups`),
+    })),
+  });
+  const coachResults = useQueries({
+    queries: planIds.map((planId) => ({
+      queryKey: coachesKey(planId),
+      queryFn: () => api.get<CoachProfile[]>(`/api/plans/${planId}/coaches`),
+    })),
+  });
+
+  const isLoading = [...participantResults, ...groupResults, ...coachResults].some((result) => result.isLoading);
+
+  const counts: Record<string, PlanCounts> = {};
+  planIds.forEach((planId, index) => {
+    counts[planId] = {
+      participants: participantResults[index].data?.length ?? 0,
+      groups: groupResults[index].data?.length ?? 0,
+      coaches: coachResults[index].data?.length ?? 0,
+    };
+  });
+
+  return { counts, isLoading };
 }
 
 export function useDeletePlan(seasonId: string) {

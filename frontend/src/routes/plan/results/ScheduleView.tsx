@@ -3,6 +3,7 @@ import { Alert, Badge, Loader, Stack, Text, Title } from "@mantine/core";
 import { ApiError } from "../../../api/client";
 import { useSeasonConflicts } from "../../../api/conflicts";
 import type { SeasonConflict, SlotBlocksView, TrainingGroup } from "../../../api/types";
+import { ConflictList } from "../../../components/ConflictList";
 import { sv } from "../../../i18n/sv";
 import { buildScheduleGrid, type ScheduleCell } from "./scheduleGrid";
 
@@ -60,19 +61,7 @@ export function ScheduleView({ planId, seasonPlanId, slotBlocks, groups, coachNa
           <Alert color="red">{conflicts.error instanceof ApiError ? conflicts.error.message : sv.results.schedule.loadFailed}</Alert>
         )}
         {conflicts.data && conflictList.length === 0 && <Text c="dimmed">{sv.results.schedule.noConflicts}</Text>}
-        {conflictList.length > 0 && (
-          <Stack gap={4} data-testid="conflict-list">
-            {conflictList.map((conflict, index) => (
-              <Alert key={index} color="red" py={6}>
-                <Text size="sm">
-                  {sv.results.schedule.conflictType[conflict.type as keyof typeof sv.results.schedule.conflictType] ?? conflict.type}
-                  {conflict.personName ? ` — ${conflict.personName}` : conflict.courtName ? ` — ${conflict.courtName}` : ""}:{" "}
-                  {conflict.usages.map((usage) => `${usage.planName} / ${usage.groupName} (${usage.time})`).join(" ↔ ")}
-                </Text>
-              </Alert>
-            ))}
-          </Stack>
-        )}
+        <ConflictList conflicts={conflictList} />
       </div>
 
       {grid.rows.length === 0 ? (

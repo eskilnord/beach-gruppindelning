@@ -12,6 +12,8 @@ fn main() {
     let state = Arc::new(backend::BackendState::new());
 
     let mut builder = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // Second launch: focus the existing window instead of spawning another backend
             // (docs/design/01-architecture.md §4, failure modes / "two app instances").

@@ -154,25 +154,29 @@ export interface OptimizeSelectionRequest {
   coaches?: boolean;
 }
 
-/** Hand-written request body for `POST .../solve` (blocking/§14.4 omitted - out of scope for this
- *  milestone's UI, see docs/plan.md M8 "spara plan"). */
+/** §14.4 "Ta hänsyn till tidigare sparade planer" checkboxes - all default false/absent server-side
+ *  (BlockingOptions.NONE, see SolveController#blockingOf), the MVP note ("bör minst stödja
+ *  blockering av personer och tränare") is honored by the Optimeringsvy defaulting
+ *  blockPlayers+blockCoaches to true client-side rather than in the backend contract itself. */
+export interface BlockingSelectionRequest {
+  blockPlayers?: boolean;
+  blockCoaches?: boolean;
+  blockCourts?: boolean;
+  conflictsAsWarnings?: boolean;
+}
+
+/** Hand-written request body for `POST .../solve`; mirrors backend SolveController.SolveRequest. */
 export interface SolveRequestBody {
   profile: SolveProfile;
   optimize?: OptimizeSelectionRequest;
+  blocking?: BlockingSelectionRequest;
 }
 
-/** Hand-written, NOT derived from {@code components["schemas"]}: {@code SolveController#solve}
- *  returns {@code ResponseEntity<?>} (deliberately - it dynamically returns either a
- *  `StartSolveResponse` or the synchronous-GREEDY-profile `GreedySolveResponse` shape depending on
- *  request content), which springdoc can't statically resolve to a concrete schema - the generated
- *  `POST /api/plans/{planId}/solve` response type collapses to `Record<string, never>` instead of a
- *  named component. Both possible response shapes share `runId`/`status`, the only two fields this
- *  app ever reads from the mutation result (see `api/solve.ts#useStartSolve`) - backend is out of
- *  scope for this milestone's frontend half, so hand-maintained here instead. */
-export interface StartSolveResponse {
-  runId: string;
-  status: string;
-}
+/** {@code POST/GET .../solve} responses now derive from a concrete `SolveResponse` schema
+ *  (SolveController was changed from `ResponseEntity<?>` to `ResponseEntity<SolveResponse>` as part
+ *  of the M8 typegen fix - see OpenApiSchemaTest) - only `runId`/`status` are read by
+ *  `api/solve.ts#useStartSolve`, the rest narrowed away below. */
+export type StartSolveResponse = WithRequired<components["schemas"]["SolveResponse"], "runId" | "status">;
 export type CancelSolveResponse = WithRequired<components["schemas"]["CancelSolveResponse"], "finalRunId">;
 
 /** `GET .../solve/status` (docs/design/04-solver.md §14.2) - score/progress fields are `null` when
@@ -381,17 +385,56 @@ export type WhatIfWhyNotResponse = Omit<
   "alternative"
 > & { alternative: AlternativeGroupView };
 
-export type WhatIfMoveRequest = components["schemas"]["MoveRequest"];
+export type WhatIfMoveRequest = components["schemas"]["WhatIfMoveRequest"];
 export type WhatIfWhyNotRequest = components["schemas"]["WhyNotRequest"];
 
-/** Hand-written, NOT derived from {@code components["schemas"]["MoveRequest"]}: springdoc collapses
- *  {@code AssignmentController.MoveRequest} and {@code WhatIfController.MoveRequest} into a single
- *  `MoveRequest` OpenAPI schema because both Java records share the same simple class name in
- *  different packages - only the what-if shape survives in the generated doc/schema.d.ts. The actual
- *  {@code POST /api/plans/{planId}/assignments/{pid}/move} endpoint still deserializes its own
- *  `record MoveRequest(String groupId)` correctly at runtime (see AssignmentController.java); this is
- *  a documentation-generation artifact only, not a runtime bug - backend is out of scope for this
- *  milestone's frontend half, so the type is hand-maintained here instead. */
+/** {@code POST /api/plans/{planId}/assignments/{pid}/move} request body. The schema/naming collision
+ *  that used to force this to be entirely hand-written (springdoc merging `AssignmentController` and
+ *  `WhatIfController`'s same-simple-name `MoveRequest` records) was fixed backend-side as part of the
+ *  M8 typegen cleanup (renamed to `ApplyMoveRequest`/`WhatIfMoveRequest`, see `OpenApiSchemaTest`) -
+ *  but `components["schemas"]["ApplyMoveRequest"]` still types `groupId` as `string | undefined`,
+ *  which can't express the explicit `groupId: null` this app sends to move a player to the kölista
+ *  (see `api/assignments.ts#useMoveAssignment`) - kept hand-written for that one field's nullability. */
 export interface MoveAssignmentRequest {
   groupId: string | null;
+}
+
+// --- M8: Sparade planer / Export / Säsongsvy-konflikter ---
+
+/** Legal `SavedPlan.status` values (spec §14.2), draft->saved->locked->published->archived - see
+ *  `savedplan/SavedPlanLifecycle.LEGAL_TRANSITIONS` backend-side for the transition table this
+ *  frontend's `savedPlanActions.ts` mirrors. */
+export type SavedPlanStatus = "draft" | "saved" | "locked" | "published" | "archived";
+
+/** `GET .../saved-plans` list item - note the backend returns the raw domain record here (including
+ *  `snapshotJson` as an opaque string), NOT the same shape as the detail view below. */
+export type SavedPlan = WithRequired<
+  components["schemas"]["SavedPlan"],
+  "id" | "activityPlanId" | "name" | "status" | "createdAt" | "updatedAt"
+>;
+
+/** `POST`/`GET one`/`PATCH .../saved-plans/{id}` - adds a parsed `snapshot` object in place of the
+ *  list view's raw `snapshotJson` string (backend: `SavedPlanDetailView`). */
+export type SavedPlanDetailView = WithRequired<
+  components["schemas"]["SavedPlanDetailView"],
+  "id" | "activityPlanId" | "name" | "status" | "createdAt" | "updatedAt"
+>;
+
+export type CreateSavedPlanRequest = components["schemas"]["SaveRequest"];
+export type SavedPlanStatusRequest = components["schemas"]["StatusRequest"];
+
+/** Accepted values for the Export tab's format/layout pickers (spec §20.1) - mirrors
+ *  `ExportService.FORMAT_*`/`LAYOUT_*` constants exactly (lowercase). `layout=grouped` combined with
+ *  `format=csv` is rejected by the backend with 400 (`ExportService#export`: "a csv has no
+ *  sheets/blocks") - `exportForm.ts` keeps the UI from ever sending that combination. */
+export type ExportFormat = "xlsx" | "csv";
+export type ExportLayout = "grouped" | "flat";
+
+/** Hand-written, NOT derived from `components["schemas"]`: `GET .../export` and
+ *  `.../export/anonymized` return `ResponseEntity<byte[]>` (binary download, spec §20/§21.3), which
+ *  springdoc/openapi-typescript has no JSON schema for - the frontend instead reads the filename off
+ *  the `Content-Disposition` response header (see `api/client.ts#apiDownload`). */
+export interface ExportDownload {
+  blob: Blob;
+  filename: string;
 }

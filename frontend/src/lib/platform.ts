@@ -42,3 +42,45 @@ export async function getBackendInfo(): Promise<BackendInfo> {
   }
   return { base_url: "", token: "dev" };
 }
+
+/**
+ * Saves a downloaded file (M8 export, spec §20/§21.3) to disk, browser-vs-Tauri per CLAUDE.md's dev
+ * commands note ("export = byte download, Tauri APIs isolated in platform.ts with browser
+ * fallbacks"): in the browser, a temporary `<a download>` + object URL (no filesystem access
+ * available from a plain tab); in Tauri, the native "Spara som"-dialog (`@tauri-apps/plugin-dialog`'s
+ * `save`) followed by a direct byte write (`@tauri-apps/plugin-fs`'s `writeFile`) - both dynamically
+ * imported, same pattern as `getBackendInfo`'s `@tauri-apps/api/core` import, so the browser bundle
+ * never needs the desktop-only plugins. Returns `false` if the user cancelled the Tauri save dialog
+ * (there is no equivalent cancellation signal in the browser branch - it always "succeeds" from the
+ * page's point of view once the download is triggered).
+ *
+ * NOTE for the desktop shell: `@tauri-apps/plugin-dialog`/`@tauri-apps/plugin-fs` must also be
+ * registered Rust-side (desktop/src-tauri/Cargo.toml dependencies + capabilities/default.json
+ * permissions) before this Tauri branch works at runtime - out of scope for this milestone's
+ * frontend-only half (see docs/plan.md M8), tracked as a desktop-side follow-up.
+ */
+export async function saveFile(blob: Blob, suggestedFilename: string): Promise<boolean> {
+  if (isTauri()) {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const path = await save({ defaultPath: suggestedFilename });
+    if (!path) {
+      return false;
+    }
+    const { writeFile } = await import("@tauri-apps/plugin-fs");
+    await writeFile(path, new Uint8Array(await blob.arrayBuffer()));
+    return true;
+  }
+
+  const url = URL.createObjectURL(blob);
+  try {
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = suggestedFilename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+  return true;
+}

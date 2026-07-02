@@ -26,6 +26,16 @@ import se.klubb.groupplanner.solver.run.SolveStatus;
  * backend/docs/m4-notes.md's ConstraintWeightService note) - {@code SolverInputAssembler} throwing
  * {@code BadRequestException} on an invalid pin/weight naturally maps to 400 through the existing
  * {@code ApiExceptionHandler}, with zero special-casing needed here.
+ *
+ * <p><b>M8 task item 3 fix:</b> {@link #solve} used to return {@code ResponseEntity<?>}, which
+ * springdoc cannot resolve to a schema (the generated OpenAPI operation had no {@code
+ * responses.200.content} shape at all) - it picked between two ad hoc response records
+ * ({@code StartSolveResponse}/{@code GreedySolveResponse}) at runtime depending on {@code
+ * profile:"GREEDY"}. Both are merged into the single {@link SolveResponse} record below (nullable
+ * greedy-only fields), returned as {@code ResponseEntity<SolveResponse>} for both branches - a
+ * concrete generic type springdoc can generate a proper schema for, while still allowing the two
+ * branches' different HTTP status codes (200 for the synchronous greedy result, 202 Accepted for an
+ * async solve that has only just been scheduled).
  */
 @RestController
 public class SolveController {
@@ -39,7 +49,7 @@ public class SolveController {
     }
 
     @PostMapping("/api/plans/{planId}/solve")
-    public ResponseEntity<?> solve(@PathVariable String planId, @RequestBody(required = false) SolveRequest request) {
+    public ResponseEntity<SolveResponse> solve(@PathVariable String planId, @RequestBody(required = false) SolveRequest request) {
         String profileStr = request == null ? null : request.profile();
         if (profileStr != null && GREEDY_PROFILE.equalsIgnoreCase(profileStr.strip())) {
             // Synchronous, so the FULL outcome is already known - surface it honestly (M6b review
@@ -47,7 +57,7 @@ public class SolveController {
             // baseline), and a bare {runId, FINISHED} would let the UI read a hard-violating
             // baseline as a success.
             SolveCoordinator.GreedyResult result = solveCoordinator.runGreedy(planId);
-            return ResponseEntity.ok(new GreedySolveResponse(
+            return ResponseEntity.ok(new SolveResponse(
                     result.runId(), "FINISHED", result.score().toString(), result.hardViolations(), result.feasible()));
         }
         SolveProfile profile = SolveProfile.fromString(profileStr);
@@ -57,7 +67,7 @@ public class SolveController {
         // Report the ACTUAL SolverManager status (SOLVING_SCHEDULED until a solver thread picks the
         // job up, then SOLVING_ACTIVE) rather than a hardcoded value (review fix 8).
         String status = solveCoordinator.status(planId).status();
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(new StartSolveResponse(runId, status));
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(new SolveResponse(runId, status, null, null, null));
     }
 
     @GetMapping("/api/plans/{planId}/solve/status")
@@ -105,14 +115,15 @@ public class SolveController {
     public record BlockingRequest(Boolean blockPlayers, Boolean blockCoaches, Boolean blockCourts, Boolean conflictsAsWarnings) {
     }
 
-    public record StartSolveResponse(String runId, String status) {
-    }
-
-    /** Synchronous GREEDY outcome (M6b review fix F6): {@code hardViolations} is the violation
-     * count parsed from the score ({@code -hardScore}, exact at the seeded weight-1 HARD defaults);
-     * {@code feasible} is {@code hardScore >= 0} — enough for the UI to banner a hard-violating
-     * baseline instead of presenting it as a clean result. */
-    public record GreedySolveResponse(String runId, String status, String score, long hardViolations, boolean feasible) {
+    /**
+     * Unified {@code POST .../solve} response (M8 task item 3 - see class javadoc): {@code runId}/
+     * {@code status} are always present; {@code score}/{@code hardViolations}/{@code feasible} are
+     * {@code null} for an async NORMAL/FAST/THOROUGH solve (the outcome isn't known yet — poll
+     * {@code GET .../solve/status}) and always non-null for the synchronous {@code GREEDY} branch
+     * (M6b review fix F6: greedy routinely produces hard violations by design, spec §16.7's naive
+     * baseline, so the response must surface that honestly rather than reading as a clean success).
+     */
+    public record SolveResponse(String runId, String status, String score, Long hardViolations, Boolean feasible) {
     }
 
     public record CancelSolveResponse(String finalRunId) {

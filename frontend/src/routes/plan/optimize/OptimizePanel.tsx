@@ -59,6 +59,14 @@ export function OptimizePanel() {
   const [optimizeSchedule, setOptimizeSchedule] = useState(true);
   const [optimizeCoaches, setOptimizeCoaches] = useState(true);
 
+  // §14.4 cross-plan blocking checkboxes. MVP note ("bör minst stödja blockering av personer och
+  // tränare utifrån överlappande tider") is honored by defaulting blockPlayers+blockCoaches to true
+  // here - the backend itself defaults every flag to false when the request omits them entirely.
+  const [blockPlayers, setBlockPlayers] = useState(true);
+  const [blockCoaches, setBlockCoaches] = useState(true);
+  const [blockCourts, setBlockCourts] = useState(false);
+  const [conflictsAsWarnings, setConflictsAsWarnings] = useState(false);
+
   const status = solveStatus.data;
   const running = isSolveRunning(status?.status);
 
@@ -99,7 +107,11 @@ export function OptimizePanel() {
 
   const handleStart = () => {
     startSolve.mutate(
-      { profile, optimize: { players: optimizePlayers, schedule: optimizeSchedule, coaches: optimizeCoaches } },
+      {
+        profile,
+        optimize: { players: optimizePlayers, schedule: optimizeSchedule, coaches: optimizeCoaches },
+        blocking: { blockPlayers, blockCoaches, blockCourts, conflictsAsWarnings },
+      },
       {
         onSuccess: () => {
           void queryClient.invalidateQueries({ queryKey: runsKey(planId) });
@@ -232,6 +244,34 @@ export function OptimizePanel() {
             label={sv.optimize.optimizeOnly.coaches}
             checked={optimizeCoaches}
             onChange={(event) => setOptimizeCoaches(event.currentTarget.checked)}
+          />
+        </Group>
+
+        <Tooltip label={sv.optimize.blocking.tooltip} multiline w={280}>
+          <Text fw={500} span style={{ textDecoration: "underline dotted", cursor: "help" }}>
+            {sv.optimize.blocking.heading}
+          </Text>
+        </Tooltip>
+        <Group mt="xs" mb="lg" data-testid="blocking-checkboxes">
+          <Checkbox
+            label={sv.optimize.blocking.blockCoaches}
+            checked={blockCoaches}
+            onChange={(event) => setBlockCoaches(event.currentTarget.checked)}
+          />
+          <Checkbox
+            label={sv.optimize.blocking.blockPlayers}
+            checked={blockPlayers}
+            onChange={(event) => setBlockPlayers(event.currentTarget.checked)}
+          />
+          <Checkbox
+            label={sv.optimize.blocking.blockCourts}
+            checked={blockCourts}
+            onChange={(event) => setBlockCourts(event.currentTarget.checked)}
+          />
+          <Checkbox
+            label={sv.optimize.blocking.conflictsAsWarnings}
+            checked={conflictsAsWarnings}
+            onChange={(event) => setConflictsAsWarnings(event.currentTarget.checked)}
           />
         </Group>
 

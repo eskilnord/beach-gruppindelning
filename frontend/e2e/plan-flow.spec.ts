@@ -88,13 +88,21 @@ test("create season → open it → create activity plan → navigate tabs → d
   await expect(page.getByRole("tab", { name: sv.plan.tabs.results })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByText(sv.results.empty)).toBeVisible();
 
-  const placeholderTabs = [sv.plan.tabs.export];
+  // Planer (M8: SavedPlansPanel, not a placeholder) - empty state before any plan has been saved.
+  await page.getByRole("tab", { name: sv.plan.tabs.savedPlans }).click();
+  await expect(page.getByRole("tab", { name: sv.plan.tabs.savedPlans })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("heading", { name: sv.savedPlans.heading })).toBeVisible();
+  await expect(page.getByText(sv.savedPlans.empty)).toBeVisible();
 
-  for (const tabLabel of placeholderTabs) {
-    await page.getByRole("tab", { name: tabLabel }).click();
-    await expect(page.getByRole("tab", { name: tabLabel })).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByText(sv.plan.comingSoon)).toBeVisible();
-  }
+  // Export (M8: ExportPanel, not a placeholder) - disabled with a hint before any solve has run (see
+  // saved-plans-export.spec.ts for the full save/lock/export flow).
+  await page.getByRole("tab", { name: sv.plan.tabs.export }).click();
+  await expect(page.getByRole("tab", { name: sv.plan.tabs.export })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("heading", { name: sv.export.heading })).toBeVisible();
+  await expect(page.getByText(sv.export.emptyNoRun)).toBeVisible();
+  // exact: true — "Exportera" otherwise substring-matches the "Exportera anonymiserat" button too
+  // (Playwright role-name matching is case-insensitive substring by default).
+  await expect(page.getByRole("button", { name: sv.export.exportButton, exact: true })).toBeDisabled();
 
   // --- Delete the plan, back to season ---
   await page.getByRole("button", { name: sv.plan.deleteButton }).click();

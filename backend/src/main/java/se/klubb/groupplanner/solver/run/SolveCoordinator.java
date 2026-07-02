@@ -271,6 +271,13 @@ public class SolveCoordinator {
             }
             Group group = pa.getGroup();
             String groupDbId = group == null ? null : assembled.trainingGroupDbIdByLongId().get(group.id());
+            // M8 (found by the M8 jar E2E): updateGroupAndSource is an UPDATE scoped to an existing
+            // row - a participant that never got its "awaiting placement" player_assignment row
+            // (possible historically via POST /api/plans/{id}/participants, which didn't create one
+            // until the M8 fix in ParticipantProfileController#create) would silently LOSE its
+            // solver placement here. Same insert-if-absent convention AssignmentController#move has
+            // used since M7; a no-op for the normal import-commit-seeded case.
+            playerAssignmentRepository.insertImportedIfAbsent(participantDbId);
             playerAssignmentRepository.updateGroupAndSource(
                     participantDbId, groupDbId, se.klubb.groupplanner.domain.PlayerAssignment.SOURCE_SOLVER);
         }

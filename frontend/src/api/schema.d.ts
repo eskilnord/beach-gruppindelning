@@ -324,6 +324,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{planId}/saved-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_3"];
+        put?: never;
+        post: operations["save"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans/{planId}/participants": {
         parameters: {
             query?: never;
@@ -475,7 +491,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_3"];
+        get: operations["list_4"];
         put?: never;
         post: operations["create_7"];
         delete?: never;
@@ -491,7 +507,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_4"];
+        get: operations["list_5"];
         put?: never;
         post: operations["create_8"];
         delete?: never;
@@ -564,6 +580,22 @@ export interface paths {
         patch: operations["update_3"];
         trace?: never;
     };
+    "/api/plans/{planId}/saved-plans/{savedPlanId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getOne"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_3"];
+        options?: never;
+        head?: never;
+        patch: operations["updateStatus"];
+        trace?: never;
+    };
     "/api/plans/{id}": {
         parameters: {
             query?: never;
@@ -574,7 +606,7 @@ export interface paths {
         get: operations["get_5"];
         put?: never;
         post?: never;
-        delete: operations["delete_3"];
+        delete: operations["delete_4"];
         options?: never;
         head?: never;
         patch: operations["update_4"];
@@ -590,7 +622,7 @@ export interface paths {
         get: operations["get_6"];
         put?: never;
         post?: never;
-        delete: operations["delete_4"];
+        delete: operations["delete_5"];
         options?: never;
         head?: never;
         patch: operations["update_5"];
@@ -606,7 +638,7 @@ export interface paths {
         get: operations["get_7"];
         put?: never;
         post?: never;
-        delete: operations["delete_5"];
+        delete: operations["delete_6"];
         options?: never;
         head?: never;
         patch: operations["update_6"];
@@ -622,7 +654,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_6"];
+        delete: operations["delete_7"];
         options?: never;
         head?: never;
         patch: operations["update_7"];
@@ -638,7 +670,7 @@ export interface paths {
         get: operations["get_8"];
         put?: never;
         post?: never;
-        delete: operations["delete_7"];
+        delete: operations["delete_8"];
         options?: never;
         head?: never;
         patch: operations["update_8"];
@@ -654,7 +686,7 @@ export interface paths {
         get: operations["get_9"];
         put?: never;
         post?: never;
-        delete: operations["delete_8"];
+        delete: operations["delete_9"];
         options?: never;
         head?: never;
         patch: operations["update_9"];
@@ -715,7 +747,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_5"];
+        get: operations["list_6"];
         put?: never;
         post?: never;
         delete?: never;
@@ -827,7 +859,39 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_6"];
+        get: operations["list_7"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["export"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/export/anonymized": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["exportAnonymized"];
         put?: never;
         post?: never;
         delete?: never;
@@ -859,7 +923,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_7"];
+        get: operations["list_8"];
         put?: never;
         post?: never;
         delete?: never;
@@ -907,7 +971,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_8"];
+        get: operations["list_9"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1157,7 +1221,7 @@ export interface components {
             stale?: boolean;
             alternative?: components["schemas"]["AlternativeGroupView"];
         };
-        MoveRequest: {
+        WhatIfMoveRequest: {
             participantProfileId?: string;
             targetGroupId?: string;
             runId?: string;
@@ -1229,8 +1293,30 @@ export interface components {
             optimize?: components["schemas"]["OptimizeRequest"];
             blocking?: components["schemas"]["BlockingRequest"];
         };
+        SolveResponse: {
+            runId?: string;
+            status?: string;
+            score?: string;
+            /** Format: int64 */
+            hardViolations?: number;
+            feasible?: boolean;
+        };
         CancelSolveResponse: {
             finalRunId?: string;
+        };
+        SaveRequest: {
+            name?: string;
+        };
+        SavedPlanDetailView: {
+            id?: string;
+            activityPlanId?: string;
+            name?: string;
+            status?: string;
+            score?: string;
+            optimizationRunId?: string;
+            createdAt?: string;
+            updatedAt?: string;
+            snapshot?: unknown;
         };
         CreateParticipantProfileRequest: {
             personId?: string;
@@ -1378,6 +1464,9 @@ export interface components {
             canAlsoTrainAsParticipant?: boolean;
             notes?: string;
         };
+        ApplyMoveRequest: {
+            groupId?: string;
+        };
         PlayerAssignment: {
             id?: string;
             participantProfileId?: string;
@@ -1431,6 +1520,9 @@ export interface components {
             startDate?: string;
             /** Format: date */
             endDate?: string;
+            status?: string;
+        };
+        StatusRequest: {
             status?: string;
         };
         UpdateActivityPlanRequest: {
@@ -1510,6 +1602,17 @@ export interface components {
             limitMs?: number;
             /** Format: int32 */
             improvementCount?: number;
+        };
+        SavedPlan: {
+            id?: string;
+            activityPlanId?: string;
+            name?: string;
+            status?: string;
+            snapshotJson?: string;
+            score?: string;
+            optimizationRunId?: string;
+            createdAt?: string;
+            updatedAt?: string;
         };
         OptimizationRun: {
             id?: string;
@@ -2443,7 +2546,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["MoveRequest"];
+                "application/json": components["schemas"]["WhatIfMoveRequest"];
             };
         };
         responses: {
@@ -2527,7 +2630,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": Record<string, never>;
+                    "*/*": components["schemas"]["SolveResponse"];
                 };
             };
         };
@@ -2550,6 +2653,54 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["CancelSolveResponse"];
+                };
+            };
+        };
+    };
+    list_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SavedPlan"][];
+                };
+            };
+        };
+    };
+    save: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SaveRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SavedPlanDetailView"];
                 };
             };
         };
@@ -2836,7 +2987,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["MoveRequest"];
+                "application/json": components["schemas"]["ApplyMoveRequest"];
             };
         };
         responses: {
@@ -2851,7 +3002,7 @@ export interface operations {
             };
         };
     };
-    list_3: {
+    list_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -2895,7 +3046,7 @@ export interface operations {
             };
         };
     };
-    list_4: {
+    list_5: {
         parameters: {
             query?: {
                 venueId?: string;
@@ -3173,6 +3324,77 @@ export interface operations {
             };
         };
     };
+    getOne: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                savedPlanId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SavedPlanDetailView"];
+                };
+            };
+        };
+    };
+    delete_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                savedPlanId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                savedPlanId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["StatusRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SavedPlanDetailView"];
+                };
+            };
+        };
+    };
     get_5: {
         parameters: {
             query?: never;
@@ -3195,7 +3417,7 @@ export interface operations {
             };
         };
     };
-    delete_3: {
+    delete_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -3263,7 +3485,7 @@ export interface operations {
             };
         };
     };
-    delete_4: {
+    delete_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -3331,7 +3553,7 @@ export interface operations {
             };
         };
     };
-    delete_5: {
+    delete_6: {
         parameters: {
             query?: never;
             header?: never;
@@ -3379,7 +3601,7 @@ export interface operations {
             };
         };
     };
-    delete_6: {
+    delete_7: {
         parameters: {
             query?: never;
             header?: never;
@@ -3447,7 +3669,7 @@ export interface operations {
             };
         };
     };
-    delete_7: {
+    delete_8: {
         parameters: {
             query?: never;
             header?: never;
@@ -3515,7 +3737,7 @@ export interface operations {
             };
         };
     };
-    delete_8: {
+    delete_9: {
         parameters: {
             query?: never;
             header?: never;
@@ -3629,7 +3851,7 @@ export interface operations {
             };
         };
     };
-    list_5: {
+    list_6: {
         parameters: {
             query?: never;
             header?: never;
@@ -3794,7 +4016,7 @@ export interface operations {
             };
         };
     };
-    list_6: {
+    list_7: {
         parameters: {
             query?: never;
             header?: never;
@@ -3812,6 +4034,57 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["TrainingGroup"][];
+                };
+            };
+        };
+    };
+    export: {
+        parameters: {
+            query?: {
+                format?: string;
+                layout?: string;
+                includeComments?: boolean;
+                run?: string;
+            };
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                };
+            };
+        };
+    };
+    exportAnonymized: {
+        parameters: {
+            query?: {
+                format?: string;
+            };
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
                 };
             };
         };
@@ -3838,7 +4111,7 @@ export interface operations {
             };
         };
     };
-    list_7: {
+    list_8: {
         parameters: {
             query?: never;
             header?: never;
@@ -3902,7 +4175,7 @@ export interface operations {
             };
         };
     };
-    list_8: {
+    list_9: {
         parameters: {
             query?: never;
             header?: never;

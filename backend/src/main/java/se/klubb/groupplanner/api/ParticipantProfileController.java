@@ -19,6 +19,7 @@ import se.klubb.groupplanner.level.LevelService;
 import se.klubb.groupplanner.repo.ActivityPlanRepository;
 import se.klubb.groupplanner.repo.ParticipantProfileRepository;
 import se.klubb.groupplanner.repo.PersonRepository;
+import se.klubb.groupplanner.repo.PlayerAssignmentRepository;
 import se.klubb.groupplanner.util.Uuid7;
 
 /**
@@ -46,16 +47,19 @@ public class ParticipantProfileController {
     private final ActivityPlanRepository activityPlanRepository;
     private final PersonRepository personRepository;
     private final LevelService levelService;
+    private final PlayerAssignmentRepository playerAssignmentRepository;
 
     public ParticipantProfileController(
             ParticipantProfileRepository participantProfileRepository,
             ActivityPlanRepository activityPlanRepository,
             PersonRepository personRepository,
-            LevelService levelService) {
+            LevelService levelService,
+            PlayerAssignmentRepository playerAssignmentRepository) {
         this.participantProfileRepository = participantProfileRepository;
         this.activityPlanRepository = activityPlanRepository;
         this.personRepository = personRepository;
         this.levelService = levelService;
+        this.playerAssignmentRepository = playerAssignmentRepository;
     }
 
     @GetMapping("/api/plans/{planId}/participants")
@@ -90,6 +94,13 @@ public class ParticipantProfileController {
                 request.manualReviewFlag() != null && request.manualReviewFlag(),
                 request.waitlisted() != null && request.waitlisted());
         ParticipantProfile created = participantProfileRepository.insert(profile);
+        // M8 (found by the M8 jar E2E): a participant without a player_assignment row is invisible
+        // to GET .../assignments AND - much worse - to SolveCoordinator#persistResult's writeback
+        // (updateGroupAndSource is an UPDATE scoped to an existing row, so the solver's in-memory
+        // placement for such a participant was silently dropped on write). The import-commit path
+        // has always created this "awaiting placement" row (docs/design/02-product-data-ui.md §2
+        // step 8); the REST create path now does the same.
+        playerAssignmentRepository.insertImportedIfAbsent(created.id());
         // M7 review fix M2: a new participant changes what any already-computed explanation for this
         // plan describes (probe results, waitlist reasoning) - see AssignmentController#move's javadoc
         // for the shared invalidation-surface rationale.

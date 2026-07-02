@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Alert,
   Anchor,
+  Badge,
   Box,
   Breadcrumbs,
   Button,
@@ -14,9 +15,11 @@ import {
   Text,
   Title,
 } from "@mantine/core";
+import { useSeasonConflicts } from "../../api/conflicts";
 import { useDeleteSeason, useSeason } from "../../api/seasons";
-import { usePlansForSeason } from "../../api/plans";
+import { usePlanCounts, usePlansForSeason } from "../../api/plans";
 import { ApiError } from "../../api/client";
+import { ConflictList } from "../../components/ConflictList";
 import { sv } from "../../i18n/sv";
 import { CreatePlanModal } from "./CreatePlanModal";
 import { EditSeasonModal } from "./EditSeasonModal";
@@ -28,6 +31,10 @@ export function SeasonPage() {
   const season = useSeason(seasonId);
   const plans = usePlansForSeason(seasonId);
   const deleteSeason = useDeleteSeason();
+  const conflicts = useSeasonConflicts(seasonId);
+
+  const planIds = useMemo(() => (plans.data ?? []).map((plan) => plan.id), [plans.data]);
+  const { counts } = usePlanCounts(planIds);
 
   const [createPlanOpen, setCreatePlanOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -90,22 +97,47 @@ export function SeasonPage() {
                 <Table.Th>{sv.season.columns.category}</Table.Th>
                 <Table.Th>{sv.season.columns.status}</Table.Th>
                 <Table.Th>{sv.season.columns.participants}</Table.Th>
+                <Table.Th>{sv.season.columns.groups}</Table.Th>
+                <Table.Th>{sv.season.columns.coaches}</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {plans.data.map((plan) => (
-                <Table.Tr key={plan.id}>
-                  <Table.Td>
-                    <Anchor onClick={() => navigate(`/plans/${plan.id}`)}>{plan.name}</Anchor>
-                  </Table.Td>
-                  <Table.Td>{plan.category ?? sv.season.participantsPlaceholder}</Table.Td>
-                  <Table.Td>{plan.status}</Table.Td>
-                  <Table.Td>{sv.season.participantsPlaceholder}</Table.Td>
-                </Table.Tr>
-              ))}
+              {plans.data.map((plan) => {
+                const planCounts = counts[plan.id];
+                return (
+                  <Table.Tr key={plan.id}>
+                    <Table.Td>
+                      <Anchor onClick={() => navigate(`/plans/${plan.id}`)}>{plan.name}</Anchor>
+                    </Table.Td>
+                    <Table.Td>{plan.category ?? sv.season.participantsPlaceholder}</Table.Td>
+                    <Table.Td>{plan.status}</Table.Td>
+                    <Table.Td>{planCounts ? planCounts.participants : sv.season.participantsPlaceholder}</Table.Td>
+                    <Table.Td>{planCounts ? planCounts.groups : sv.season.participantsPlaceholder}</Table.Td>
+                    <Table.Td>{planCounts ? planCounts.coaches : sv.season.participantsPlaceholder}</Table.Td>
+                  </Table.Tr>
+                );
+              })}
             </Table.Tbody>
           </Table>
         )}
+      </Card>
+
+      <Card withBorder>
+        <Group gap="xs" mb="sm">
+          <Title order={4}>{sv.season.conflicts.heading}</Title>
+          <Badge color={conflicts.data && conflicts.data.length > 0 ? "red" : "gray"} data-testid="conflicts-count-badge">
+            {conflicts.data?.length ?? 0}
+          </Badge>
+        </Group>
+
+        {conflicts.isLoading && <Loader size="sm" />}
+        {conflicts.isError && (
+          <Alert color="red">
+            {conflicts.error instanceof ApiError ? conflicts.error.message : sv.season.conflicts.loadFailed}
+          </Alert>
+        )}
+        {conflicts.data && conflicts.data.length === 0 && <Text c="dimmed">{sv.season.conflicts.empty}</Text>}
+        <ConflictList conflicts={conflicts.data ?? []} />
       </Card>
 
       <CreatePlanModal

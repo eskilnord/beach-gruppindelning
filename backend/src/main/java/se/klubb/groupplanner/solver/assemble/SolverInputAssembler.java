@@ -613,13 +613,25 @@ public class SolverInputAssembler {
      * indexes is skipped - it can never match any constraint anyway (no {@code PlayerAssignment}/
      * {@code CoachSlot}/{@code TrainingBlock} in this solve could reference it), so including it
      * would be pure overhead.
+     *
+     * <p><b>Deduplication (M8 review fix, finding 2):</b> facts are deduped on the canonical key
+     * {@code (usageType, personId, courtId, TimeKey)}. Since M8 made every save a NEW versioned
+     * {@code saved_plan} row, TWO locked snapshots of the same plan (lock v1, re-save, lock v2)
+     * would otherwise each contribute an identical fact for the same real-world commitment —
+     * doubling the hard-score magnitude of a single genuine clash and duplicating the corresponding
+     * explanation justifications. The same key also collapses the (legitimate but redundant) case
+     * of two DIFFERENT plans committing the same person/court at the same time: one blocking fact
+     * fully expresses "this resource is taken at this time". First occurrence wins, which is
+     * deterministic (snapshots iterate in {@code ORDER BY id} = creation order; rows within a
+     * snapshot likewise), so {@code sourcePlanName} deterministically names the OLDEST locked
+     * snapshot's plan.
      */
     private List<SavedPlanResourceUsage> collectSavedPlanUsages(
             ActivityPlan plan, BlockingOptions blocking, SolverIdIndex personIdx, SolverIdIndex courtIdx) {
         if (!blocking.anyBlockingEnabled()) {
             return List.of();
         }
-        List<SavedPlanResourceUsage> usages = new ArrayList<>();
+        Map<String, SavedPlanResourceUsage> usagesByKey = new java.util.LinkedHashMap<>();
         for (SavedPlan savedPlan : savedPlanRepository.findLockedInSeasonExcludingPlan(plan.seasonPlanId(), plan.id())) {
             for (se.klubb.groupplanner.domain.SavedPlanResourceUsage row
                     : savedPlanResourceUsageRepository.findBySavedPlanId(savedPlan.id())) {
@@ -628,15 +640,18 @@ public class SolverInputAssembler {
                 boolean isCoach = se.klubb.groupplanner.domain.SavedPlanResourceUsage.ROLE_COACH.equals(row.role());
                 boolean personBlockingApplies = (isPlayer && blocking.blockPlayers()) || (isCoach && blocking.blockCoaches());
                 if (personBlockingApplies && row.personId() != null && personIdx.contains(row.personId())) {
-                    usages.add(new SavedPlanResourceUsage(
-                            UsageType.PERSON, personIdx.id(row.personId()), -1L, timeKey, savedPlan.name(), row.role()));
+                    SavedPlanResourceUsage fact = new SavedPlanResourceUsage(
+                            UsageType.PERSON, personIdx.id(row.personId()), -1L, timeKey, savedPlan.name(), row.role());
+                    usagesByKey.putIfAbsent(dedupKey(fact), fact);
                 }
                 if (blocking.blockCourts() && row.courtId() != null && courtIdx.contains(row.courtId())) {
-                    usages.add(new SavedPlanResourceUsage(
-                            UsageType.COURT, -1L, courtIdx.id(row.courtId()), timeKey, savedPlan.name(), row.role()));
+                    SavedPlanResourceUsage fact = new SavedPlanResourceUsage(
+                            UsageType.COURT, -1L, courtIdx.id(row.courtId()), timeKey, savedPlan.name(), row.role());
+                    usagesByKey.putIfAbsent(dedupKey(fact), fact);
                 }
             }
         }
+        List<SavedPlanResourceUsage> usages = new ArrayList<>(usagesByKey.values());
         // Determinism (ADR-007): built from already-ordered repository queries (both ORDER BY id),
         // but an explicit final sort makes the invariant self-evident regardless of upstream order.
         usages.sort(java.util.Comparator
@@ -648,6 +663,13 @@ public class SolverInputAssembler {
                 .thenComparingInt(u -> u.timeKey().startMinuteOfDay())
                 .thenComparing(SavedPlanResourceUsage::sourcePlanName));
         return usages;
+    }
+
+    /** Canonical identity of one blocking fact: everything EXCEPT the provenance fields
+     * ({@code sourcePlanName}/{@code sourceDetail}) — two facts agreeing on this key block the
+     * exact same (resource, time) and are therefore one real-world commitment. */
+    private static String dedupKey(SavedPlanResourceUsage u) {
+        return u.type().name() + '|' + u.personId() + '|' + u.courtId() + '|' + u.timeKey();
     }
 
     private static HardMediumSoftLongScore scoreFor(String hardOrSoft, int weight) {

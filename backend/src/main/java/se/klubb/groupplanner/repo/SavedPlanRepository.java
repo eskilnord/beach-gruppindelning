@@ -56,6 +56,33 @@ public class SavedPlanRepository {
                 .list();
     }
 
+    /**
+     * The most recently created NON-ARCHIVED {@code saved_plan} row for one activity plan (M8:
+     * {@code se.klubb.groupplanner.season.ConflictService} uses this - unlike {@link
+     * #findLockedInSeasonExcludingPlan}'s locked-only filter for in-solver hard blocking, the season
+     * conflict REPORT prefers a plan's latest recorded snapshot over its possibly-since-diverged
+     * live state, whatever non-archived status that snapshot is in, per spec §19.2's "early
+     * warning" framing).
+     *
+     * <p>The {@code status != 'archived'} filter lives IN the SQL, before the {@code LIMIT 1} — M8
+     * review fix (finding 1): the original version selected the plain latest row and let the caller
+     * filter archived afterwards, so the sequence "lock v1 → save v2 → archive v2" made the season
+     * view fall back to LIVE state while v1 (still locked, still blocking other plans' solves)
+     * silently vanished from the report. With the filter in the query, archiving v2 correctly
+     * re-exposes v1 as the effective snapshot.
+     */
+    public Optional<SavedPlan> findLatestNonArchivedByActivityPlanId(String activityPlanId) {
+        return jdbcClient.sql("""
+                        SELECT * FROM saved_plan
+                        WHERE activity_plan_id = :activityPlanId AND status != :archivedStatus
+                        ORDER BY created_at DESC, id DESC LIMIT 1
+                        """)
+                .param("activityPlanId", activityPlanId)
+                .param("archivedStatus", SavedPlan.STATUS_ARCHIVED)
+                .query(SavedPlanRepository::mapRow)
+                .optional();
+    }
+
     public SavedPlan insert(SavedPlan plan) {
         jdbcClient.sql("""
                         INSERT INTO saved_plan
@@ -81,6 +108,18 @@ public class SavedPlanRepository {
     public boolean deleteById(String id) {
         int rows = jdbcClient.sql("DELETE FROM saved_plan WHERE id = :id").param("id", id).update();
         return rows > 0;
+    }
+
+    /** Status-flow transition (spec §14.2, {@code se.klubb.groupplanner.savedplan.SavedPlanLifecycle}
+     * validates legality before this is ever called). Does not touch {@code snapshot_json}/{@code
+     * score}/{@code optimization_run_id} - the snapshot itself is immutable-in-spirit once saved
+     * (V6__soft_constraints_locks_saved_plan.sql's own framing); only the lifecycle label changes. */
+    public void updateStatus(String id, String status, String updatedAt) {
+        jdbcClient.sql("UPDATE saved_plan SET status = :status, updated_at = :updatedAt WHERE id = :id")
+                .param("id", id)
+                .param("status", status)
+                .param("updatedAt", updatedAt)
+                .update();
     }
 
     private static SavedPlan mapRow(ResultSet rs, int rowNum) throws SQLException {

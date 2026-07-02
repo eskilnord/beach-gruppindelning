@@ -29,6 +29,7 @@ const TABS = [
   { path: "kapacitet", label: sv.plan.tabs.capacity },
   { path: "optimering", label: sv.plan.tabs.optimize },
   { path: "resultat", label: sv.plan.tabs.results },
+  { path: "planer", label: sv.plan.tabs.savedPlans },
   { path: "export", label: sv.plan.tabs.export },
 ] as const;
 

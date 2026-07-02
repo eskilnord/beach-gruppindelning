@@ -213,4 +213,39 @@ class SavedPlanUsageAssemblyTest {
         assertThat(courtsOnly.getSavedPlanResourceUsages()).isNotEmpty();
         assertThat(courtsOnly.getSavedPlanResourceUsages()).allMatch(u -> u.type() == UsageType.COURT);
     }
+
+    /**
+     * M8 review fix, finding 2: since M8 every save is a NEW versioned {@code saved_plan} row, so
+     * "lock v1, re-save, lock v2" leaves TWO locked snapshots of the same unchanged plan — the
+     * assembly must still produce exactly ONE {@link
+     * se.klubb.groupplanner.solver.domain.SavedPlanResourceUsage} fact per real (resource, time)
+     * commitment, not one per snapshot (a duplicate fact doubles the hard-score magnitude of a
+     * single genuine clash and duplicates its explanation justifications).
+     */
+    @Test
+    void twoLockedSnapshotsOfTheSamePlanProduceNoDuplicateBlockingFacts() {
+        String herrPlanId = loadAndSchedulePlan();
+        String damPlanId = loadPlan(seasonOf(herrPlanId));
+        addSharedPersonParticipant(herrPlanId, damPlanId);
+
+        savedPlanService.materialize(herrPlanId, "Herr torsdag v1", SavedPlan.STATUS_LOCKED);
+        GroupPlanSolution afterOneLock = assembler.assemble(
+                damPlanId, OptimizeSelection.ALL, new BlockingOptions(true, true, true, false)).solution();
+        assertThat(afterOneLock.getSavedPlanResourceUsages()).isNotEmpty();
+
+        // Same plan, unchanged assignments, locked AGAIN as a second snapshot.
+        savedPlanService.materialize(herrPlanId, "Herr torsdag v2", SavedPlan.STATUS_LOCKED);
+        GroupPlanSolution afterTwoLocks = assembler.assemble(
+                damPlanId, OptimizeSelection.ALL, new BlockingOptions(true, true, true, false)).solution();
+
+        // Exactly the same fact set as with one snapshot - and provably duplicate-free by key.
+        assertThat(afterTwoLocks.getSavedPlanResourceUsages())
+                .as("a second locked snapshot of the SAME state must not add duplicate facts")
+                .hasSize(afterOneLock.getSavedPlanResourceUsages().size());
+        long distinctKeys = afterTwoLocks.getSavedPlanResourceUsages().stream()
+                .map(u -> u.type().name() + "|" + u.personId() + "|" + u.courtId() + "|" + u.timeKey())
+                .distinct()
+                .count();
+        assertThat(distinctKeys).isEqualTo(afterTwoLocks.getSavedPlanResourceUsages().size());
+    }
 }

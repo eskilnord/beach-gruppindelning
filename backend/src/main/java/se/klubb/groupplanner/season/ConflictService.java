@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import org.springframework.stereotype.Service;
 import se.klubb.groupplanner.common.time.TimeKey;
@@ -16,6 +17,8 @@ import se.klubb.groupplanner.domain.Court;
 import se.klubb.groupplanner.domain.ParticipantProfile;
 import se.klubb.groupplanner.domain.Person;
 import se.klubb.groupplanner.domain.PlayerAssignment;
+import se.klubb.groupplanner.domain.SavedPlan;
+import se.klubb.groupplanner.domain.SavedPlanResourceUsage;
 import se.klubb.groupplanner.domain.TimeSlot;
 import se.klubb.groupplanner.domain.TrainingBlock;
 import se.klubb.groupplanner.domain.TrainingGroup;
@@ -26,6 +29,8 @@ import se.klubb.groupplanner.repo.CourtRepository;
 import se.klubb.groupplanner.repo.ParticipantProfileRepository;
 import se.klubb.groupplanner.repo.PersonRepository;
 import se.klubb.groupplanner.repo.PlayerAssignmentRepository;
+import se.klubb.groupplanner.repo.SavedPlanRepository;
+import se.klubb.groupplanner.repo.SavedPlanResourceUsageRepository;
 import se.klubb.groupplanner.repo.TimeSlotRepository;
 import se.klubb.groupplanner.repo.TrainingBlockRepository;
 import se.klubb.groupplanner.repo.TrainingGroupRepository;
@@ -33,13 +38,35 @@ import se.klubb.groupplanner.resources.TimeSlotLabelFormatter;
 
 /**
  * Season-level conflict detection (docs/design/04-solver.md §6.3, spec §19.2/§14.4) — a plain
- * reporting service, no Timefold dependency. Unlike in-solver cross-plan blocking (which only reads
- * LOCKED {@code saved_plan} snapshots, §10.24), this reads the CURRENT persisted assignments of
- * EVERY {@link ActivityPlan} in a season regardless of status (also {@code draft}s — the design's
- * own rationale: "Säsongsvyn warns early" and the §14.4 "visa konflikter" mode both need this wider
- * view). Two persons/court double-booked ONLY within the same plan is not reported here — the
- * solver's own {@code trainingBlockCapacity}/{@code coachNoOverlap}/{@code playerNoOverlap}
- * constraints already prevent that inside a solved plan, and reporting an in-plan draft's transient
+ * reporting service, no Timefold dependency.
+ *
+ * <p><b>M8 task item 1 ("ConflictService reads ALL statuses ... season view should show conflicts
+ * between saved plans AND live plan state"):</b> for each {@link ActivityPlan} in the season, this
+ * service picks exactly ONE usage source: the plan's most recently created NON-{@code archived}
+ * {@code saved_plan} snapshot, of any status ({@link #effectiveSnapshotFor}) — unlike in-solver
+ * cross-plan blocking, which only ever trusts {@code status='locked'} rows as hard facts (§10.24) —
+ * or, if the plan has no non-archived snapshot at all, its CURRENT live persisted assignments (the
+ * M6b/M7 behavior, unchanged). This directly answers the task's framing: plans the council has
+ * already recorded (saved/locked/published) contribute what was ACTUALLY recorded (which is also
+ * what really blocks other plans' solves once locked, per V6__soft_constraints_locks_saved_plan.sql's
+ * "a later edit to the live plan does not retroactively change what an already-locked OTHER plan
+ * blocks"), while plans still in active day-to-day editing (never yet saved) contribute their live
+ * working state — "Säsongsvyn warns early" per this class's original M6b rationale, preserved.
+ * Archiving a snapshot removes IT from consideration and re-exposes the next-newest non-archived
+ * one (M8 review fix, finding 1 — e.g. "lock v1 → save v2 → archive v2" must keep reporting from
+ * the still-locked v1, not fall back to live); only a plan whose EVERY snapshot is archived falls
+ * back to live state (an explicit "retired everything" should not resurrect stale schedule data if
+ * the underlying activity plan is still being reused).
+ *
+ * <p>Picking exactly one source per plan (rather than adding the snapshot as an ADDITIONAL usage set
+ * on top of live data) is deliberate: shortly after a save, the two are identical, and sweeping both
+ * would report every real conflict multiple times over — exactly the kind of duplicate-conflict bug
+ * backend/docs/m6b-notes.md already documents once for the {@code collectGroupCourtUsages}/
+ * {@code collectUsages} split ("11 duplicate COURT_DOUBLE_BOOKED entries for one real conflict").
+ *
+ * <p>Two persons/court double-booked ONLY within the same plan is not reported here — the solver's
+ * own {@code trainingBlockCapacity}/{@code coachNoOverlap}/{@code playerNoOverlap} constraints
+ * already prevent that inside a solved plan, and reporting an in-plan draft's transient
  * inconsistency here would be noise, not a genuine season-level conflict.
  */
 @Service
@@ -55,6 +82,8 @@ public class ConflictService {
     private final TrainingBlockRepository trainingBlockRepository;
     private final TimeSlotRepository timeSlotRepository;
     private final CourtRepository courtRepository;
+    private final SavedPlanRepository savedPlanRepository;
+    private final SavedPlanResourceUsageRepository savedPlanResourceUsageRepository;
     private final TimeSlotLabelFormatter labelFormatter;
 
     public ConflictService(
@@ -68,6 +97,8 @@ public class ConflictService {
             TrainingBlockRepository trainingBlockRepository,
             TimeSlotRepository timeSlotRepository,
             CourtRepository courtRepository,
+            SavedPlanRepository savedPlanRepository,
+            SavedPlanResourceUsageRepository savedPlanResourceUsageRepository,
             TimeSlotLabelFormatter labelFormatter) {
         this.activityPlanRepository = activityPlanRepository;
         this.trainingGroupRepository = trainingGroupRepository;
@@ -79,6 +110,8 @@ public class ConflictService {
         this.trainingBlockRepository = trainingBlockRepository;
         this.timeSlotRepository = timeSlotRepository;
         this.courtRepository = courtRepository;
+        this.savedPlanRepository = savedPlanRepository;
+        this.savedPlanResourceUsageRepository = savedPlanResourceUsageRepository;
         this.labelFormatter = labelFormatter;
     }
 
@@ -97,37 +130,11 @@ public class ConflictService {
     private List<ResourceUsage> collectUsages(String seasonPlanId) {
         List<ResourceUsage> usages = new ArrayList<>();
         for (ActivityPlan plan : activityPlanRepository.findBySeasonPlanId(seasonPlanId)) {
-            Map<String, TrainingGroup> groupById = indexBy(trainingGroupRepository.findByActivityPlanId(plan.id()), TrainingGroup::id);
-            Map<String, ParticipantProfile> participantById =
-                    indexBy(participantProfileRepository.findByActivityPlanId(plan.id()), ParticipantProfile::id);
-            Map<String, CoachProfile> coachById = indexBy(coachProfileRepository.findByActivityPlanId(plan.id()), CoachProfile::id);
-            Map<String, TrainingBlock> blockCache = new HashMap<>();
-            Map<String, TimeSlot> slotCache = new HashMap<>();
-
-            for (PlayerAssignment pa : playerAssignmentRepository.findByActivityPlanId(plan.id())) {
-                if (pa.groupId() == null) {
-                    continue;
-                }
-                TrainingGroup group = groupById.get(pa.groupId());
-                ParticipantProfile participant = participantById.get(pa.participantProfileId());
-                if (participant == null) {
-                    continue;
-                }
-                resolveSchedule(group, blockCache, slotCache).ifPresent(schedule -> usages.add(new ResourceUsage(
-                        plan.id(), plan.name(), ResourceUsage.KIND_PLAYER, participant.personId(), group.name(),
-                        TimeKey.of(schedule.slot().dayOfWeek(), schedule.slot().date(), schedule.slot().startTime(), schedule.slot().endTime()),
-                        labelOf(schedule.slot()), schedule.block().courtId(), null)));
-            }
-            for (CoachAssignment ca : coachAssignmentRepository.findByActivityPlanId(plan.id())) {
-                TrainingGroup group = groupById.get(ca.groupId());
-                CoachProfile coach = coachById.get(ca.coachProfileId());
-                if (coach == null) {
-                    continue;
-                }
-                resolveSchedule(group, blockCache, slotCache).ifPresent(schedule -> usages.add(new ResourceUsage(
-                        plan.id(), plan.name(), ResourceUsage.KIND_COACH, coach.personId(), group.name(),
-                        TimeKey.of(schedule.slot().dayOfWeek(), schedule.slot().date(), schedule.slot().startTime(), schedule.slot().endTime()),
-                        labelOf(schedule.slot()), schedule.block().courtId(), null)));
+            Optional<SavedPlan> snapshot = effectiveSnapshotFor(plan);
+            if (snapshot.isPresent()) {
+                usages.addAll(personUsagesFromSnapshot(plan, snapshot.get()));
+            } else {
+                usages.addAll(personUsagesFromLive(plan));
             }
         }
         // Determinism: stable sort by (planId, kind, personId) so pairwise sweeps below are
@@ -135,6 +142,62 @@ public class ConflictService {
         usages.sort(Comparator.comparing(ResourceUsage::activityPlanId)
                 .thenComparing(ResourceUsage::kind)
                 .thenComparing(ResourceUsage::personId));
+        return usages;
+    }
+
+    private List<ResourceUsage> personUsagesFromLive(ActivityPlan plan) {
+        List<ResourceUsage> usages = new ArrayList<>();
+        Map<String, TrainingGroup> groupById = indexBy(trainingGroupRepository.findByActivityPlanId(plan.id()), TrainingGroup::id);
+        Map<String, ParticipantProfile> participantById =
+                indexBy(participantProfileRepository.findByActivityPlanId(plan.id()), ParticipantProfile::id);
+        Map<String, CoachProfile> coachById = indexBy(coachProfileRepository.findByActivityPlanId(plan.id()), CoachProfile::id);
+        Map<String, TrainingBlock> blockCache = new HashMap<>();
+        Map<String, TimeSlot> slotCache = new HashMap<>();
+
+        for (PlayerAssignment pa : playerAssignmentRepository.findByActivityPlanId(plan.id())) {
+            if (pa.groupId() == null) {
+                continue;
+            }
+            TrainingGroup group = groupById.get(pa.groupId());
+            ParticipantProfile participant = participantById.get(pa.participantProfileId());
+            if (participant == null) {
+                continue;
+            }
+            resolveSchedule(group, blockCache, slotCache).ifPresent(schedule -> usages.add(new ResourceUsage(
+                    plan.id(), plan.name(), ResourceUsage.KIND_PLAYER, participant.personId(), group.name(),
+                    TimeKey.of(schedule.slot().dayOfWeek(), schedule.slot().date(), schedule.slot().startTime(), schedule.slot().endTime()),
+                    labelOf(schedule.slot()), schedule.block().courtId(), null)));
+        }
+        for (CoachAssignment ca : coachAssignmentRepository.findByActivityPlanId(plan.id())) {
+            TrainingGroup group = groupById.get(ca.groupId());
+            CoachProfile coach = coachById.get(ca.coachProfileId());
+            if (coach == null) {
+                continue;
+            }
+            resolveSchedule(group, blockCache, slotCache).ifPresent(schedule -> usages.add(new ResourceUsage(
+                    plan.id(), plan.name(), ResourceUsage.KIND_COACH, coach.personId(), group.name(),
+                    TimeKey.of(schedule.slot().dayOfWeek(), schedule.slot().date(), schedule.slot().startTime(), schedule.slot().endTime()),
+                    labelOf(schedule.slot()), schedule.block().courtId(), null)));
+        }
+        return usages;
+    }
+
+    /** {@code saved_plan_resource_usage} has no group name (it is a flattened person/coach × time ×
+     * court row, already stripped of the group it came from at materialization time) — {@code
+     * groupName} is {@code null} for a snapshot-sourced usage, same as the existing court-sweep rows
+     * below (the UI already renders a {@code null} group name blank for those). */
+    private List<ResourceUsage> personUsagesFromSnapshot(ActivityPlan plan, SavedPlan snapshot) {
+        List<ResourceUsage> usages = new ArrayList<>();
+        for (SavedPlanResourceUsage row : savedPlanResourceUsageRepository.findBySavedPlanId(snapshot.id())) {
+            if (row.personId() == null) {
+                continue;
+            }
+            String kind = SavedPlanResourceUsage.ROLE_COACH.equals(row.role()) ? ResourceUsage.KIND_COACH : ResourceUsage.KIND_PLAYER;
+            usages.add(new ResourceUsage(
+                    plan.id(), plan.name(), kind, row.personId(), null,
+                    TimeKey.of(row.dayOfWeek(), row.date(), row.startTime(), row.endTime()),
+                    labelOfRaw(row.dayOfWeek(), row.date(), row.startTime(), row.endTime()), row.courtId(), null));
+        }
         return usages;
     }
 
@@ -148,17 +211,59 @@ public class ConflictService {
     private List<ResourceUsage> collectGroupCourtUsages(String seasonPlanId) {
         List<ResourceUsage> usages = new ArrayList<>();
         for (ActivityPlan plan : activityPlanRepository.findBySeasonPlanId(seasonPlanId)) {
-            Map<String, TrainingBlock> blockCache = new HashMap<>();
-            Map<String, TimeSlot> slotCache = new HashMap<>();
-            for (TrainingGroup group : trainingGroupRepository.findByActivityPlanId(plan.id())) {
-                resolveSchedule(group, blockCache, slotCache).ifPresent(schedule -> usages.add(new ResourceUsage(
-                        plan.id(), plan.name(), ResourceUsage.KIND_PLAYER, null, group.name(),
-                        TimeKey.of(schedule.slot().dayOfWeek(), schedule.slot().date(), schedule.slot().startTime(), schedule.slot().endTime()),
-                        labelOf(schedule.slot()), schedule.block().courtId(), null)));
+            Optional<SavedPlan> snapshot = effectiveSnapshotFor(plan);
+            if (snapshot.isPresent()) {
+                usages.addAll(courtUsagesFromSnapshot(plan, snapshot.get()));
+            } else {
+                usages.addAll(courtUsagesFromLive(plan));
             }
         }
-        usages.sort(Comparator.comparing(ResourceUsage::activityPlanId).thenComparing(ResourceUsage::groupName));
+        usages.sort(Comparator.comparing(ResourceUsage::activityPlanId).thenComparing(ResourceUsage::groupName, Comparator.nullsFirst(Comparator.naturalOrder())));
         return usages;
+    }
+
+    private List<ResourceUsage> courtUsagesFromLive(ActivityPlan plan) {
+        List<ResourceUsage> usages = new ArrayList<>();
+        Map<String, TrainingBlock> blockCache = new HashMap<>();
+        Map<String, TimeSlot> slotCache = new HashMap<>();
+        for (TrainingGroup group : trainingGroupRepository.findByActivityPlanId(plan.id())) {
+            resolveSchedule(group, blockCache, slotCache).ifPresent(schedule -> usages.add(new ResourceUsage(
+                    plan.id(), plan.name(), ResourceUsage.KIND_PLAYER, null, group.name(),
+                    TimeKey.of(schedule.slot().dayOfWeek(), schedule.slot().date(), schedule.slot().startTime(), schedule.slot().endTime()),
+                    labelOf(schedule.slot()), schedule.block().courtId(), null)));
+        }
+        return usages;
+    }
+
+    /** Distinct (courtId, time) pairs derived from a snapshot's PLAYER+COACH usage rows — every
+     * member of the same group shares the same court/time, so deduping across both roles recovers
+     * exactly the "one row per group-with-a-court" shape {@link #courtUsagesFromLive} produces from
+     * live {@code training_group} data, without needing per-group granularity in {@code
+     * saved_plan_resource_usage} (which is deliberately flattened to person-level, see V6's schema
+     * comment). */
+    private List<ResourceUsage> courtUsagesFromSnapshot(ActivityPlan plan, SavedPlan snapshot) {
+        Map<String, ResourceUsage> distinctByCourtAndTime = new LinkedHashMap<>();
+        for (SavedPlanResourceUsage row : savedPlanResourceUsageRepository.findBySavedPlanId(snapshot.id())) {
+            if (row.courtId() == null) {
+                continue;
+            }
+            TimeKey timeKey = TimeKey.of(row.dayOfWeek(), row.date(), row.startTime(), row.endTime());
+            String key = row.courtId() + "|" + timeKey;
+            distinctByCourtAndTime.computeIfAbsent(key, k -> new ResourceUsage(
+                    plan.id(), plan.name(), ResourceUsage.KIND_PLAYER, null, null, timeKey,
+                    labelOfRaw(row.dayOfWeek(), row.date(), row.startTime(), row.endTime()), row.courtId(), null));
+        }
+        return new ArrayList<>(distinctByCourtAndTime.values());
+    }
+
+    /** The plan's most recently created NON-ARCHIVED {@code saved_plan} snapshot (see class javadoc
+     * for the full rationale) - {@link Optional#empty()} means "use live state", matching the
+     * M6b/M7 behavior for a plan that has never been saved (or whose every snapshot is archived).
+     * The archived filter is INSIDE the repository query, before its {@code LIMIT 1} (M8 review fix,
+     * finding 1): filtering a plain latest-row result here made "lock v1 → save v2 → archive v2"
+     * fall back to live state while v1 was still locked and still blocking other plans' solves. */
+    private Optional<SavedPlan> effectiveSnapshotFor(ActivityPlan plan) {
+        return savedPlanRepository.findLatestNonArchivedByActivityPlanId(plan.id());
     }
 
     private java.util.Optional<ResolvedSchedule> resolveSchedule(
@@ -179,10 +284,16 @@ public class ConflictService {
     }
 
     private String labelOf(TimeSlot slot) {
+        return labelOfRaw(slot.dayOfWeek(), slot.date(), slot.startTime(), slot.endTime());
+    }
+
+    /** Same label derivation as {@link #labelOf(TimeSlot)}, from the raw text fields a {@code
+     * saved_plan_resource_usage} row stores directly (no {@code TimeSlot} row to join to - the usage
+     * row is a frozen COPY, per V6's schema comment: "a later edit to the source plan's schedule
+     * does not silently change what an already-locked saved_plan blocks"). */
+    private String labelOfRaw(String dayOfWeek, String date, String startTime, String endTime) {
         return labelFormatter.autoLabel(
-                slot.dayOfWeek(), slot.date(),
-                labelFormatter.parseTime(slot.startTime(), "startTime"),
-                labelFormatter.parseTime(slot.endTime(), "endTime"));
+                dayOfWeek, date, labelFormatter.parseTime(startTime, "startTime"), labelFormatter.parseTime(endTime, "endTime"));
     }
 
     /** Sweeps every person's usage list for cross-plan time overlaps. A pair where either usage is a
