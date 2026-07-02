@@ -213,8 +213,12 @@ public class SolveCoordinator {
                 p.elapsedMs(), p.limitMs(), p.improvementCount());
     }
 
-    /** Requests early termination; the final-best-solution consumer still fires and persists the
-     * best-so-far (spec: användaren ska kunna avbryta). 400 if nothing is solving for this plan. */
+    /** Requests early termination. For a job that already STARTED solving, the final-best-solution
+     * consumer fires and persists the best-so-far (spec: användaren ska kunna avbryta). For a job
+     * cancelled while still SOLVING_SCHEDULED, that event never fires — no solution ever existed —
+     * so after a short grace we finalize the run row as CANCELLED ourselves and clear the per-plan
+     * state that {@link #onFinalBestSolution} would otherwise have cleaned up. Without this, the
+     * run sits in SOLVING until the next restart's recovery sweep. 400 if nothing is solving. */
     public String cancelSolve(String activityPlanId) {
         if (solverManager.getSolverStatus(activityPlanId) == SolverStatus.NOT_SOLVING) {
             throw new BadRequestException("No active solve to cancel for plan " + activityPlanId);
@@ -222,7 +226,33 @@ public class SolveCoordinator {
         cancelledByActivityPlanId.put(activityPlanId, Boolean.TRUE);
         String runId = progressRegistry.get(activityPlanId).map(ProgressRegistry.Progress::runId).orElse(null);
         solverManager.terminateEarly(activityPlanId);
+        if (runId != null) {
+            finalizeIfEventNeverFires(activityPlanId, runId);
+        }
         return runId;
+    }
+
+    private void finalizeIfEventNeverFires(String activityPlanId, String runId) {
+        // Grace window: a started job's final-best event lands within this comfortably; a
+        // never-started job produces nothing at all, ever. 2s keeps the cancel endpoint snappy.
+        for (int i = 0; i < 20; i++) {
+            String status = optimizationRunService.runStatus(runId);
+            if (!OptimizationRun.STATUS_SOLVING.equals(status) && !OptimizationRun.STATUS_QUEUED.equals(status)) {
+                return; // the event fired (or a writeback failure already marked it FAILED).
+            }
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+        log.warn("Solve for plan {} was cancelled before the solver started; finalizing run {} as CANCELLED without a result",
+                activityPlanId, runId);
+        optimizationRunService.cancelRunWithoutResult(runId);
+        cancelledByActivityPlanId.remove(activityPlanId);
+        assembledByActivityPlanId.remove(activityPlanId);
+        progressRegistry.clear(activityPlanId);
     }
 
     private void onFinalBestSolution(String activityPlanId, String runId, GroupPlanSolution finalSolution) {

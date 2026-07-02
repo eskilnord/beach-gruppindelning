@@ -128,6 +128,41 @@ public class OptimizationRunService {
         return optimizationRunRepository.update(updated);
     }
 
+    /** Current status of a run row, for the cancel path's did-the-event-fire probe. */
+    public String runStatus(String runId) {
+        return optimizationRunRepository.findById(runId)
+                .map(OptimizationRun::status)
+                .orElseThrow(() -> new IllegalStateException("optimization_run vanished mid-cancel: " + runId));
+    }
+
+    /** Finalizes a run whose solver job was terminated before it ever produced a solution — a
+     * cancel while the job is still SOLVING_SCHEDULED never fires the final-best-solution event,
+     * so no writeback/finishRun happens and the row would otherwise sit in SOLVING forever (bug
+     * found by the M9 ActiveSolveCleanup test extension; the startup sweep only cures it after a
+     * restart). No-op if the row already reached a terminal status (the event won the race). */
+    public void cancelRunWithoutResult(String runId) {
+        OptimizationRun run = optimizationRunRepository.findById(runId)
+                .orElseThrow(() -> new IllegalStateException("optimization_run vanished mid-cancel: " + runId));
+        if (!OptimizationRun.STATUS_SOLVING.equals(run.status()) && !OptimizationRun.STATUS_QUEUED.equals(run.status())) {
+            return;
+        }
+        Instant finishedAt = Instant.now();
+        int durationMs = (int) Math.max(0, finishedAt.toEpochMilli() - Instant.parse(run.startedAt()).toEpochMilli());
+        OptimizationRun updated = new OptimizationRun(
+                run.id(),
+                run.activityPlanId(),
+                run.inputSnapshotJson(),
+                run.constraintWeightsJson(),
+                run.score(),
+                OptimizationRun.STATUS_CANCELLED,
+                run.startedAt(),
+                finishedAt.toString(),
+                durationMs,
+                writeJson(Map.of("note", "avbruten innan lösaren hann starta")),
+                run.planRevision());
+        optimizationRunRepository.update(updated);
+    }
+
     /** One compact row per constraint that fired or is configured (docs/design/04-solver.md §11.1):
      * {@code key, label, level, weightApplied, scoreTotal, matchCount} — the plan-level analysis
      * persisted eagerly after every solve/greedy run (M7 task item 2), extending what M6a stored
