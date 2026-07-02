@@ -36,6 +36,11 @@ public class ApiExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, e.getMessage());
     }
 
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<Map<String, String>> handleConflict(ConflictException e) {
+        return error(HttpStatus.CONFLICT, e.getMessage());
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, String>> handleUnreadableBody(HttpMessageNotReadableException e) {
         return error(HttpStatus.BAD_REQUEST, "Malformed request body");

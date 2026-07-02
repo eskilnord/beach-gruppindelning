@@ -4,6 +4,22 @@
  */
 
 export interface paths {
+    "/api/plans/{planId}/time-slots/{slotId}/courts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setCourts"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans/{planId}/participants/{pid}/field-values": {
         parameters: {
             query?: never;
@@ -84,6 +100,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{planId}/coaches/{id}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAvailability"];
+        put: operations["putAvailability"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/coaches/{cid}/field-values": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_1"];
+        put: operations["put_1"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/venues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_1"];
+        put?: never;
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/system/shutdown": {
         parameters: {
             query?: never;
@@ -107,9 +171,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_1"];
+        get: operations["list_2"];
         put?: never;
-        post: operations["create"];
+        post: operations["create_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -125,7 +189,23 @@ export interface paths {
         };
         get: operations["listForSeason"];
         put?: never;
-        post: operations["create_1"];
+        post: operations["create_2"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/time-slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listForPlan"];
+        put?: never;
+        post: operations["create_3"];
         delete?: never;
         options?: never;
         head?: never;
@@ -139,9 +219,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["listForPlan"];
+        get: operations["listForPlan_1"];
         put?: never;
-        post: operations["create_2"];
+        post: operations["create_4"];
         delete?: never;
         options?: never;
         head?: never;
@@ -203,9 +283,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["listForPlan_1"];
+        get: operations["listForPlan_2"];
         put?: never;
-        post: operations["create_3"];
+        post: operations["create_5"];
         delete?: never;
         options?: never;
         head?: never;
@@ -228,6 +308,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{planId}/coaches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listForPlan_3"];
+        put?: never;
+        post: operations["create_6"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/persons": {
         parameters: {
             query?: never;
@@ -235,32 +331,32 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_2"];
+        get: operations["list_3"];
         put?: never;
-        post: operations["create_4"];
+        post: operations["create_7"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/seasons/{id}": {
+    "/api/courts": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["get_1"];
+        get: operations["list_4"];
         put?: never;
-        post?: never;
-        delete: operations["delete"];
+        post: operations["create_8"];
+        delete?: never;
         options?: never;
         head?: never;
-        patch: operations["update_1"];
+        patch?: never;
         trace?: never;
     };
-    "/api/plans/{id}": {
+    "/api/venues/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -270,13 +366,29 @@ export interface paths {
         get: operations["get_2"];
         put?: never;
         post?: never;
-        delete: operations["delete_1"];
+        delete: operations["delete"];
         options?: never;
         head?: never;
-        patch: operations["update_2"];
+        patch: operations["update_1"];
         trace?: never;
     };
-    "/api/persons/{id}": {
+    "/api/training-blocks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateActive"];
+        trace?: never;
+    };
+    "/api/time-slots/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -286,13 +398,13 @@ export interface paths {
         get: operations["get_3"];
         put?: never;
         post?: never;
-        delete: operations["delete_2"];
+        delete: operations["delete_1"];
         options?: never;
         head?: never;
-        patch: operations["update_3"];
+        patch: operations["update_2"];
         trace?: never;
     };
-    "/api/participants/{id}": {
+    "/api/seasons/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -302,10 +414,58 @@ export interface paths {
         get: operations["get_4"];
         put?: never;
         post?: never;
+        delete: operations["delete_2"];
+        options?: never;
+        head?: never;
+        patch: operations["update_3"];
+        trace?: never;
+    };
+    "/api/plans/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_5"];
+        put?: never;
+        post?: never;
         delete: operations["delete_3"];
         options?: never;
         head?: never;
         patch: operations["update_4"];
+        trace?: never;
+    };
+    "/api/persons/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_6"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_4"];
+        options?: never;
+        head?: never;
+        patch: operations["update_5"];
+        trace?: never;
+    };
+    "/api/participants/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_7"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_5"];
+        options?: never;
+        head?: never;
+        patch: operations["update_6"];
         trace?: never;
     };
     "/api/field-definitions/{id}": {
@@ -318,10 +478,58 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_4"];
+        delete: operations["delete_6"];
         options?: never;
         head?: never;
-        patch: operations["update_5"];
+        patch: operations["update_7"];
+        trace?: never;
+    };
+    "/api/courts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_8"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_7"];
+        options?: never;
+        head?: never;
+        patch: operations["update_8"];
+        trace?: never;
+    };
+    "/api/coaches/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_9"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_8"];
+        options?: never;
+        head?: never;
+        patch: operations["update_9"];
+        trace?: never;
+    };
+    "/api/plans/{planId}/training-blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listForPlan_4"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/plans/{planId}/import/sessions/{sid}/validate": {
@@ -372,6 +580,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{planId}/capacity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getCapacity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/import/templates": {
         parameters: {
             query?: never;
@@ -411,7 +635,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_3"];
+        get: operations["list_5"];
         put?: never;
         post?: never;
         delete?: never;
@@ -456,6 +680,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        SetCourtsRequest: {
+            /** Format: int32 */
+            count?: number;
+        };
+        TrainingBlockView: {
+            id?: string;
+            timeSlotId?: string;
+            courtId?: string;
+            courtName?: string;
+            activityPlanId?: string;
+            active?: boolean;
+            locked?: boolean;
+        };
         JsonNode: unknown;
         FieldValueView: {
             fieldDefinitionId?: string;
@@ -509,6 +746,27 @@ export interface components {
             enabled?: boolean;
             overridden?: boolean;
         };
+        AvailabilityEntry: {
+            timeSlotId?: string;
+            kind?: string;
+        };
+        CreateVenueRequest: {
+            name?: string;
+            notes?: string;
+        };
+        Court: {
+            id?: string;
+            venueId?: string;
+            name?: string;
+            active?: boolean;
+            notes?: string;
+        };
+        VenueView: {
+            id?: string;
+            name?: string;
+            notes?: string;
+            courts?: components["schemas"]["Court"][];
+        };
         CreateSeasonPlanRequest: {
             name?: string;
             /** Format: date */
@@ -557,6 +815,24 @@ export interface components {
             createdAt?: string;
             /** Format: date-time */
             updatedAt?: string;
+        };
+        CreateTimeSlotRequest: {
+            dayOfWeek?: string;
+            date?: string;
+            startTime?: string;
+            endTime?: string;
+            label?: string;
+        };
+        TimeSlot: {
+            id?: string;
+            activityPlanId?: string;
+            dayOfWeek?: string;
+            date?: string;
+            startTime?: string;
+            endTime?: string;
+            /** Format: int32 */
+            durationMinutes?: number;
+            label?: string;
         };
         CreateParticipantProfileRequest: {
             personId?: string;
@@ -668,6 +944,42 @@ export interface components {
             /** Format: int32 */
             clearedCount?: number;
         };
+        CreateCoachRequest: {
+            personId?: string;
+            firstName?: string;
+            lastName?: string;
+            email?: string;
+            phone?: string;
+            /** Format: double */
+            coachLevel?: number;
+            /** Format: double */
+            canCoachMinLevel?: number;
+            /** Format: double */
+            canCoachMaxLevel?: number;
+            /** Format: int32 */
+            maxGroupsPerDay?: number;
+            /** Format: int32 */
+            maxGroupsPerWeek?: number;
+            canAlsoTrainAsParticipant?: boolean;
+            notes?: string;
+        };
+        CoachProfile: {
+            id?: string;
+            personId?: string;
+            activityPlanId?: string;
+            /** Format: double */
+            coachLevel?: number;
+            /** Format: double */
+            canCoachMinLevel?: number;
+            /** Format: double */
+            canCoachMaxLevel?: number;
+            /** Format: int32 */
+            maxGroupsPerDay?: number;
+            /** Format: int32 */
+            maxGroupsPerWeek?: number;
+            canAlsoTrainAsParticipant?: boolean;
+            notes?: string;
+        };
         CreatePersonRequest: {
             firstName?: string;
             lastName?: string;
@@ -694,6 +1006,19 @@ export interface components {
             createdAt?: string;
             /** Format: date-time */
             updatedAt?: string;
+        };
+        CreateCourtRequest: {
+            venueId?: string;
+            name?: string;
+            active?: boolean;
+            notes?: string;
+        };
+        UpdateVenueRequest: {
+            name?: string;
+            notes?: string;
+        };
+        UpdateTrainingBlockRequest: {
+            active?: boolean;
         };
         UpdateSeasonPlanRequest: {
             name?: string;
@@ -737,6 +1062,15 @@ export interface components {
             optionsJson?: string;
             /** Format: int32 */
             sortOrder?: number;
+        };
+        UpdateCourtRequest: {
+            name?: string;
+            active?: boolean;
+            notes?: string;
+        };
+        SlotBlocksView: {
+            timeSlot?: components["schemas"]["TimeSlot"];
+            blocks?: components["schemas"]["TrainingBlockView"][];
         };
         PersonMatchProposal: {
             existingPersonId?: string;
@@ -785,6 +1119,41 @@ export interface components {
             headerRowIndex?: number;
             columns?: components["schemas"]["ColumnInfo"][];
         };
+        CapacityResponse: {
+            /** Format: int32 */
+            participantCount?: number;
+            /** Format: int32 */
+            waitlistedCount?: number;
+            /** Format: int32 */
+            activeTrainingBlockCount?: number;
+            /** Format: int32 */
+            targetGroupSize?: number;
+            /** Format: int32 */
+            maxGroupSize?: number;
+            /** Format: int32 */
+            targetCapacity?: number;
+            /** Format: int32 */
+            maxCapacity?: number;
+            waitlistRisk?: string;
+            waitlistMessage?: string;
+            /** Format: int32 */
+            coachCount?: number;
+            /** Format: int32 */
+            groupsRequiringCoachEstimate?: number;
+            coachShortageRisk?: boolean;
+            coachShortageMessage?: string;
+            perTimeSlot?: components["schemas"]["TimeSlotCapacityView"][];
+        };
+        TimeSlotCapacityView: {
+            timeSlotId?: string;
+            label?: string;
+            /** Format: int32 */
+            activeBlockCount?: number;
+            /** Format: int32 */
+            coachesAvailableCount?: number;
+            /** Format: int32 */
+            coachesPreferredCount?: number;
+        };
         ImportTemplate: {
             id?: string;
             name?: string;
@@ -812,6 +1181,33 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    setCourts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                slotId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetCourtsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TrainingBlockView"][];
+                };
+            };
+        };
+    };
     get: {
         parameters: {
             query?: never;
@@ -997,6 +1393,152 @@ export interface operations {
             };
         };
     };
+    getAvailability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AvailabilityEntry"][];
+                };
+            };
+        };
+    };
+    putAvailability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AvailabilityEntry"][];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AvailabilityEntry"][];
+                };
+            };
+        };
+    };
+    get_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FieldValueView"][];
+                };
+            };
+        };
+    };
+    put_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: components["schemas"]["JsonNode"];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FieldValueView"][];
+                };
+            };
+        };
+    };
+    list_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["VenueView"][];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateVenueRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["VenueView"];
+                };
+            };
+        };
+    };
     shutdown: {
         parameters: {
             query?: never;
@@ -1019,7 +1561,7 @@ export interface operations {
             };
         };
     };
-    list_1: {
+    list_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -1039,7 +1581,7 @@ export interface operations {
             };
         };
     };
-    create: {
+    create_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1085,7 +1627,7 @@ export interface operations {
             };
         };
     };
-    create_1: {
+    create_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -1128,12 +1670,60 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    "*/*": components["schemas"]["TimeSlot"][];
+                };
+            };
+        };
+    };
+    create_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTimeSlotRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TimeSlot"];
+                };
+            };
+        };
+    };
+    listForPlan_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
                     "*/*": components["schemas"]["ParticipantProfile"][];
                 };
             };
         };
     };
-    create_2: {
+    create_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -1237,7 +1827,7 @@ export interface operations {
             };
         };
     };
-    listForPlan_1: {
+    listForPlan_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -1259,7 +1849,7 @@ export interface operations {
             };
         };
     };
-    create_3: {
+    create_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -1311,7 +1901,55 @@ export interface operations {
             };
         };
     };
-    list_2: {
+    listForPlan_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CoachProfile"][];
+                };
+            };
+        };
+    };
+    create_6: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCoachRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CoachProfile"];
+                };
+            };
+        };
+    };
+    list_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -1331,7 +1969,7 @@ export interface operations {
             };
         };
     };
-    create_4: {
+    create_7: {
         parameters: {
             query?: never;
             header?: never;
@@ -1355,7 +1993,53 @@ export interface operations {
             };
         };
     };
-    get_1: {
+    list_4: {
+        parameters: {
+            query?: {
+                venueId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Court"][];
+                };
+            };
+        };
+    };
+    create_8: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCourtRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Court"];
+                };
+            };
+        };
+    };
+    get_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -1372,7 +2056,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SeasonPlan"];
+                    "*/*": components["schemas"]["VenueView"];
                 };
             };
         };
@@ -1408,7 +2092,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UpdateSeasonPlanRequest"];
+                "application/json": components["schemas"]["UpdateVenueRequest"];
             };
         };
         responses: {
@@ -1418,12 +2102,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SeasonPlan"];
+                    "*/*": components["schemas"]["VenueView"];
                 };
             };
         };
     };
-    get_2: {
+    updateActive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTrainingBlockRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TrainingBlockView"];
+                };
+            };
+        };
+    };
+    get_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -1440,7 +2150,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ActivityPlan"];
+                    "*/*": components["schemas"]["TimeSlot"];
                 };
             };
         };
@@ -1474,9 +2184,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["UpdateActivityPlanRequest"];
+                "application/json": {
+                    [key: string]: components["schemas"]["JsonNode"];
+                };
             };
         };
         responses: {
@@ -1486,12 +2198,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ActivityPlan"];
+                    "*/*": components["schemas"]["TimeSlot"];
                 };
             };
         };
     };
-    get_3: {
+    get_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -1508,7 +2220,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["Person"];
+                    "*/*": components["schemas"]["SeasonPlan"];
                 };
             };
         };
@@ -1544,7 +2256,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UpdatePersonRequest"];
+                "application/json": components["schemas"]["UpdateSeasonPlanRequest"];
             };
         };
         responses: {
@@ -1554,12 +2266,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["Person"];
+                    "*/*": components["schemas"]["SeasonPlan"];
                 };
             };
         };
     };
-    get_4: {
+    get_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -1576,7 +2288,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ParticipantProfile"];
+                    "*/*": components["schemas"]["ActivityPlan"];
                 };
             };
         };
@@ -1610,11 +2322,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: components["schemas"]["JsonNode"];
-                };
+                "application/json": components["schemas"]["UpdateActivityPlanRequest"];
             };
         };
         responses: {
@@ -1624,7 +2334,29 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ParticipantProfile"];
+                    "*/*": components["schemas"]["ActivityPlan"];
+                };
+            };
+        };
+    };
+    get_6: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Person"];
                 };
             };
         };
@@ -1660,6 +2392,122 @@ export interface operations {
         };
         requestBody: {
             content: {
+                "application/json": components["schemas"]["UpdatePersonRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Person"];
+                };
+            };
+        };
+    };
+    get_7: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ParticipantProfile"];
+                };
+            };
+        };
+    };
+    delete_5: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_6: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: components["schemas"]["JsonNode"];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ParticipantProfile"];
+                };
+            };
+        };
+    };
+    delete_6: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_7: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
                 "application/json": components["schemas"]["UpdateFieldDefinitionRequest"];
             };
         };
@@ -1671,6 +2519,166 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["FieldDefinition"];
+                };
+            };
+        };
+    };
+    get_8: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Court"];
+                };
+            };
+        };
+    };
+    delete_7: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_8: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCourtRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Court"];
+                };
+            };
+        };
+    };
+    get_9: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CoachProfile"];
+                };
+            };
+        };
+    };
+    delete_8: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_9: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: components["schemas"]["JsonNode"];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CoachProfile"];
+                };
+            };
+        };
+    };
+    listForPlan_4: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SlotBlocksView"][];
                 };
             };
         };
@@ -1747,6 +2755,28 @@ export interface operations {
             };
         };
     };
+    getCapacity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CapacityResponse"];
+                };
+            };
+        };
+    };
     listTemplates: {
         parameters: {
             query?: never;
@@ -1789,7 +2819,7 @@ export interface operations {
             };
         };
     };
-    list_3: {
+    list_5: {
         parameters: {
             query?: never;
             header?: never;

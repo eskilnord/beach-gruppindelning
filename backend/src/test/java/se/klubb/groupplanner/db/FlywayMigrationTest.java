@@ -14,10 +14,11 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * Verifies the Flyway migrations (V1__core.sql, V2__seed_constraints_and_standard_fields.sql) run
- * cleanly on a fresh temp-dir SQLite database, that every table from docs/design/02-product-data-ui
- * .md §1 exists, and that the seeded rows match spec §10 (24 constraints) and §9.2 (19 standard
- * fields) — docs/plan.md M1 row ("Flyway migration test on a temp-dir SQLite... seeds counted").
+ * Verifies the Flyway migrations (V1__core.sql, V2__seed_constraints_and_standard_fields.sql,
+ * V3__import.sql, V4__resources.sql) run cleanly on a fresh temp-dir SQLite database, that every
+ * table from docs/design/02-product-data-ui.md §1 exists, and that the seeded rows match spec §10
+ * (24 constraints) and §9.2 (19 standard fields) — docs/plan.md M1 row ("Flyway migration test on a
+ * temp-dir SQLite... seeds counted").
  */
 @SpringBootTest
 class FlywayMigrationTest {
@@ -55,7 +56,7 @@ class FlywayMigrationTest {
                 .query((rs, rowNum) -> rs.getString("description"))
                 .list();
 
-        assertThat(descriptions).containsExactly("core", "seed constraints and standard fields", "import");
+        assertThat(descriptions).containsExactly("core", "seed constraints and standard fields", "import", "resources");
     }
 
     @Test

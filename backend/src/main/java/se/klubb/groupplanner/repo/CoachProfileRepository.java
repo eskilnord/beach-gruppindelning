@@ -9,9 +9,9 @@ import org.springframework.stereotype.Repository;
 import se.klubb.groupplanner.domain.CoachProfile;
 
 /**
- * {@code coach_profile} access via {@link JdbcClient} (ADR-004). Minimal CRUD only (M3, for the
- * import wizard's "isCoach" mapping target); full Tränarvyn CRUD (availability, level fit, ...)
- * arrives in M5.
+ * {@code coach_profile} access via {@link JdbcClient} (ADR-004). M3 added minimal CRUD (insert only,
+ * for the import wizard's "isCoach" mapping target); M5 (backend/docs/m5-notes.md) added {@link
+ * #update} and {@link #deleteById} for the full Tränarvyn CRUD.
  */
 @Repository
 public class CoachProfileRepository {
@@ -66,6 +66,32 @@ public class CoachProfileRepository {
                 .param("notes", profile.notes())
                 .update();
         return profile;
+    }
+
+    public CoachProfile update(CoachProfile profile) {
+        jdbcClient.sql("""
+                        UPDATE coach_profile
+                        SET coach_level = :coachLevel, can_coach_min_level = :canCoachMinLevel,
+                            can_coach_max_level = :canCoachMaxLevel, max_groups_per_day = :maxGroupsPerDay,
+                            max_groups_per_week = :maxGroupsPerWeek,
+                            can_also_train_as_participant = :canAlsoTrainAsParticipant, notes = :notes
+                        WHERE id = :id
+                        """)
+                .param("id", profile.id())
+                .param("coachLevel", profile.coachLevel())
+                .param("canCoachMinLevel", profile.canCoachMinLevel())
+                .param("canCoachMaxLevel", profile.canCoachMaxLevel())
+                .param("maxGroupsPerDay", profile.maxGroupsPerDay())
+                .param("maxGroupsPerWeek", profile.maxGroupsPerWeek())
+                .param("canAlsoTrainAsParticipant", profile.canAlsoTrainAsParticipant() ? 1 : 0)
+                .param("notes", profile.notes())
+                .update();
+        return profile;
+    }
+
+    public boolean deleteById(String id) {
+        int rows = jdbcClient.sql("DELETE FROM coach_profile WHERE id = :id").param("id", id).update();
+        return rows > 0;
     }
 
     private static CoachProfile mapRow(ResultSet rs, int rowNum) throws SQLException {

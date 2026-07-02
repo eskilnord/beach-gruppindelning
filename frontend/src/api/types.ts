@@ -64,3 +64,62 @@ export type RecomputeLevelsResult = WithRequired<
   "recomputedCount"
 >;
 export type AnonymizeResult = WithRequired<components["schemas"]["AnonymizeResult"], "clearedCount">;
+
+// --- M5: Resurser / Tränare / Kapacitet ---
+
+export type TimeSlot = WithRequired<
+  components["schemas"]["TimeSlot"],
+  "id" | "activityPlanId" | "startTime" | "endTime" | "durationMinutes" | "label"
+>;
+export type CreateTimeSlotRequest = components["schemas"]["CreateTimeSlotRequest"];
+
+export type TrainingBlockView = WithRequired<
+  components["schemas"]["TrainingBlockView"],
+  "id" | "timeSlotId" | "courtId" | "courtName" | "activityPlanId" | "active" | "locked"
+>;
+
+/** Grouped view backing the Resursvy (spec §19.6): one entry per time slot with its blocks. Hand-
+ *  written rather than derived via WithRequired so the nested fields resolve to the already-narrowed
+ *  TimeSlot/TrainingBlockView aliases above, not the schema's raw optional-everywhere shape. */
+export interface SlotBlocksView {
+  timeSlot: TimeSlot;
+  blocks: TrainingBlockView[];
+}
+
+export type CoachProfile = WithRequired<
+  components["schemas"]["CoachProfile"],
+  "id" | "personId" | "activityPlanId" | "canAlsoTrainAsParticipant"
+>;
+export type CreateCoachRequest = components["schemas"]["CreateCoachRequest"];
+
+export type AvailabilityKind = "AVAILABLE" | "UNAVAILABLE" | "PREFERRED";
+export type AvailabilityEntry = WithRequired<components["schemas"]["AvailabilityEntry"], "timeSlotId" | "kind">;
+
+export type TimeSlotCapacityView = WithRequired<
+  components["schemas"]["TimeSlotCapacityView"],
+  "timeSlotId" | "label" | "activeBlockCount" | "coachesAvailableCount" | "coachesPreferredCount"
+>;
+
+/** Hand-written for the same reason as SlotBlocksView above: `perTimeSlot` needs to resolve to the
+ *  already-narrowed TimeSlotCapacityView, not the schema's raw optional-everywhere element type.
+ *  `Omit<..., "perTimeSlot">` before intersecting is required, not just tidiness - intersecting two
+ *  object types that both declare the same key intersects their *property types* rather than
+ *  overriding, which would silently keep the raw `TimeSlotCapacityView[] | undefined` element type
+ *  alive alongside the narrowed one. */
+export type CapacityResponse = Omit<
+  WithRequired<
+    components["schemas"]["CapacityResponse"],
+    | "participantCount"
+    | "waitlistedCount"
+    | "activeTrainingBlockCount"
+    | "waitlistRisk"
+    | "waitlistMessage"
+    | "coachCount"
+    | "groupsRequiringCoachEstimate"
+    | "coachShortageRisk"
+    | "coachShortageMessage"
+  >,
+  "perTimeSlot"
+> & {
+  perTimeSlot: TimeSlotCapacityView[];
+};

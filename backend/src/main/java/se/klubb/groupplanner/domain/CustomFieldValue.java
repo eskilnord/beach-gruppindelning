@@ -15,4 +15,7 @@ public record CustomFieldValue(
 
     /** {@code entityType} value used for participant-scoped custom field values. */
     public static final String ENTITY_TYPE_PARTICIPANT = "participant";
+
+    /** {@code entityType} value used for coach-scoped custom field values (M5). */
+    public static final String ENTITY_TYPE_COACH = "coach";
 }

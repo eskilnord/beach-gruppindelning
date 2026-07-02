@@ -55,14 +55,28 @@ test("create season → open it → create activity plan → navigate tabs → d
   await expect(page.getByRole("heading", { name: sv.fieldBuilder.heading })).toBeVisible();
   await expect(page.getByRole("button", { name: sv.fieldBuilder.newFieldButton })).toBeVisible();
 
-  const placeholderTabs = [
-    sv.plan.tabs.resources,
-    sv.plan.tabs.coaches,
-    sv.plan.tabs.capacity,
-    sv.plan.tabs.optimize,
-    sv.plan.tabs.results,
-    sv.plan.tabs.export,
-  ];
+  // Resurser (M5: Resursvy, not a placeholder anymore — see resources-coaches-capacity.spec.ts for
+  // the full flow).
+  await page.getByRole("tab", { name: sv.plan.tabs.resources }).click();
+  await expect(page.getByRole("tab", { name: sv.plan.tabs.resources })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("heading", { name: sv.resources.heading })).toBeVisible();
+  await expect(page.getByText(sv.resources.empty)).toBeVisible();
+  await expect(page.getByRole("button", { name: sv.resources.newSlotButton })).toBeVisible();
+
+  // Tränare (M5: Tränarvy, not a placeholder anymore).
+  await page.getByRole("tab", { name: sv.plan.tabs.coaches }).click();
+  await expect(page.getByRole("tab", { name: sv.plan.tabs.coaches })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("heading", { name: sv.coaches.heading })).toBeVisible();
+  await expect(page.getByText(sv.coaches.empty)).toBeVisible();
+  await expect(page.getByRole("button", { name: sv.coaches.newCoachButton })).toBeVisible();
+
+  // Kapacitet (M5: Kapacitetsanalysvy, not a placeholder anymore) - empty state before any time
+  // slots exist.
+  await page.getByRole("tab", { name: sv.plan.tabs.capacity }).click();
+  await expect(page.getByRole("tab", { name: sv.plan.tabs.capacity })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByText(sv.capacity.empty)).toBeVisible();
+
+  const placeholderTabs = [sv.plan.tabs.optimize, sv.plan.tabs.results, sv.plan.tabs.export];
 
   for (const tabLabel of placeholderTabs) {
     await page.getByRole("tab", { name: tabLabel }).click();

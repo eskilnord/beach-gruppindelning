@@ -1,0 +1,4 @@
+Förnamn,Efternamn,E-post,Ranking
+Lena,Holmberg,lena.holmberg@example.se,520
+Peter,Vikström,peter.vikstrom@example.se,470
+Sofia,Dahlgren,sofia.dahlgren@example.se,505

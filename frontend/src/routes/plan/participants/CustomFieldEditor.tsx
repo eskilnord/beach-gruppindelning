@@ -3,12 +3,24 @@ import { sv } from "../../../i18n/sv";
 import type { FieldDefinition, FieldValueView } from "../../../api/types";
 import type { ParticipantRow } from "./participantRow";
 
+/** Minimal shape CustomFieldEditor needs for a coachRelation option - a real CoachProfile joined
+ *  with its person's display name (mirrors ParticipantRow's "profile + name" shape). */
+export interface CoachOption {
+  id: string;
+  name: string;
+}
+
 interface CustomFieldEditorProps {
   fieldValue: FieldValueView;
   definition: FieldDefinition | undefined;
   value: unknown;
   onChange: (value: unknown) => void;
+  /** Options for a `personRelation` field. Pass `[]` where participants aren't loaded (e.g. a
+   *  Tränarvy drawer that hasn't fetched them). */
   participants: ParticipantRow[];
+  /** Options for a `coachRelation` field (arrives M5 - coaches didn't exist before). Pass `[]`
+   *  where coaches aren't loaded/relevant. */
+  coaches?: CoachOption[];
   selfId: string;
 }
 
@@ -30,10 +42,20 @@ function asStringArray(value: unknown): string[] {
 
 /**
  * Renders one custom-field editor by fieldType (spec §9.3, Deltagarvy drawer's structured side,
- * §19.4). `coachRelation`/`groupRelation` have no listing endpoint yet (coaches/groups arrive M5) so
- * they render as an informational note rather than a non-functional picker.
+ * §19.4; generalized in M5 for the Tränarvy drawer, which reuses this same component for a coach's
+ * custom fields). `groupRelation` still has no listing endpoint (groups arrive M6) so it renders as
+ * an informational note rather than a non-functional picker; `coachRelation` is a real picker now
+ * that the coach register exists.
  */
-export function CustomFieldEditor({ fieldValue, definition, value, onChange, participants, selfId }: CustomFieldEditorProps) {
+export function CustomFieldEditor({
+  fieldValue,
+  definition,
+  value,
+  onChange,
+  participants,
+  coaches = [],
+  selfId,
+}: CustomFieldEditorProps) {
   const label = fieldValue.label;
 
   switch (fieldValue.fieldType) {
@@ -130,7 +152,23 @@ export function CustomFieldEditor({ fieldValue, definition, value, onChange, par
       );
     }
 
-    case "coachRelation":
+    case "coachRelation": {
+      const options = coaches
+        .filter((coach) => coach.id !== selfId)
+        .map((coach) => ({ value: coach.id, label: coach.name }));
+      return (
+        <MultiSelect
+          label={label}
+          placeholder={sv.coaches.coachRelationPlaceholder}
+          data={options}
+          value={asStringArray(value)}
+          onChange={(next) => onChange(next.length > 0 ? next : null)}
+          searchable
+          comboboxProps={{ withinPortal: false }}
+        />
+      );
+    }
+
     case "groupRelation":
     default:
       return (

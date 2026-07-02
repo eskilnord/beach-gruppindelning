@@ -22,6 +22,8 @@ import { useFieldDefinitions } from "../../../api/fieldDefinitions";
 import { useParticipantFieldValues, useUpdateParticipantFieldValues } from "../../../api/fieldValues";
 import { useUpdateParticipant } from "../../../api/participants";
 import { useDeleteParticipantComments } from "../../../api/comments";
+import { useCoaches } from "../../../api/coaches";
+import { usePersons } from "../../../api/persons";
 import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
 import { DeleteConfirmModal } from "../../../components/DeleteConfirmModal";
@@ -102,6 +104,13 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
   const updateParticipant = useUpdateParticipant(planId);
   const updateFieldValues = useUpdateParticipantFieldValues(planId, participant.id);
   const deleteComments = useDeleteParticipantComments(planId);
+  const coaches = useCoaches(planId);
+  const persons = usePersons();
+
+  const coachOptions = (coaches.data ?? []).map((coach) => {
+    const person = persons.data?.find((candidate) => candidate.id === coach.personId);
+    return { id: coach.id, name: person ? person.displayName || `${person.firstName} ${person.lastName}`.trim() : coach.personId };
+  });
 
   const [structuredDraft, setStructuredDraft] = useState<StructuredDraft>(() => structuredDraftFrom(participant));
   const [originalStructured, setOriginalStructured] = useState<StructuredDraft>(() => structuredDraftFrom(participant));
@@ -277,6 +286,7 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
                 value={customDraft[fv.key] ?? null}
                 onChange={(value) => setCustomDraft((prev) => ({ ...prev, [fv.key]: value }))}
                 participants={allParticipants}
+                coaches={coachOptions}
                 selfId={participant.id}
               />
             ))}

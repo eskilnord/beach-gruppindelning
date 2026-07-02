@@ -6,13 +6,17 @@ import { PlanLayout } from "./routes/plan/PlanLayout";
 import { PlaceholderPanel } from "./routes/plan/PlaceholderPanel";
 import { ParticipantsPanel } from "./routes/plan/participants/ParticipantsPanel";
 import { FieldsPanel } from "./routes/plan/fields/FieldsPanel";
+import { ResourcesPanel } from "./routes/plan/resources/ResourcesPanel";
+import { CoachesPanel } from "./routes/plan/coaches/CoachesPanel";
+import { CapacityPanel } from "./routes/plan/capacity/CapacityPanel";
 import { ImportWizardPage } from "./routes/import/ImportWizardPage";
 import { sv } from "./i18n/sv";
 
 /**
  * Route tree (docs/design/02-product-data-ui.md §6, corrected paths): Startvy at "/", Säsongsvy at
- * "/seasons/:seasonId", plan layout with tab navigation at "/plans/:planId/<tab>". Every tab beyond
- * this milestone's scope renders an empty PlaceholderPanel with a "kommer i senare milstolpe" note.
+ * "/seasons/:seasonId", plan layout with tab navigation at "/plans/:planId/<tab>". Tabs beyond the
+ * current milestone's scope (Optimering/Resultat/Export, arriving M6+) render an empty
+ * PlaceholderPanel with a "kommer i senare milstolpe" note.
  */
 export const router = createBrowserRouter([
   {
@@ -29,9 +33,9 @@ export const router = createBrowserRouter([
           { index: true, element: <Navigate to="deltagare" replace /> },
           { path: "deltagare", element: <ParticipantsPanel /> },
           { path: "falt", element: <FieldsPanel /> },
-          { path: "resurser", element: <PlaceholderPanel title={sv.plan.tabs.resources} /> },
-          { path: "tranare", element: <PlaceholderPanel title={sv.plan.tabs.coaches} /> },
-          { path: "kapacitet", element: <PlaceholderPanel title={sv.plan.tabs.capacity} /> },
+          { path: "resurser", element: <ResourcesPanel /> },
+          { path: "tranare", element: <CoachesPanel /> },
+          { path: "kapacitet", element: <CapacityPanel /> },
           { path: "optimering", element: <PlaceholderPanel title={sv.plan.tabs.optimize} /> },
           { path: "resultat", element: <PlaceholderPanel title={sv.plan.tabs.results} /> },
           { path: "export", element: <PlaceholderPanel title={sv.plan.tabs.export} /> },
