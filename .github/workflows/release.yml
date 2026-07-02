@@ -293,9 +293,38 @@ jobs:
               $jarTool = Join-Path $env:JAVA_HOME "bin\jar.exe"
               & $jarTool tf $installedJar 2>&1 | Select-String -Pattern "JarLauncher|MANIFEST" | Select-Object -First 5 | ForEach-Object { Write-Host "installed jar entry: $_" }
           }
-          # (An earlier direct `java -jar` diagnostic ran the server here and HUNG the step
-          # for 30 min — the installed jar boots fine since the lockfile fix, so the direct
-          # run is gone; hash + entry listing above stay as cheap forensics.)
+
+          # 2x2 matrix: {installed, source-tree} java  x  {installed, source-tree} jar.
+          # Jar hashes match source<->installed, yet the installed run says
+          # ClassNotFoundException: JarLauncher — so isolate whether the installed JRE
+          # or something environmental is broken. Each run is BOUNDED (20s then kill).
+          $sourceJre = "desktop/src-tauri/resources/jre/bin/java.exe"
+          $installedJava = Join-Path $installDir "resources\jre\bin\java.exe"
+          Write-Host "--- jre file hashes (source vs installed) ---"
+          foreach ($rel in @("bin\java.exe", "bin\server\jvm.dll", "lib\modules")) {
+              $s = Join-Path "desktop/src-tauri/resources/jre" $rel
+              $i = Join-Path $installDir "resources\jre\$rel"
+              $sh = if (Test-Path $s) { (Get-FileHash -Algorithm SHA256 $s).Hash.Substring(0,16) } else { "MISSING" }
+              $ih = if (Test-Path $i) { (Get-FileHash -Algorithm SHA256 $i).Hash.Substring(0,16) } else { "MISSING" }
+              $match = if ($sh -eq $ih) { "MATCH" } else { "DIFFER" }
+              Write-Host ("{0}: src={1} inst={2} => {3}" -f $rel, $sh, $ih, $match)
+          }
+          function Invoke-BoundedJava([string]$label, [string]$javaExe, [string]$jar) {
+              $outF = New-TemporaryFile; $errF = New-TemporaryFile
+              $p = Start-Process -FilePath $javaExe -ArgumentList @("-jar", $jar, "--spring.main.web-application-type=none") `
+                  -RedirectStandardOutput $outF -RedirectStandardError $errF -PassThru -NoNewWindow `
+                  -Environment @{ GP_TOKEN = "diag" }
+              if (-not $p.WaitForExit(20000)) { $p.Kill(); Write-Host "$label : still running after 20s (JVM+jar OK, killed)"; }
+              else { Write-Host "$label : exited code $($p.ExitCode)" }
+              Get-Content $errF -TotalCount 3 | ForEach-Object { Write-Host "$label [stderr] $_" }
+              Get-Content $outF -TotalCount 3 | ForEach-Object { Write-Host "$label [stdout] $_" }
+              Remove-Item $outF, $errF -ErrorAction SilentlyContinue
+          }
+          Write-Host "--- 2x2 java/jar matrix ---"
+          Invoke-BoundedJava "instJava+instJar " $installedJava $installedJar
+          Invoke-BoundedJava "instJava+srcJar  " $installedJava $sourceJar
+          Invoke-BoundedJava "srcJava+instJar  " $sourceJre $installedJar
+          Invoke-BoundedJava "srcJava+srcJar   " $sourceJre $sourceJar
           Write-Host "--- end jar diagnostics ---"
 
           # --- Windows GUI-subsystem stdout caveat -----------------------------------------
