@@ -136,13 +136,13 @@ class SolveControllerIntegrationTest {
                         .content("{\"profile\":\"FAST\"}"))
                 .andExpect(status().isConflict());
 
-        // FAST = 10s wall-clock (spec §16.6); poll until NOT_SOLVING.
-        await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(200)).untilAsserted(() -> {
-            String statusResponse = mockMvc.perform(get("/api/plans/" + planId + "/solve/status")
-                            .header("X-GP-Token", VALID_TOKEN))
-                    .andReturn().getResponse().getContentAsString();
-            JsonNode node = objectMapper.readTree(statusResponse);
-            assertThat(node.get("status").asText()).isEqualTo("NOT_SOLVING");
+        // FAST = 10s wall-clock (spec §16.6). Poll the RUN ROW, not the transient solver
+        // status: FINISHED persistence happens in the completion callback, which can lag
+        // behind SolverManager flipping to NOT_SOLVING on a slow CI runner (observed on
+        // windows-latest). Generous bound — untilAsserted returns as soon as it holds.
+        await().atMost(Duration.ofSeconds(60)).pollInterval(Duration.ofMillis(200)).untilAsserted(() -> {
+            OptimizationRun polled = optimizationRunRepository.findById(runId).orElseThrow();
+            assertThat(polled.status()).isEqualTo(OptimizationRun.STATUS_FINISHED);
         });
 
         // optimization_run persisted as FINISHED with a feasible score.
@@ -183,11 +183,10 @@ class SolveControllerIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         assertThat(objectMapper.readTree(cancelResponse).get("finalRunId").asText()).isEqualTo(runId);
 
-        await().atMost(Duration.ofSeconds(15)).pollInterval(Duration.ofMillis(200)).untilAsserted(() -> {
-            String statusResponse = mockMvc.perform(get("/api/plans/" + planId + "/solve/status")
-                            .header("X-GP-Token", VALID_TOKEN))
-                    .andReturn().getResponse().getContentAsString();
-            assertThat(objectMapper.readTree(statusResponse).get("status").asText()).isEqualTo("NOT_SOLVING");
+        // Poll the run row (not the transient solver status) — see the FINISHED test's note.
+        await().atMost(Duration.ofSeconds(60)).pollInterval(Duration.ofMillis(200)).untilAsserted(() -> {
+            OptimizationRun polled = optimizationRunRepository.findById(runId).orElseThrow();
+            assertThat(polled.status()).isEqualTo(OptimizationRun.STATUS_CANCELLED);
         });
 
         OptimizationRun run = optimizationRunRepository.findById(runId).orElseThrow();
