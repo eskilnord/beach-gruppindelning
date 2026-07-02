@@ -15,9 +15,9 @@
 
   <groupId>se.klubb.groupplanner</groupId>
   <artifactId>backend</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+  <version>0.1.0</version>
   <name>backend</name>
-  <description>Gruppindelning desktop backend (walking skeleton, M0)</description>
+  <description>Gruppindelning desktop backend</description>
 
   <properties>
     <java.version>21</java.version>

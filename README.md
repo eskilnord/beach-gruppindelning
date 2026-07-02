@@ -8,7 +8,23 @@ Första användningsfall: beachvolleyträning (~130 spelare / 12 nivågrupper pe
 
 ## Status
 
-Under utveckling — se `docs/plan.md` (färdplan M0–M9) och `docs/design/` (designdokument). Första skarpa användning: VT27-planeringen.
+**MVP funktionellt komplett** (milstolpe M9, `docs/plan.md`) — samtliga kärnflöden
+(import → strukturera fält → resurser/tränare → optimera → förklara → what-if → lås →
+exportera) är byggda och testade. Se `docs/acceptance-vt27-mvp.md` för en
+kriterium-för-kriterium-genomgång mot kravspecens §23 acceptanskriterier (backend 501
+tester, frontend 105 tester + 7 gröna Playwright-flöden), `docs/plan.md` (färdplan
+M0–M9) och `docs/design/` (designdokument). Första skarpa användning: VT27-planeringen
+(kansliets dry run med den riktiga anmälningsfilen är sista steget innan skarp drift,
+se acceptansdokumentets 👤-markerade punkter).
+
+**Installation:** `docs/installation-mac.md` / `docs/installation-windows.md` — ingen
+Java, Node eller annat förinstallerat krävs, allt bundlas i appen.
+
+**Release-process:** en tagg `vX.Y.Z` pushad till `main` triggar `.github/workflows/release.yml`,
+som bygger signerade ad-hoc-installerare för Mac (`.dmg`) och Windows (`.exe`/NSIS),
+installerar och röktestar de faktiska artefakterna på riktiga CI-maskiner (inte bara
+den obundlade binären), och publicerar ett utkast till GitHub Release med båda
+installerarna bifogade.
 
 ## Arkitektur (kort)
 

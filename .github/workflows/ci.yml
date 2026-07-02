@@ -1,9 +1,11 @@
 name: CI
 
 # Every PR + every push to main (docs/design/01-architecture.md §7 / docs/plan.md M0 exit
-# criteria). Four jobs: a fast confidentiality gate everything else waits on, the backend
-# test suite on both target OSes, a packaged-runtime smoke test (fat jar + jlink JRE, no
-# Tauri bundling) on both OSes, and a Rust/config check for the Tauri shell itself.
+# criteria, Verification section). Six jobs: a fast confidentiality gate everything else
+# waits on, the backend test suite on both target OSes, frontend static checks + unit tests,
+# Playwright e2e in browser mode (docs/plan.md Verification: "Playwright flows for the §22.4
+# list ... in browser mode"), a packaged-runtime smoke test (fat jar + jlink JRE, no Tauri
+# bundling) on both OSes, and a Rust/config check for the Tauri shell itself.
 on:
   push:
     branches: [main]
@@ -75,6 +77,76 @@ jobs:
           $ErrorActionPreference = "Stop"
           .\mvnw.cmd verify
           if ($LASTEXITCODE -ne 0) { throw "mvnw verify failed with exit code $LASTEXITCODE" }
+
+  # ---------------------------------------------------------------------------------------
+  # Frontend static checks + unit tests (React 19 + TypeScript 5 + Vitest). Runs on Linux:
+  # these checks are OS-agnostic (no native backend/Rust involved), so the extra mac/windows
+  # runner minutes buy nothing here — cross-platform coverage for the shipped app comes from
+  # the backend and packaged-smoke matrices above.
+  # ---------------------------------------------------------------------------------------
+  frontend:
+    name: frontend (tsc + vitest)
+    needs: confidentiality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: npm ci (frontend)
+        working-directory: frontend
+        run: npm ci
+
+      - name: tsc -b --noEmit
+        working-directory: frontend
+        run: npx tsc -b --noEmit
+
+      - name: vitest run
+        working-directory: frontend
+        run: npx vitest run
+
+  # ---------------------------------------------------------------------------------------
+  # Playwright e2e in browser mode (docs/plan.md Verification: "E2E: Playwright flows for the
+  # §22.4 list [...] in browser mode"). Spins up the real backend (spring-boot:run, dev
+  # profile/token) + `vite` dev server exactly like local `npm run test:e2e`, then drives
+  # Chromium through import→map→fields→resources→coaches→solve→explain→move→lock→re-solve→
+  # export (frontend/e2e/*.spec.ts). Runs on Linux only: Playwright/Chromium behavior itself
+  # is OS-agnostic, and the JVM/native cross-platform risk this would otherwise catch is
+  # already covered by the backend and packaged-smoke matrices above — running it twice more
+  # on mac/windows would only add runner minutes, not new signal.
+  # ---------------------------------------------------------------------------------------
+  e2e:
+    name: e2e (Playwright, browser mode)
+    needs: confidentiality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: npm ci (frontend)
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browsers (chromium + OS deps)
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: playwright test
+        working-directory: frontend
+        run: npx playwright test
 
   # ---------------------------------------------------------------------------------------
   # Packaged-runtime smoke (docs/design/01-architecture.md §7 `desktop-smoke`): builds the
