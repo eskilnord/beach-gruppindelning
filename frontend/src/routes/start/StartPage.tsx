@@ -13,8 +13,10 @@ import {
   Text,
   Title,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { useSeasons } from "../../api/seasons";
 import { useRecentPlans } from "../../api/plans";
+import { useCreateDemoData } from "../../api/demo";
 import { ApiError } from "../../api/client";
 import { sv } from "../../i18n/sv";
 import { TutorialBanner } from "../../components/tutorial/TutorialBanner";
@@ -27,6 +29,21 @@ export function StartPage() {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const seasons = useSeasons();
   const recentPlans = useRecentPlans((seasons.data ?? []).map((season) => season.id));
+  const createDemoData = useCreateDemoData();
+
+  const handleCreateDemoData = async () => {
+    try {
+      const result = await createDemoData.mutateAsync();
+      notifications.show({ color: "green", message: sv.start.demoDataSuccess });
+      navigate(`/plans/${result.planId}/deltagare`);
+    } catch (error) {
+      notifications.show({
+        color: "red",
+        title: sv.common.error,
+        message: error instanceof ApiError ? error.message : sv.start.demoDataFailed,
+      });
+    }
+  };
 
   return (
     <Stack gap="xl" py="md">
@@ -42,6 +59,14 @@ export function StartPage() {
         <Button variant="default" onClick={() => setImportModalOpen(true)}>
           {sv.start.importButton}
         </Button>
+        <Button
+          variant="subtle"
+          loading={createDemoData.isPending}
+          onClick={handleCreateDemoData}
+          data-testid="load-demo-data"
+        >
+          {sv.start.demoDataButton}
+        </Button>
       </Group>
 
       <Card withBorder>
@@ -55,7 +80,23 @@ export function StartPage() {
           </Alert>
         )}
         {seasons.data && seasons.data.length === 0 && (
-          <Text c="dimmed">{sv.start.noSeasons}</Text>
+          <Alert color="blue" mb="md">
+            <Text size="sm" mb="xs">
+              {sv.start.noSeasons}
+            </Text>
+            <Text size="sm" mb="xs">
+              {sv.start.demoDataEmptyStateBody}
+            </Text>
+            <Button
+              size="xs"
+              variant="light"
+              loading={createDemoData.isPending}
+              onClick={handleCreateDemoData}
+              data-testid="load-demo-data-empty-state"
+            >
+              {sv.start.demoDataButton}
+            </Button>
+          </Alert>
         )}
         {seasons.data && seasons.data.length > 0 && (
           <Table verticalSpacing="xs">

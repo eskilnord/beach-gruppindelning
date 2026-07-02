@@ -25,6 +25,9 @@ export type ActivityPlan = WithRequired<
 export type CreateSeasonPlanRequest = components["schemas"]["CreateSeasonPlanRequest"];
 export type UpdateSeasonPlanRequest = components["schemas"]["UpdateSeasonPlanRequest"];
 
+/** Response of `POST /api/demo` (WI-4 "Prova med demodata" — backend `DemoDataService.DemoResult`). */
+export type DemoDataResult = WithRequired<components["schemas"]["DemoResult"], "seasonId" | "planId">;
+
 export type CreateActivityPlanRequest = components["schemas"]["CreateActivityPlanRequest"];
 
 /** PATCH body for `/api/plans/{id}`. The four group-default fields are THREE-STATE server-side

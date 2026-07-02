@@ -38,6 +38,11 @@ export const sv = {
     importButton: "Importera ny fil",
     openButton: "Öppna",
     loadFailed: "Kunde inte hämta säsonger",
+    demoDataButton: "Prova med demodata",
+    demoDataEmptyStateBody:
+      "Vill du se hur appen fungerar direkt? Skapa en demosäsong med hundra påhittade spelare, tränare och önskemål – utan att importera något.",
+    demoDataSuccess: "Demodata skapad! Här är en färdig säsong att utforska.",
+    demoDataFailed: "Kunde inte skapa demodata",
   },
   createSeasonModal: {
     title: "Skapa ny säsong",
