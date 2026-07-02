@@ -73,6 +73,35 @@
       <version>2.8.17</version>
     </dependency>
 
+    <!-- M3 import wizard engine (docs/design/02-product-data-ui.md §2, ../utkast-kravspec.txt §8).
+         CLAUDE.md's determinism rules ("no float/double...enforced by ArchUnit") scope only to
+         solver.domain/solver.constraints - the importer is plain data-plumbing, not solver code,
+         so this module is free to use ordinary double/String parsing throughout. -->
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi</artifactId>
+      <!-- Pinned exact: latest 5.5.x on Maven Central as of 2026-07-02 (repo1.maven.org
+           maven-metadata.xml <latest>/<release> both 5.5.1); matches the version verified in
+           docs/design/02-product-data-ui.md §0 ("Apache POI 5.5.1"). Do not float to a 6.x line
+           without re-verifying the design doc's pin. -->
+      <version>5.5.1</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-ooxml</artifactId>
+      <!-- Kept in lockstep with the `poi` artifact above - same 5.5.1 pin. -->
+      <version>5.5.1</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-csv</artifactId>
+      <!-- Pinned exact: latest 1.x on Maven Central as of 2026-07-02 (repo1.maven.org
+           maven-metadata.xml <latest>/<release> both 1.14.1). The 1.x line is what
+           docs/design/02-product-data-ui.md §0 calls for ("Apache Commons CSV 1.x"). -->
+      <version>1.14.1</version>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>

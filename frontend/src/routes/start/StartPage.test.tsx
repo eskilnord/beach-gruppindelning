@@ -30,7 +30,7 @@ describe("StartPage", () => {
     expect(screen.getByRole("button", { name: sv.start.createSeasonButton })).toBeInTheDocument();
 
     const importButton = screen.getByRole("button", { name: sv.start.importButton });
-    expect(importButton).toBeDisabled();
+    expect(importButton).toBeEnabled();
 
     await waitFor(() => {
       expect(screen.getByText("VT27")).toBeInTheDocument();
@@ -54,5 +54,22 @@ describe("StartPage", () => {
     await user.click(within(dialog).getByRole("button", { name: sv.createSeasonModal.submit }));
 
     expect(await within(dialog).findByText(sv.common.nameRequired)).toBeInTheDocument();
+  });
+
+  it("opens the import entry modal (season/plan picker) from 'Importera ny fil'", async () => {
+    server.use(
+      http.get("/api/seasons", () => HttpResponse.json([SEASON])),
+      http.get("/api/seasons/season-1/plans", () => HttpResponse.json([])),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<StartPage />);
+
+    await user.click(screen.getByRole("button", { name: sv.start.importButton }));
+
+    const dialog = await screen.findByRole("dialog", { name: sv.importEntry.title });
+    expect(within(dialog).getByText(sv.importEntry.seasonLabel)).toBeInTheDocument();
+    // No season chosen yet, so the plan picker and continue button aren't actionable.
+    expect(within(dialog).getByRole("button", { name: sv.importEntry.continueButton })).toBeDisabled();
   });
 });

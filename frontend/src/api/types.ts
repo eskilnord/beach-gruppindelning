@@ -27,3 +27,16 @@ export type UpdateSeasonPlanRequest = components["schemas"]["UpdateSeasonPlanReq
 
 export type CreateActivityPlanRequest = components["schemas"]["CreateActivityPlanRequest"];
 export type UpdateActivityPlanRequest = components["schemas"]["UpdateActivityPlanRequest"];
+
+export type Person = WithRequired<
+  components["schemas"]["Person"],
+  "id" | "firstName" | "lastName" | "canBeParticipant" | "canBeCoach"
+>;
+export type ParticipantProfile = WithRequired<
+  components["schemas"]["ParticipantProfile"],
+  "id" | "personId" | "activityPlanId" | "manualReviewFlag" | "waitlisted"
+>;
+export type FieldDefinition = WithRequired<
+  components["schemas"]["FieldDefinition"],
+  "id" | "key" | "label" | "fieldType" | "isStandard" | "storageKind" | "affectsOptimization"
+>;

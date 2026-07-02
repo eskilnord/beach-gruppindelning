@@ -12,17 +12,18 @@ import {
   Table,
   Text,
   Title,
-  Tooltip,
 } from "@mantine/core";
 import { useSeasons } from "../../api/seasons";
 import { useRecentPlans } from "../../api/plans";
 import { ApiError } from "../../api/client";
 import { sv } from "../../i18n/sv";
 import { CreateSeasonModal } from "./CreateSeasonModal";
+import { ImportEntryModal } from "./ImportEntryModal";
 
 export function StartPage() {
   const navigate = useNavigate();
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const seasons = useSeasons();
   const recentPlans = useRecentPlans((seasons.data ?? []).map((season) => season.id));
 
@@ -35,11 +36,9 @@ export function StartPage() {
 
       <Group>
         <Button onClick={() => setCreateModalOpen(true)}>{sv.start.createSeasonButton}</Button>
-        <Tooltip label={sv.start.importTooltip}>
-          <Button variant="default" disabled>
-            {sv.start.importButton}
-          </Button>
-        </Tooltip>
+        <Button variant="default" onClick={() => setImportModalOpen(true)}>
+          {sv.start.importButton}
+        </Button>
       </Group>
 
       <Card withBorder>
@@ -126,6 +125,12 @@ export function StartPage() {
           setCreateModalOpen(false);
           navigate(`/seasons/${seasonId}`);
         }}
+      />
+
+      <ImportEntryModal
+        opened={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        onContinue={(planId) => navigate(`/plans/${planId}/import`)}
       />
     </Stack>
   );

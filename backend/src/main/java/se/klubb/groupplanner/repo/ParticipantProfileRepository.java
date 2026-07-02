@@ -32,6 +32,16 @@ public class ParticipantProfileRepository {
                 .list();
     }
 
+    /** Used by the import wizard commit (M3) to detect a re-import and update rather than duplicate. */
+    public Optional<ParticipantProfile> findByPersonIdAndActivityPlanId(String personId, String activityPlanId) {
+        return jdbcClient.sql(
+                        "SELECT * FROM participant_profile WHERE person_id = :personId AND activity_plan_id = :activityPlanId")
+                .param("personId", personId)
+                .param("activityPlanId", activityPlanId)
+                .query(ParticipantProfileRepository::mapRow)
+                .optional();
+    }
+
     public Optional<ParticipantProfile> findById(String id) {
         return jdbcClient.sql("SELECT * FROM participant_profile WHERE id = :id")
                 .param("id", id)

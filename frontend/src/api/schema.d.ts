@@ -4,6 +4,54 @@
  */
 
 export interface paths {
+    "/api/plans/{planId}/import/sessions/{sid}/mapping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setMapping"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/import/sessions/{sid}/header": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setHeader"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/import/sessions/{sid}/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setDecisions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/system/shutdown": {
         parameters: {
             query?: never;
@@ -62,6 +110,38 @@ export interface paths {
         get: operations["listForPlan"];
         put?: never;
         post: operations["create_2"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/import/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/import/sessions/{sid}/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["commit"];
         delete?: never;
         options?: never;
         head?: never;
@@ -148,6 +228,54 @@ export interface paths {
         patch: operations["update_3"];
         trace?: never;
     };
+    "/api/plans/{planId}/import/sessions/{sid}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["validate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/import/sessions/{sid}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/import/sessions/{sid}/columns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["columns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans/{planId}/field-definitions": {
         parameters: {
             query?: never;
@@ -156,6 +284,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["listForPlan_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/import/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listTemplates"];
         put?: never;
         post?: never;
         delete?: never;
@@ -196,10 +340,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{planId}/import/sessions/{sid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteSession"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ColumnMappingDto: {
+            /** Format: int32 */
+            columnIndex?: number;
+            target?: string;
+        };
+        MappingRequest: {
+            sheet?: string;
+            mappings?: components["schemas"]["ColumnMappingDto"][];
+        };
+        MappingResponse: {
+            sheet?: string;
+            mappings?: components["schemas"]["ColumnMappingDto"][];
+        };
+        HeaderRequest: {
+            sheet?: string;
+            /** Format: int32 */
+            headerRowIndex?: number;
+        };
+        HeaderResponse: {
+            sheet?: string;
+            /** Format: int32 */
+            headerRowIndex?: number;
+        };
+        DecisionDto: {
+            action?: string;
+            personId?: string;
+        };
         CreateSeasonPlanRequest: {
             name?: string;
             /** Format: date */
@@ -289,6 +476,30 @@ export interface components {
             manualReviewFlag?: boolean;
             waitlisted?: boolean;
         };
+        CreatedSession: {
+            sessionId?: string;
+            sheets?: components["schemas"]["SheetSummary"][];
+        };
+        SheetSummary: {
+            name?: string;
+            /** Format: int32 */
+            rowCount?: number;
+            suggestedTemplateId?: string;
+            suggestedTemplateName?: string;
+        };
+        CommitRequest: {
+            saveAsTemplate?: boolean;
+            templateName?: string;
+        };
+        CommitResult: {
+            /** Format: int32 */
+            imported?: number;
+            /** Format: int32 */
+            skipped?: number;
+            warnings?: string[];
+            importRunId?: string;
+            savedTemplateId?: string;
+        };
         CreatePersonRequest: {
             firstName?: string;
             lastName?: string;
@@ -364,6 +575,53 @@ export interface components {
             manualReviewFlag?: boolean;
             waitlisted?: boolean;
         };
+        PersonMatchProposal: {
+            existingPersonId?: string;
+            /** @enum {string} */
+            matchBasis?: "EXTERNAL_ID_EXACT" | "EMAIL_EXACT" | "PHONE_EXACT" | "NAME_EXACT" | "NAME_SIMILAR";
+            /** Format: double */
+            confidence?: number;
+        };
+        RowValidationResult: {
+            /** Format: int32 */
+            rowIndex?: number;
+            /** @enum {string} */
+            status?: "OK" | "WARN" | "SKIP";
+            reasons?: string[];
+            matchProposals?: components["schemas"]["PersonMatchProposal"][];
+        };
+        ValidateResponse: {
+            rows?: components["schemas"]["RowValidationResult"][];
+            /** Format: int32 */
+            totalRows?: number;
+            /** Format: int32 */
+            okCount?: number;
+            /** Format: int32 */
+            warnCount?: number;
+            /** Format: int32 */
+            skipCount?: number;
+        };
+        PreviewResponse: {
+            sheet?: string;
+            /** Format: int32 */
+            headerRowIndex?: number;
+            /** Format: int32 */
+            rowCount?: number;
+            rows?: string[][];
+        };
+        ColumnInfo: {
+            /** Format: int32 */
+            columnIndex?: number;
+            headerText?: string;
+            sampleValues?: string[];
+            suggestedTarget?: string;
+        };
+        ColumnsResponse: {
+            sheet?: string;
+            /** Format: int32 */
+            headerRowIndex?: number;
+            columns?: components["schemas"]["ColumnInfo"][];
+        };
         FieldDefinition: {
             id?: string;
             activityPlanId?: string;
@@ -384,6 +642,14 @@ export interface components {
             /** Format: int32 */
             sortOrder?: number;
         };
+        ImportTemplate: {
+            id?: string;
+            name?: string;
+            headerHash?: string;
+            mappingJson?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
         ConstraintDefinition: {
             key?: string;
             label?: string;
@@ -403,6 +669,91 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    setMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                sid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["MappingResponse"];
+                };
+            };
+        };
+    };
+    setHeader: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                sid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HeaderRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["HeaderResponse"];
+                };
+            };
+        };
+    };
+    setDecisions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                sid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: components["schemas"]["DecisionDto"];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: components["schemas"]["DecisionDto"];
+                    };
+                };
+            };
+        };
+    };
     shutdown: {
         parameters: {
             query?: never;
@@ -561,6 +912,62 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ParticipantProfile"];
+                };
+            };
+        };
+    };
+    createSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CreatedSession"];
+                };
+            };
+        };
+    };
+    commit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                sid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CommitRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CommitResult"];
                 };
             };
         };
@@ -881,6 +1288,78 @@ export interface operations {
             };
         };
     };
+    validate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                sid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ValidateResponse"];
+                };
+            };
+        };
+    };
+    preview: {
+        parameters: {
+            query: {
+                sheet: string;
+                rows?: number;
+            };
+            header?: never;
+            path: {
+                planId: string;
+                sid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PreviewResponse"];
+                };
+            };
+        };
+    };
+    columns: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                sid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ColumnsResponse"];
+                };
+            };
+        };
+    };
     listForPlan_1: {
         parameters: {
             query?: never;
@@ -899,6 +1378,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["FieldDefinition"][];
+                };
+            };
+        };
+    };
+    listTemplates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ImportTemplate"][];
                 };
             };
         };
@@ -942,6 +1441,27 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["ConstraintDefinition"][];
                 };
+            };
+        };
+    };
+    deleteSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                sid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

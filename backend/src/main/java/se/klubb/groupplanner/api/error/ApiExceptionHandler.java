@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 /**
  * Translates exceptions into the API-wide JSON error shape {@code {"error": "..."}} (docs/plan.md
@@ -38,6 +39,16 @@ public class ApiExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, String>> handleUnreadableBody(HttpMessageNotReadableException e) {
         return error(HttpStatus.BAD_REQUEST, "Malformed request body");
+    }
+
+    /**
+     * Import wizard uploads exceeding {@code spring.servlet.multipart.max-file-size}/{@code
+     * max-request-size} (25 MB, application.yaml). Mapped to 413 with a message safe to surface
+     * verbatim in the Swedish wizard UI, instead of the generic 500 the catch-all would produce.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, String>> handleMaxUploadSize(MaxUploadSizeExceededException e) {
+        return error(HttpStatus.PAYLOAD_TOO_LARGE, "Filen är för stor - max 25 MB");
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

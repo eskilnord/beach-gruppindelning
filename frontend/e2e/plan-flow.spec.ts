@@ -37,8 +37,14 @@ test("create season → open it → create activity plan → navigate tabs → d
   // Default tab redirect lands on "Deltagare".
   await expect(page).toHaveURL(/\/deltagare$/);
 
-  const tabs = [
-    sv.plan.tabs.participants,
+  // Deltagare (M3: a basic table + "Importera" button, not a placeholder anymore — see
+  // import-flow.spec.ts for the wizard itself).
+  await page.getByRole("tab", { name: sv.plan.tabs.participants }).click();
+  await expect(page.getByRole("tab", { name: sv.plan.tabs.participants })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByText(sv.participants.empty)).toBeVisible();
+  await expect(page.getByRole("button", { name: sv.participants.importButton })).toBeVisible();
+
+  const placeholderTabs = [
     sv.plan.tabs.fields,
     sv.plan.tabs.resources,
     sv.plan.tabs.coaches,
@@ -48,7 +54,7 @@ test("create season → open it → create activity plan → navigate tabs → d
     sv.plan.tabs.export,
   ];
 
-  for (const tabLabel of tabs) {
+  for (const tabLabel of placeholderTabs) {
     await page.getByRole("tab", { name: tabLabel }).click();
     await expect(page.getByRole("tab", { name: tabLabel })).toHaveAttribute("aria-selected", "true");
     await expect(page.getByText(sv.plan.comingSoon)).toBeVisible();

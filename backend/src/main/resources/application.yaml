@@ -6,6 +6,14 @@ spring:
     name: backend
   main:
     banner-mode: "off"
+  servlet:
+    multipart:
+      # Import wizard uploads (spec §8.1: xlsx/csv). Real registration exports are well under
+      # 1 MB; 25 MB leaves generous headroom without letting an accidental huge upload exhaust
+      # memory (the whole workbook is parsed in-memory). MaxUploadSizeExceededException maps to
+      # HTTP 413 in ApiExceptionHandler. Applies to the dev profile too (defaults document).
+      max-file-size: 25MB
+      max-request-size: 25MB
 server:
   port: 0
   address: 127.0.0.1

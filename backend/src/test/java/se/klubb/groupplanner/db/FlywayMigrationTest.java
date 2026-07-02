@@ -37,7 +37,7 @@ class FlywayMigrationTest {
             "person", "season_plan", "activity_plan", "participant_profile", "coach_profile",
             "coach_time_slot", "venue", "court", "time_slot", "training_block", "training_group",
             "player_assignment", "coach_assignment", "constraint_definition", "field_definition",
-            "custom_field_value", "constraint_weight_config");
+            "custom_field_value", "constraint_weight_config", "import_template", "import_run");
 
     @Test
     void allExpectedTablesExist() {
@@ -55,7 +55,7 @@ class FlywayMigrationTest {
                 .query((rs, rowNum) -> rs.getString("description"))
                 .list();
 
-        assertThat(descriptions).containsExactly("core", "seed constraints and standard fields");
+        assertThat(descriptions).containsExactly("core", "seed constraints and standard fields", "import");
     }
 
     @Test

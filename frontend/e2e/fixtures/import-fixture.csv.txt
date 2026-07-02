@@ -1,0 +1,9 @@
+Förnamn,Efternamn,E-post,Ranking,Tidigare grupp
+Anna,Åkesson,anna.akesson@example.se,450,Dam 3
+Björn,Öberg,bjorn.oberg@example.se,620,Herr 2
+,,,,
+,,no-name@example.se,300,
+Erik,Käring,erik.karing@example.se,500,Herr 4
+Maria,Söderström,anna.akesson@example.se,480,Dam 1
+Nils,Fagerström,nils.fagerstrom@example.se,700,Herr 1
+Ida,Håkansson,ida.hakansson@example.se,550,Dam 2

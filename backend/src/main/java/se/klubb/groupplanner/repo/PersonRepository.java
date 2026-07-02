@@ -34,6 +34,18 @@ public class PersonRepository {
                 .optional();
     }
 
+    /**
+     * Lookup by the UNIQUE {@code external_id} (source-system member id). Used by the import
+     * wizard commit (M3) so a re-import of the same members merges onto the existing person rows
+     * instead of tripping the UNIQUE constraint (M3 review finding 1).
+     */
+    public Optional<Person> findByExternalId(String externalId) {
+        return jdbcClient.sql("SELECT * FROM person WHERE external_id = :externalId")
+                .param("externalId", externalId)
+                .query(PersonRepository::mapRow)
+                .optional();
+    }
+
     public Person insert(Person person) {
         jdbcClient.sql("""
                         INSERT INTO person
