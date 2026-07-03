@@ -96,7 +96,9 @@ test("Optimering (förslag+CUSTOM utan tränare+GREEDY+FAST) → Resultatvy (gru
   const suggestCard = page.getByTestId("suggest-duration-card");
   // Generous timeout: the first-ever suggest call in this backend process also runs the one-time
   // hardware benchmark (a fixed synthetic solve, ~2-3 s on the reference machine, cached after).
-  await expect(suggestCard.getByTestId("suggest-seconds")).toBeVisible({ timeout: 30_000 });
+  // The benchmark itself is capped at 30 s (SolveBenchmarkService), so on a slow or thermally
+  // loaded machine it can legitimately take the full cap - the wait must exceed cap + overhead.
+  await expect(suggestCard.getByTestId("suggest-seconds")).toBeVisible({ timeout: 45_000 });
   await expect(suggestCard.getByTestId("suggest-problem-size")).toBeVisible();
 
   const groupsSummary = page.getByTestId("groups-summary");

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Alert, Button, Card, Loader, SegmentedControl, SimpleGrid, Stack, Text, Title } from "@mantine/core";
+import { Alert, Button, Card, Loader, SegmentedControl, SimpleGrid, Stack, Title } from "@mantine/core";
 import { IconTrophy } from "@tabler/icons-react";
 import { useAssignments } from "../../../api/assignments";
 import { ApiError } from "../../../api/client";
 import { useCoaches } from "../../../api/coaches";
+import { usePlanExplanation } from "../../../api/explanations";
 import { useFieldDefinitions } from "../../../api/fieldDefinitions";
 import { useGroups } from "../../../api/groups";
 import { useParticipantFieldValues, useParticipants } from "../../../api/participants";
@@ -21,6 +22,7 @@ import { GroupExplainDrawer } from "./explain/GroupExplainDrawer";
 import { WhatIfDialog } from "./explain/WhatIfDialog";
 import { GroupCard } from "./GroupCard";
 import { ImprovementSuggestions } from "./ImprovementSuggestions";
+import { ResultsSummary } from "./ResultsSummary";
 import { ScheduleView } from "./ScheduleView";
 import { WaitlistCard, type WaitlistEntry } from "./WaitlistCard";
 
@@ -75,10 +77,16 @@ export function ResultsPanel() {
   const latestRun = runs.data?.[0];
   const latestRunId = latestRun?.id;
   const runStartedAtLabel = latestRun ? formatDateTime(latestRun.startedAt) : undefined;
+  const latestRunSummary = parseResultSummary(latestRun);
   // v0.2.0 (COACH-OPTIONAL SOLVING): the run summary's `note` (present only when the run solved a
   // plan with zero coaches) is surfaced in the Resultatvy header too, so a user landing straight on
   // the results doesn't have to go back to Optimering to learn why no group has a coach.
-  const latestRunNote = parseResultSummary(latestRun)?.note ?? null;
+  const latestRunNote = latestRunSummary?.note ?? null;
+  // "Are these groups good?" (user feedback v0.4 #5): the plan explanation's `problematicGroups`
+  // ranking feeds BOTH ResultsSummary's siblings (implicitly, via the ImprovementSuggestions/analysis
+  // cards elsewhere) and each GroupCard's own quality signal - fetched once here rather than once per
+  // card (React Query would dedupe the requests anyway, but there's no reason to ask N times).
+  const planExplanation = usePlanExplanation(planId, latestRunId);
 
   const waitlistedParticipantIds = useMemo(
     () => (assignments.data?.players ?? []).filter((p) => p.groupId == null).map((p) => p.participantProfileId),
@@ -208,6 +216,32 @@ export function ResultsPanel() {
 
   const allGroups: GroupOption[] = model.sortedGroups.map((g) => ({ id: g.id, name: g.name }));
 
+  // "Are these groups good?" (user feedback v0.4 #5): coach coverage for ResultsSummary's chip,
+  // counted ONLY over groups that actually require a coach (review fix 1: a group configured with
+  // requiredCoachCount 0 is fully covered by definition and must not drag the chip to yellow).
+  // Omitted (null) when no group requires a coach at all, and under the exact same condition the
+  // coach-less `results-note` Alert above already uses - a plan with zero coach profiles has
+  // nothing meaningful to report there either.
+  const groupsRequiringCoach = model.sortedGroups.filter((g) => (g.requiredCoachCount ?? 0) > 0);
+  const coachCoverage =
+    latestRunNote || groupsRequiringCoach.length === 0
+      ? null
+      : {
+          covered: groupsRequiringCoach.filter((g) => (model.coachesByGroupId.get(g.id) ?? []).length > 0).length,
+          total: groupsRequiringCoach.length,
+        };
+
+  // Top-3 groups (by penaltySum, only those > 0) from the plan explanation's problematicGroups
+  // ranking - fed into each matching GroupCard's `penaltySum` prop so groupQuality.ts can surface a
+  // "Störst poängavdrag i planen" warn signal for exactly those groups, never invented for the rest.
+  const problematicGroupPenaltyByGroupId = new Map(
+    [...(planExplanation.data?.problematicGroups ?? [])]
+      .filter((g) => g.penaltySum > 0)
+      .sort((a, b) => b.penaltySum - a.penaltySum)
+      .slice(0, 3)
+      .map((g) => [g.groupId, g.penaltySum]),
+  );
+
   return (
     <Stack gap="md">
       <Card withBorder padding="lg">
@@ -222,17 +256,25 @@ export function ResultsPanel() {
             { label: sv.results.viewToggle.schedule, value: "schedule" },
           ]}
         />
-        {latestRun && (
-          <Text size="xs" c="dimmed" mt="xs" data-testid="explain-based-on">
-            {sv.results.explainBasedOn(runStartedAtLabel ?? "")}
-          </Text>
-        )}
         {latestRunNote && (
           <Alert color="blue" mt="sm" data-testid="results-note">
             {latestRunNote}
           </Alert>
         )}
       </Card>
+
+      {/* "Are these groups good?" (user feedback v0.4 #5): the quality summary strip, including the
+       *  explain-based-on timestamp (moved in from the header Card above - same data-testid/text,
+       *  just relocated) - self-hides when there's no run yet. */}
+      {planId && (
+        <ResultsSummary
+          planId={planId}
+          runId={latestRunId}
+          runStartedAtLabel={runStartedAtLabel}
+          runSummary={latestRunSummary}
+          coachCoverage={coachCoverage}
+        />
+      )}
 
       {/* WI-D "Förbättringsförslag" (user feedback v0.4 #2): only meaningful once a run exists -
        *  self-contained (owns its own fetch/loading/error/empty/stale states), so mounting it is the
@@ -273,6 +315,7 @@ export function ResultsPanel() {
                   members={members}
                   runId={latestRunId}
                   highlightedParticipantId={highlightedParticipantId}
+                  penaltySum={problematicGroupPenaltyByGroupId.get(group.id)}
                   onExplain={(id, name) => setExplainTarget({ id, name })}
                   onTestMove={(id, name) => setWhatIfTarget({ id, name, currentGroupId: group.id })}
                   onExplainGroup={(id, name) => setExplainGroup({ id, name })}

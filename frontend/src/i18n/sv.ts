@@ -1,3 +1,5 @@
+import { pluralize } from "../lib/pluralizeSv";
+
 /**
  * All user-visible strings live here, in Swedish (CLAUDE.md "Language"). Code identifiers and
  * comments stay English. Import `sv` wherever UI copy is needed instead of inlining literals.
@@ -515,6 +517,10 @@ export const sv = {
       // still has no effect on how the solver scores a solution.
       category:
         "En egen etikett för planen, t.ex. \"Herr\", \"Dam\" eller \"Ungdom\". Används också som namnprefix när du genererar grupper (\"Herr 1\", \"Herr 2\" …). Påverkar inte hur optimeringen poängsätter lösningen.",
+    },
+    results: {
+      softScore:
+        "Lägre mjukt avdrag = färre brutna önskemål och avvikelser.",
     },
   },
   fieldBuilder: {
@@ -1080,6 +1086,46 @@ export const sv = {
       omittedCount: (n: number) => (n === 1 ? "1 ytterligare förslag visas inte." : `${n} ytterligare förslag visas inte.`),
       showButton: "Visa förslag",
       hideButton: "Dölj förslag",
+    },
+    // "Are these groups good?" at-a-glance strip (user feedback v0.4 #5) - ResultsSummary.tsx (the
+    // Resultatvy strip above ImprovementSuggestions) and the per-GroupCard status dot/border/chips,
+    // both driven by groupQuality.ts's pure computeGroupQuality.
+    quality: {
+      regionLabel: "Kvalitetsöversikt",
+      noSignals: "Inga anmärkningar.",
+      hardViolations: {
+        ok: "Inga hårda brott",
+        bad: (n: number) => pluralize(n, "hårt brott", "hårda brott"),
+      },
+      waitlist: {
+        ok: "Alla placerade",
+        bad: (n: number) => `${n} på kölista`,
+      },
+      coachCoverage: (covered: number, total: number) =>
+        `${covered} av ${pluralize(total, "grupp", "grupper")} har tränare`,
+      softScoreLabel: "Mjukt avdrag",
+      signals: {
+        coachMissing: "Ingen tränare tilldelad",
+        coachBelowRequired: (n: number, required: number) => `${n} av ${required} tränare tilldelade`,
+        coachInPlace: "Tränare: på plats",
+        sizeBelowMin: (n: number, min: number) => `Färre än minsta storlek (${n} < ${min})`,
+        sizeAboveMax: (n: number, max: number) => `Över maxstorlek (${n} > ${max})`,
+        sizeBelowTarget: (n: number, target: number) => `Under målstorleken (${n} av ${target})`,
+        sizeAboveTarget: (n: number, target: number) => `Över målstorleken (${n} av ${target})`,
+        sizeAtTarget: "Storlek på mål",
+        levelOutsideBand: (mean: number, min: string, max: string) =>
+          `Nivåsnittet (${mean}) ligger utanför gruppens band (${min}–${max})`,
+        levelInsideBand: "Nivåsnitt inom bandet",
+        topPenalty: "Störst poängavdrag i planen",
+      },
+      chips: {
+        coachLabel: (coachCount: number, requiredCoachCount: number | null) =>
+          requiredCoachCount != null && requiredCoachCount > 0
+            ? `${coachCount} av ${requiredCoachCount} tränare`
+            : `${coachCount} tränare`,
+        levelLabel: (mean: number, spread: number) => `Nivå ${mean} (±${spread})`,
+        bandSuffix: (min: string, max: string) => `band ${min}–${max}`,
+      },
     },
   },
   savedPlans: {

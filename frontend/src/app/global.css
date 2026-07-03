@@ -41,6 +41,18 @@ body {
   animation: gp-highlight-flash 1.8s ease-out;
 }
 
+/* v0.4.0 WI-E: GroupCard's member table is now `striped` - Mantine paints the stripe as a
+   background-color on each odd row's `td`, which sits ON TOP of the `tr`-level flash above and
+   would swallow it on those rows. Running the same animation on the row's cells fixes that:
+   CSS animations override normal (non-!important) declarations while they run regardless of
+   selector specificity, so the flash beats Mantine's static striped td background for the
+   animation's duration and then hands the stripe back (default `animation-fill-mode: none`,
+   and the keyframes end at transparent anyway). The tr rule stays for non-striped tables
+   (e.g. WaitlistCard's). */
+.gp-highlight-flash > td {
+  animation: gp-highlight-flash 1.8s ease-out;
+}
+
 /* Live optimization view (routes/plan/optimize/LiveSolveView.tsx, v0.3.0 WI-2 "se det live"): flashes
    a player chip that moved to a different group (or to/from the waitlist) since the previous polled
    frame. A distinct ocean-blue (the app's primary, v0.3.0 WI-6 palette - vs. the search flash's warm

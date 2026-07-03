@@ -1,4 +1,4 @@
-import { Badge, Button, Card, Group, Table, Text, Title, Tooltip } from "@mantine/core";
+import { Badge, Box, Button, Card, Group, Stack, Table, Text, Title, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { ApiError } from "../../../api/client";
 import { useLockPlayerAssignment, useUnlockPlayerAssignment } from "../../../api/assignments";
@@ -6,6 +6,7 @@ import { useLockGroupBlock, useLockGroupCoach, useUnlockGroupBlock, useUnlockGro
 import type { TrainingGroup } from "../../../api/types";
 import { sv } from "../../../i18n/sv";
 import { computeLevelStats } from "./groupMetrics";
+import { computeGroupQuality, formatBandBoundary, severityColor, type QualitySignal } from "./groupQuality";
 
 export interface GroupCardMember {
   participantProfileId: string;
@@ -33,9 +34,21 @@ interface GroupCardProps {
   /** Ctrl/Cmd+F player search (PlayerSearchSpotlight.tsx): the participant whose row
    *  ResultsPanel.tsx should scroll to and flash-highlight, from the `?highlight=` query param. */
   highlightedParticipantId?: string | null;
+  /** This group's `problematicGroups[].penaltySum` from the plan explanation (M7's Planeringsnivå),
+   *  passed only for the top-3 (penaltySum > 0) groups ResultsPanel identifies - see its own javadoc.
+   *  Feeds groupQuality.ts's "Störst poängavdrag i planen" warn signal (user feedback v0.4 #5). */
+  penaltySum?: number;
   onExplain: (participantProfileId: string, name: string) => void;
   onTestMove: (participantProfileId: string, name: string) => void;
   onExplainGroup: (groupId: string, name: string) => void;
+}
+
+/** Finds the first signal (of possibly several) whose `key` is in `keys`, or `undefined` if the
+ *  group has none of them (e.g. no target size configured, so neither "sizeAtTarget" nor
+ *  "sizeBelow/AboveTarget" was ever emitted) - GroupCard's chip row falls back to a neutral gray in
+ *  that case rather than guessing a color for a check that doesn't apply. */
+function findSignal(signals: QualitySignal[], keys: QualitySignal["key"][]): QualitySignal | undefined {
+  return signals.find((s) => keys.includes(s.key));
 }
 
 function showError(error: unknown, fallback: string) {
@@ -57,6 +70,7 @@ export function GroupCard({
   members,
   runId,
   highlightedParticipantId,
+  penaltySum,
   onExplain,
   onTestMove,
   onExplainGroup,
@@ -69,6 +83,38 @@ export function GroupCard({
   const unlockPlayer = useUnlockPlayerAssignment(planId);
 
   const levelStats = computeLevelStats(members.map((m) => m.level));
+
+  // "Are these groups good?" at-a-glance signals (user feedback v0.4 #5) - drives the status
+  // dot/top border and the compact chip row below, all from view-model fields this card already has.
+  const quality = computeGroupQuality({
+    size: members.length,
+    minSize: group.minSize ?? null,
+    targetSize: group.targetSize ?? null,
+    maxSize: group.maxSize ?? null,
+    requiredCoachCount: group.requiredCoachCount ?? null,
+    coachCount: coaches.length,
+    levelMean: levelStats.mean,
+    levelSpread: levelStats.spread,
+    levelMin: group.levelMin ?? null,
+    levelMax: group.levelMax ?? null,
+    penaltySum,
+  });
+  const statusColor = severityColor(quality.status);
+  // Falls back to a neutral gray (not "ok"/teal) when the check simply doesn't apply to this group
+  // (e.g. no target size configured at all) - a gray chip reads as "no data", a teal one would
+  // falsely claim the check passed.
+  const sizeSignal = findSignal(quality.signals, [
+    "sizeBelowMin",
+    "sizeAboveMax",
+    "sizeBelowTarget",
+    "sizeAboveTarget",
+    "sizeAtTarget",
+  ]);
+  const coachSignal = findSignal(quality.signals, ["coachMissing", "coachBelowRequired", "coachInPlace"]);
+  const levelSignal = findSignal(quality.signals, ["levelOutsideBand", "levelInsideBand"]);
+  const sizeChipColor = sizeSignal ? severityColor(sizeSignal.severity) : "gray";
+  const coachChipColor = coachSignal ? severityColor(coachSignal.severity) : "gray";
+  const levelChipColor = levelSignal ? severityColor(levelSignal.severity) : "gray";
 
   const toggleBlockLock = () => {
     if (group.locked) {
@@ -110,10 +156,44 @@ export function GroupCard({
   };
 
   return (
-    <Card withBorder padding="md" data-testid="group-card">
+    <Card
+      withBorder
+      padding="md"
+      data-testid="group-card"
+      // "Are these groups good?" (user feedback v0.4 #5): a 3px colored top border gives the
+      // group's overall quality status a glanceable presence even before reading any chip - purely
+      // decorative (the same information is always spelled out in the chips/tooltip below).
+      style={{ borderTopWidth: 3, borderTopColor: `var(--mantine-color-${statusColor}-6)` }}
+    >
       <Group justify="space-between" mb={4}>
         <Group gap={6}>
           <Title order={5}>{group.name}</Title>
+          <Tooltip
+            label={
+              <Stack gap={2}>
+                {quality.signals.length > 0 ? (
+                  quality.signals.map((signal) => (
+                    <Text key={signal.key} size="xs">
+                      {signal.textSv}
+                    </Text>
+                  ))
+                ) : (
+                  <Text size="xs">{sv.results.quality.noSignals}</Text>
+                )}
+              </Stack>
+            }
+            multiline
+            w={260}
+          >
+            {/* Decorative supplement to the chips row below (which always spells the same signals
+                out as visible text) - aria-hidden rather than a redundant announcement. */}
+            <Box
+              w={10}
+              h={10}
+              aria-hidden="true"
+              style={{ borderRadius: "50%", backgroundColor: `var(--mantine-color-${statusColor}-6)`, flexShrink: 0 }}
+            />
+          </Tooltip>
           <Tooltip label={sv.results.noRunTooltip} disabled={runId !== undefined}>
             <Button
               size="compact-xs"
@@ -125,9 +205,25 @@ export function GroupCard({
             </Button>
           </Tooltip>
         </Group>
-        <Text size="sm" c="dimmed">
+      </Group>
+
+      <Group gap={6} mb="xs" wrap="wrap">
+        <Badge size="sm" variant="light" color={sizeChipColor}>
           {sv.results.groupCard.playersCount(members.length, group.targetSize ?? null, group.maxSize ?? null)}
-        </Text>
+        </Badge>
+        <Badge size="sm" variant="light" color={coachChipColor}>
+          {sv.results.quality.chips.coachLabel(coaches.length, group.requiredCoachCount ?? null)}
+        </Badge>
+        {levelStats.mean != null && (
+          <Badge size="sm" variant="light" color={levelChipColor}>
+            {sv.results.quality.chips.levelLabel(levelStats.mean, levelStats.spread ?? 0)}
+          </Badge>
+        )}
+        {group.levelMin != null && group.levelMax != null && (
+          <Text size="xs" c="dimmed">
+            {sv.results.quality.chips.bandSuffix(formatBandBoundary(group.levelMin), formatBandBoundary(group.levelMax))}
+          </Text>
+        )}
       </Group>
 
       <Group gap={6} mb={4} wrap="nowrap">
@@ -180,20 +276,16 @@ export function GroupCard({
         ))}
       </Group>
 
-      <Group gap="lg" mb="sm">
-        <div>
-          <Text size="xs" c="dimmed">
-            {sv.results.groupCard.levelMean}
-          </Text>
-          <Text fw={600}>{levelStats.mean ?? sv.results.groupCard.noLevelData}</Text>
-        </div>
-        <div>
-          <Text size="xs" c="dimmed">
-            {sv.results.groupCard.levelSpread}
-          </Text>
-          <Text fw={600}>{levelStats.spread ?? sv.results.groupCard.noLevelData}</Text>
-        </div>
-      </Group>
+      {/* v0.4.0 (user feedback v0.4 #5): the separate Nivåsnitt/Nivåspridning stat block folded into
+          the "Nivå X (±Y)" chip above (same computeLevelStats numbers, still labeled Nivåsnitt/
+          Nivåspridning in the group explain drawer's own detail view) - only the no-data case still
+          needs its own line here, since the chip itself is omitted entirely when there's nothing to
+          show. */}
+      {levelStats.mean == null && (
+        <Text size="xs" c="dimmed" mb="sm">
+          {sv.results.groupCard.noLevelData}
+        </Text>
+      )}
 
       <Text size="sm" fw={500} mb={4}>
         {sv.results.groupCard.membersHeading}
@@ -204,7 +296,7 @@ export function GroupCard({
           xs badge) to fit a 2-per-row card without scrolling at typical laptop widths;
           ScrollContainer still catches anything narrower than that. */}
       <Table.ScrollContainer minWidth={470}>
-        <Table verticalSpacing={4} horizontalSpacing={6} withTableBorder>
+        <Table verticalSpacing={4} horizontalSpacing={6} withTableBorder striped>
           <Table.Tbody>
             {members.map((member) => (
               <Table.Tr
