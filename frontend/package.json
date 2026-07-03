@@ -1,6 +1,6 @@
 {
   "name": "frontend",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Gruppindelning React SPA (docs/design/01-architecture.md §8). Runs fully in a plain browser in dev; Tauri APIs are isolated in src/lib/platform.ts.",

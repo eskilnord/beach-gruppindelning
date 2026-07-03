@@ -1,6 +1,6 @@
 [package]
 name = "gruppindelning-desktop"
-version = "0.2.0"
+version = "0.3.0"
 description = "Gruppindelning desktop shell (Tauri v2): spawns and supervises the bundled Java backend."
 edition = "2021"
 rust-version = "1.77"
