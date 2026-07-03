@@ -18,6 +18,40 @@
   animation: gp-highlight-flash 1.8s ease-out;
 }
 
+/* Live optimization view (routes/plan/optimize/LiveSolveView.tsx, v0.3.0 WI-2 "se det live"): flashes
+   a player chip that moved to a different group (or to/from the waitlist) since the previous polled
+   frame. A distinct blue (vs. the search flash's yellow) and shorter duration - at a 500ms poll
+   interval, several chips can flash in quick succession, and a long-lingering yellow would visually
+   compete with the search-jump highlight elsewhere in the app. */
+@keyframes gp-live-flash {
+  0% {
+    background-color: var(--mantine-color-blue-3);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.gp-live-flash {
+  animation: gp-live-flash 1s ease-out;
+}
+
+/* Live optimization view (LiveSolveView.tsx): a subtle pulse on the score/improvement line whenever
+   a new frame (sequence) arrives, so the "it's alive" feeling isn't limited to chips moving around -
+   the score line itself visibly ticks forward too. */
+@keyframes gp-live-pulse {
+  0% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.gp-live-pulse {
+  animation: gp-live-pulse 0.4s ease-out;
+}
+
 /* Planeringskarta horizontal scroll (routes/plan/results/ScheduleView.tsx): a subtle right-edge
    fade hinting that more courts are scrollable into view. */
 .gp-scroll-fade {

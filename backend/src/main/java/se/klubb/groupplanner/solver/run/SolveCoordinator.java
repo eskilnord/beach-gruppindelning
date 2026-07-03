@@ -52,6 +52,7 @@ public class SolveCoordinator {
     private final SolverInputAssembler assembler;
     private final OptimizationRunService optimizationRunService;
     private final ProgressRegistry progressRegistry;
+    private final LiveSolutionRegistry liveSolutionRegistry;
     private final GreedyBaselineService greedyBaselineService;
     private final PlayerAssignmentRepository playerAssignmentRepository;
     private final TrainingGroupRepository trainingGroupRepository;
@@ -76,6 +77,7 @@ public class SolveCoordinator {
             SolverInputAssembler assembler,
             OptimizationRunService optimizationRunService,
             ProgressRegistry progressRegistry,
+            LiveSolutionRegistry liveSolutionRegistry,
             GreedyBaselineService greedyBaselineService,
             PlayerAssignmentRepository playerAssignmentRepository,
             TrainingGroupRepository trainingGroupRepository,
@@ -86,6 +88,7 @@ public class SolveCoordinator {
         this.assembler = assembler;
         this.optimizationRunService = optimizationRunService;
         this.progressRegistry = progressRegistry;
+        this.liveSolutionRegistry = liveSolutionRegistry;
         this.greedyBaselineService = greedyBaselineService;
         this.playerAssignmentRepository = playerAssignmentRepository;
         this.trainingGroupRepository = trainingGroupRepository;
@@ -138,11 +141,18 @@ public class SolveCoordinator {
                         : profile.terminationConfig();
                 long limitMs = profile == SolveProfile.CUSTOM ? SolveProfile.customLimitMs(customDurationSeconds) : profile.limitMs();
                 progressRegistry.start(activityPlanId, run.id(), limitMs);
+                // WI-2 (v0.3.0, "se det live"): seed the live view from the pre-solve problem so it
+                // isn't empty for the first few seconds before the construction heuristic's first
+                // best-solution event fires - see LiveSolutionRegistry's javadoc.
+                liveSolutionRegistry.start(activityPlanId, run.id(), assembled);
 
                 solverManager.solveBuilder()
                         .withProblemId(activityPlanId)
                         .withProblem(assembled.solution())
-                        .withBestSolutionEventConsumer(event -> progressRegistry.onBestSolution(activityPlanId, event.solution()))
+                        .withBestSolutionEventConsumer(event -> {
+                            progressRegistry.onBestSolution(activityPlanId, event.solution());
+                            liveSolutionRegistry.onBestSolution(activityPlanId, run.id(), event.solution(), assembled);
+                        })
                         .withFinalBestSolutionEventConsumer(event -> onFinalBestSolution(activityPlanId, run.id(), event.solution()))
                         .withExceptionHandler((id, ex) -> onException(id, run.id(), ex))
                         .withConfigOverride(new SolverConfigOverride<GroupPlanSolution>().withTerminationConfig(termination))
@@ -282,6 +292,14 @@ public class SolveCoordinator {
     private void onFinalBestSolution(String activityPlanId, String runId, GroupPlanSolution finalSolution) {
         boolean cancelled = Boolean.TRUE.equals(cancelledByActivityPlanId.remove(activityPlanId));
         AssembledProblem assembled = assembledByActivityPlanId.remove(activityPlanId);
+        if (assembled != null) {
+            // WI-2 final-frame guarantee: withBestSolutionEventConsumer calls can be coalesced under
+            // a fast burst of improvements (Timefold's own event delivery is best-effort/async), so
+            // the live view's last kept frame (never cleared - see LiveSolutionRegistry's javadoc)
+            // might otherwise lag behind the actual persisted result. Re-project the true final
+            // solution here so what stays on screen always matches what got written to the DB.
+            liveSolutionRegistry.onBestSolution(activityPlanId, runId, finalSolution, assembled);
+        }
         int planRevisionAtFinish;
         try {
             planRevisionAtFinish = assembled != null ? persistResult(assembled, finalSolution) : activityPlanRepository.getPlanRevision(activityPlanId);

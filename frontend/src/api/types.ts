@@ -225,6 +225,33 @@ export type CancelSolveResponse = WithRequired<components["schemas"]["CancelSolv
  *  no run has ever happened for this plan, hence no WithRequired narrowing beyond `status`. */
 export type SolveStatus = WithRequired<components["schemas"]["SolveStatus"], "status">;
 
+/** `GET .../solve/live` (v0.3.0 WI-2, "se det live") - one player chip in a {@link LiveGroup}/{@link
+ *  LiveSnapshot.waitlist}. `levelScaled` mirrors the backend's fixed-point ×100 representation
+ *  (ADR-006) - display code divides by 100, never treats it as already-human-scale. */
+export type LivePlayer = WithRequired<
+  components["schemas"]["LivePlayer"],
+  "participantProfileId" | "displayName" | "levelScaled"
+>;
+/** Nested arrays re-narrowed per this file's established composite-type idiom (see the
+ *  `SuggestDurationResponse`/`SeasonConflict` NOTE above) - the generated `components["schemas"]`
+ *  element types stay all-optional even when the parent's own field list is narrowed. */
+export type LiveGroup = Omit<WithRequired<components["schemas"]["LiveGroup"], "groupId" | "name">, "players"> & {
+  players: LivePlayer[];
+};
+/** The live "watch it optimize" snapshot polled by `useLiveSolution` while a non-GREEDY solve runs -
+ *  `sequence` lets the hook cheaply skip an unchanged frame; `runId` is always present (the backend
+ *  only ever creates a snapshot once a run has started). */
+export type LiveSnapshot = Omit<
+  WithRequired<
+    components["schemas"]["LiveSnapshot"],
+    "runId" | "sequence" | "hard" | "medium" | "soft" | "feasible" | "improvementCount" | "capturedAtMillis"
+  >,
+  "groups" | "waitlist"
+> & {
+  groups: LiveGroup[];
+  waitlist: LivePlayer[];
+};
+
 /** {@code GET /api/plans/{planId}/runs} (körhistorik) - {@code resultSummaryJson} is a small JSON
  *  blob ({@code {hard,medium,soft,feasible,unassignedCount}}), parsed client-side (see
  *  `optimize/runSummary.ts`) rather than modeled as nested schema here. */

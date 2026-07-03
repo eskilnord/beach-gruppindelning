@@ -186,6 +186,12 @@ test("Optimering (förslag+CUSTOM utan tränare+GREEDY+FAST) → Resultatvy (gru
   await page.getByRole("button", { name: sv.optimize.startButton }).click();
 
   await expect(page.getByTestId("solve-progress")).toBeVisible({ timeout: 10_000 });
+  // v0.3.0 WI-2 ("se det live" - user feedback: watching groups form/reshuffle live is "en nice
+  // marknadsföringsgrej"): the live view appears almost immediately (its pre-solve seed is written
+  // synchronously before the solve job is even submitted, see LiveSolutionRegistry's javadoc) and
+  // shows the plan's single generated group mid-shuffle.
+  await expect(page.getByTestId("live-solve-view")).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByTestId("live-solve-view").getByTestId("live-group")).toHaveCount(1);
   await expect(page.getByTestId("solve-progress")).toHaveCount(0, { timeout: 20_000 });
   await expect(page.getByTestId("last-run-summary").getByTestId("last-run-score-line")).toBeVisible({ timeout: 10_000 });
 });

@@ -772,6 +772,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{planId}/solve/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["live"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans/{planId}/runs": {
         parameters: {
             query?: never;
@@ -1670,6 +1686,35 @@ export interface components {
             limitMs?: number;
             /** Format: int32 */
             improvementCount?: number;
+        };
+        LiveGroup: {
+            groupId?: string;
+            name?: string;
+            players?: components["schemas"]["LivePlayer"][];
+        };
+        LivePlayer: {
+            participantProfileId?: string;
+            displayName?: string;
+            /** Format: int32 */
+            levelScaled?: number;
+        };
+        LiveSnapshot: {
+            runId?: string;
+            /** Format: int32 */
+            sequence?: number;
+            /** Format: int64 */
+            hard?: number;
+            /** Format: int64 */
+            medium?: number;
+            /** Format: int64 */
+            soft?: number;
+            feasible?: boolean;
+            /** Format: int32 */
+            improvementCount?: number;
+            groups?: components["schemas"]["LiveGroup"][];
+            waitlist?: components["schemas"]["LivePlayer"][];
+            /** Format: int64 */
+            capturedAtMillis?: number;
         };
         SavedPlan: {
             id?: string;
@@ -3968,6 +4013,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["SolveStatus"];
+                };
+            };
+        };
+    };
+    live: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["LiveSnapshot"];
                 };
             };
         };

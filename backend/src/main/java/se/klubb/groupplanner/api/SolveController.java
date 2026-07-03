@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import se.klubb.groupplanner.solver.assemble.BlockingOptions;
 import se.klubb.groupplanner.solver.assemble.OptimizeSelection;
+import se.klubb.groupplanner.solver.run.LiveSolutionRegistry;
 import se.klubb.groupplanner.solver.run.SolveCoordinator;
 import se.klubb.groupplanner.solver.run.SolveProfile;
 import se.klubb.groupplanner.solver.run.SolveStatus;
@@ -45,10 +46,13 @@ public class SolveController {
 
     private final SolveCoordinator solveCoordinator;
     private final SuggestDurationService suggestDurationService;
+    private final LiveSolutionRegistry liveSolutionRegistry;
 
-    public SolveController(SolveCoordinator solveCoordinator, SuggestDurationService suggestDurationService) {
+    public SolveController(
+            SolveCoordinator solveCoordinator, SuggestDurationService suggestDurationService, LiveSolutionRegistry liveSolutionRegistry) {
         this.solveCoordinator = solveCoordinator;
         this.suggestDurationService = suggestDurationService;
+        this.liveSolutionRegistry = liveSolutionRegistry;
     }
 
     @PostMapping("/api/plans/{planId}/solve")
@@ -93,6 +97,21 @@ public class SolveController {
     @GetMapping("/api/plans/{planId}/solve/status")
     public SolveStatus status(@PathVariable String planId) {
         return solveCoordinator.status(planId);
+    }
+
+    /**
+     * v0.3.0 WI-2 ("se det live"): a lightweight polled snapshot of the current best solution while
+     * a solve runs — groups/waitlist with player names, refreshed by {@link LiveSolutionRegistry} on
+     * every improvement. 204 (no body) when the plan has never had a solve start in this backend
+     * process; 200 with the last-kept frame otherwise, including after the solve has settled (see
+     * {@link LiveSolutionRegistry}'s javadoc — the frontend stops polling once {@code .../solve/status}
+     * reports a non-solving status, so a stale-but-present frame is intentional, not a bug).
+     */
+    @GetMapping("/api/plans/{planId}/solve/live")
+    public ResponseEntity<LiveSolutionRegistry.LiveSnapshot> live(@PathVariable String planId) {
+        return liveSolutionRegistry.get(planId)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @PostMapping("/api/plans/{planId}/solve/cancel")

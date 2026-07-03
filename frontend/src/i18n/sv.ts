@@ -720,6 +720,17 @@ export const sv = {
       improvementCount: (n: number) => `${n} förbättringar hittade`,
       elapsed: (elapsedS: number, limitS: number) => `${elapsedS} s av ${limitS} s`,
     },
+    // v0.3.0 WI-2 (user feedback: "jag skulle vilja se det live... en nice marknadsföringsgrej") -
+    // the live "watch it optimize" grid shown while a non-GREEDY solve runs (LiveSolveView.tsx).
+    live: {
+      heading: "Live-vy",
+      improvementNumber: (n: number) => `Förbättring #${n}`,
+      waitlistLabel: (n: number) => `Kölista: ${n}`,
+      emptyGroup: "Tom",
+      emptyWaitlist: "Ingen på kölista just nu.",
+      finishedHint: "Slutresultat från körningen.",
+      goToResultsLink: "Visa i Resultat",
+    },
     lastRun: {
       heading: "Senaste körning",
       empty: "Ingen optimering har körts ännu för den här planen.",

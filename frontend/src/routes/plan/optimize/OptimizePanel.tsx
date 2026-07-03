@@ -26,12 +26,20 @@ import { useConstraintWeights } from "../../../api/constraintWeights";
 import { useGenerateGroups, useGroups } from "../../../api/groups";
 import { usePlan } from "../../../api/plans";
 import { runsKey, useOptimizationRuns } from "../../../api/runs";
-import { invalidateResultQueries, isSolveRunning, useCancelSolve, useSolveStatus, useStartSolve } from "../../../api/solve";
+import {
+  invalidateResultQueries,
+  isSolveRunning,
+  useCancelSolve,
+  useLiveSolution,
+  useSolveStatus,
+  useStartSolve,
+} from "../../../api/solve";
 import type { SolveProfile, SolveRequestBody } from "../../../api/types";
 import { sv } from "../../../i18n/sv";
 import { formatDateTime } from "../../../lib/formatDateTime";
 import { effectiveGroupSizeDefaults } from "../../../lib/planDefaults";
 import { useEditPlanModalStore } from "../editPlanModalStore";
+import { LiveSolveView } from "./LiveSolveView";
 import { PlanAnalysisSection } from "./PlanAnalysisSection";
 import { formatScoreLine } from "./scoreFormat";
 import { parseResultSummary, runDurationSeconds } from "./runSummary";
@@ -91,6 +99,11 @@ export function OptimizePanel() {
 
   const status = solveStatus.data;
   const running = isSolveRunning(status?.status);
+  // v0.3.0 WI-2 ("se det live"): polls only while `running` (never for the synchronous GREEDY
+  // baseline, which never reaches SOLVING_ACTIVE/SCHEDULED) - see useLiveSolution's javadoc for why
+  // the cached frame still renders (dimmed) after the solve settles, and useStartSolve's javadoc for
+  // why it's guaranteed empty again at the start of the NEXT solve.
+  const liveSolution = useLiveSolution(planId, running);
 
   // Detects the SOLVING_* -> settled transition (async FAST/NORMAL/THOROUGH profiles) to refresh the
   // run history + Resultatvy-facing queries the moment a result is actually persisted. GREEDY (fully
@@ -398,6 +411,13 @@ export function OptimizePanel() {
           </Text>
         </Card>
       )}
+
+      {/* v0.3.0 WI-2 ("se det live"): gated on the SNAPSHOT existing, not on `running` - this keeps
+          the last frame visible (dimmed, with a "go to Resultat" hint - LiveSolveView's own `running`
+          prop drives that) for a moment after the solve settles, instead of vanishing the instant
+          `solve-progress` above does. `useStartSolve`'s onSuccess guarantees `liveSolution.data` is
+          cleared at the start of every new solve (including GREEDY, which never repopulates it). */}
+      {liveSolution.data && <LiveSolveView planId={planId} snapshot={liveSolution.data} running={running} />}
 
       <Card withBorder padding="md" data-testid="last-run-summary">
         <Title order={5} mb="xs">

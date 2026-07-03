@@ -1,7 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Query } from "@tanstack/react-query";
 import { api } from "./client";
-import type { CancelSolveResponse, SolveRequestBody, SolveStatus, StartSolveResponse, SuggestDurationResponse } from "./types";
+import type {
+  CancelSolveResponse,
+  LiveSnapshot,
+  SolveRequestBody,
+  SolveStatus,
+  StartSolveResponse,
+  SuggestDurationResponse,
+} from "./types";
 import { assignmentsKey } from "./assignments";
 import { groupsKey } from "./groups";
 
@@ -23,6 +30,31 @@ export function useSolveStatus(planId: string | undefined, options: { enabled?: 
 
 export function isSolveRunning(status: string | undefined): boolean {
   return SOLVING_STATUSES.has(status ?? "");
+}
+
+export const liveSolutionKey = (planId: string) => ["plans", planId, "solve", "live"] as const;
+
+/**
+ * v0.3.0 WI-2 ("se det live" — user feedback: watching groups form/reshuffle live while a solve
+ * runs is "en nice marknadsföringsgrej"). Polls `GET .../solve/live` every 500ms while `enabled` -
+ * the caller (OptimizePanel/LiveSolveView) gates that on "a non-GREEDY solve is currently running",
+ * so this never polls for the synchronous GREEDY baseline (no live view, spec) or once the solve has
+ * settled. `queryFn` normalizes the backend's 204-No-Content ("no snapshot for this plan yet") to
+ * `null` - TanStack Query v5 treats a literal `undefined` query result as an error, not "no data".
+ *
+ * `placeholderData: keepPreviousData` keeps the LAST frame rendered between polls instead of
+ * flashing to `null` on every refetch; `LiveSolveView` also needs a stable previous snapshot of its
+ * own (tracked separately via a ref) to detect which players moved groups since the last frame it
+ * actually rendered.
+ */
+export function useLiveSolution(planId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: liveSolutionKey(planId ?? ""),
+    queryFn: async () => (await api.get<LiveSnapshot | undefined>(`/api/plans/${planId}/solve/live`)) ?? null,
+    enabled: planId !== undefined && enabled,
+    refetchInterval: enabled ? 500 : false,
+    placeholderData: keepPreviousData,
+  });
 }
 
 export const suggestDurationKey = (planId: string) => ["plans", planId, "solve", "suggest-duration"] as const;
@@ -57,6 +89,12 @@ export function useStartSolve(planId: string) {
     mutationFn: (body: SolveRequestBody) => api.post<StartSolveResponse>(`/api/plans/${planId}/solve`, body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: solveStatusKey(planId) });
+      // v0.3.0 WI-2: clear any live-view frame left over from a PREVIOUS run for this plan (including
+      // a GREEDY run, which never touches the backend's live registry at all) - `LiveSolveView` is
+      // conditionally mounted on "a live snapshot exists", so wiping the cache here unmounts it
+      // immediately and lets a fresh mount (once the new run's own first frame arrives) start with no
+      // stale moved-player history. Harmless no-op for GREEDY: nothing ever repopulates it.
+      void queryClient.resetQueries({ queryKey: liveSolutionKey(planId) });
     },
   });
 }
