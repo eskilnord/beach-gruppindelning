@@ -16,6 +16,7 @@ import { notifications } from "@mantine/notifications";
 import { useCreateFieldDefinition } from "../../../api/fieldDefinitions";
 import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
+import { HelpTip } from "../../../components/HelpTip";
 import { generateFieldKey } from "./fieldKey";
 import {
   FIELD_TYPES,
@@ -195,6 +196,11 @@ export function NewFieldModal({ planId, opened, onClose }: NewFieldModalProps) {
 
           <Switch
             label={sv.fieldBuilder.newFieldModal.affectsOptimizationLabel}
+            description={
+              <HelpTip label={sv.help.ariaLabel(sv.fieldBuilder.newFieldModal.affectsOptimizationLabel)}>
+                {sv.help.fields.affectsOptimization}
+              </HelpTip>
+            }
             checked={form.values.affectsOptimization}
             onChange={(event) => handleAffectsOptimizationChange(event.currentTarget.checked)}
             disabled={!canOptimize}
@@ -209,6 +215,11 @@ export function NewFieldModal({ planId, opened, onClose }: NewFieldModalProps) {
             <>
               <Select
                 label={sv.fieldBuilder.newFieldModal.constraintLabel}
+                description={
+                  <HelpTip label={sv.help.ariaLabel(sv.fieldBuilder.newFieldModal.constraintLabel)}>
+                    {sv.help.fields.constraintType}
+                  </HelpTip>
+                }
                 data={compatibleFamilies.map((family) => ({ value: family, label: constraintFamilyLabel(family) }))}
                 value={form.values.constraintType}
                 onChange={(value) => value && form.setFieldValue("constraintType", value)}
@@ -216,9 +227,14 @@ export function NewFieldModal({ planId, opened, onClose }: NewFieldModalProps) {
                 comboboxProps={{ withinPortal: false }}
               />
               <div>
-                <Text size="sm" fw={500} mb={4}>
-                  {sv.fieldBuilder.newFieldModal.hardOrSoftLabel}
-                </Text>
+                <Group gap={4} mb={4}>
+                  <Text size="sm" fw={500}>
+                    {sv.fieldBuilder.newFieldModal.hardOrSoftLabel}
+                  </Text>
+                  <HelpTip label={sv.help.ariaLabel(sv.fieldBuilder.newFieldModal.hardOrSoftLabel)}>
+                    {sv.help.fields.hardOrSoft}
+                  </HelpTip>
+                </Group>
                 <SegmentedControl
                   fullWidth
                   data={[
@@ -232,6 +248,7 @@ export function NewFieldModal({ planId, opened, onClose }: NewFieldModalProps) {
               {showWeight && (
                 <NumberInput
                   label={sv.fieldBuilder.newFieldModal.weightLabel}
+                  description={<HelpTip label={sv.help.fields.weightAriaLabelInModal}>{sv.help.fields.weight}</HelpTip>}
                   min={1}
                   withAsterisk
                   {...form.getInputProps("weight")}
@@ -242,6 +259,11 @@ export function NewFieldModal({ planId, opened, onClose }: NewFieldModalProps) {
 
           <Textarea
             label={sv.fieldBuilder.newFieldModal.explanationLabel}
+            description={
+              <HelpTip label={sv.help.ariaLabel(sv.fieldBuilder.newFieldModal.explanationLabel)}>
+                {sv.help.fields.explanation}
+              </HelpTip>
+            }
             autosize
             minRows={2}
             {...form.getInputProps("explanationText")}

@@ -7,6 +7,7 @@ import { useDeleteTimeSlot } from "../../../api/timeSlots";
 import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
 import { DeleteConfirmModal } from "../../../components/DeleteConfirmModal";
+import { HelpTip } from "../../../components/HelpTip";
 import { TimeSlotModal } from "./TimeSlotModal";
 import type { SlotBlocksView, TimeSlot, TrainingBlockView } from "../../../api/types";
 
@@ -119,6 +120,7 @@ function SlotRow({ planId, entry, onEdit, onDelete }: SlotRowProps) {
       <Group mt="sm" gap="xs" align="flex-end">
         <NumberInput
           label={sv.resources.courtsLabel}
+          description={<HelpTip label={sv.help.resources.courtsAriaLabel}>{sv.help.resources.courts}</HelpTip>}
           min={0}
           max={60}
           w={140}
@@ -130,16 +132,24 @@ function SlotRow({ planId, entry, onEdit, onDelete }: SlotRowProps) {
       </Group>
 
       {entry.blocks.length > 0 && (
-        <Group mt="md" gap="sm" wrap="wrap">
-          {entry.blocks.map((block) => (
-            <BlockChip
-              key={block.id}
-              block={block}
-              pending={updateBlockActive.isPending}
-              onToggle={(active) => toggleBlock(block, active)}
-            />
-          ))}
-        </Group>
+        <>
+          <Group gap={4} mt="md" mb={4}>
+            <Text size="xs" fw={600} c="dimmed">
+              {sv.resources.blocksHeading}
+            </Text>
+            <HelpTip label={sv.help.ariaLabel(sv.resources.blocksHeading)}>{sv.help.resources.courtActive}</HelpTip>
+          </Group>
+          <Group gap="sm" wrap="wrap">
+            {entry.blocks.map((block) => (
+              <BlockChip
+                key={block.id}
+                block={block}
+                pending={updateBlockActive.isPending}
+                onToggle={(active) => toggleBlock(block, active)}
+              />
+            ))}
+          </Group>
+        </>
       )}
     </Card>
   );

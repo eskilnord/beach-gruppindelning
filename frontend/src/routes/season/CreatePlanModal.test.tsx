@@ -128,6 +128,14 @@ describe("CreatePlanModal", () => {
     expect(requestReceived).toBe(false);
   });
 
+  // v0.3.0 WI-3 smoke test: the Kategori field gained a HelpTip via its `description` slot (its
+  // `label` stays exactly "Kategori" - untested by e2e, but kept untouched for consistency anyway).
+  it("renders a HelpTip for the Kategori field (v0.3.0 WI-3)", () => {
+    renderWithProviders(<CreatePlanModal opened seasonId={SEASON_ID} onClose={() => {}} onCreated={() => {}} />);
+
+    expect(screen.getByRole("button", { name: sv.help.ariaLabel(sv.createPlanModal.categoryLabel) })).toBeInTheDocument();
+  });
+
   it("rejects a min-nivå outside the 0-1000 range before submitting", async () => {
     const user = userEvent.setup();
     let requestReceived = false;

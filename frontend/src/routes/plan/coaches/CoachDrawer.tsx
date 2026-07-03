@@ -23,6 +23,7 @@ import { useTimeSlots } from "../../../api/timeSlots";
 import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
 import { DeleteConfirmModal } from "../../../components/DeleteConfirmModal";
+import { HelpTip } from "../../../components/HelpTip";
 import { CustomFieldEditor, type CoachOption } from "../participants/CustomFieldEditor";
 import type { ParticipantRow } from "../participants/participantRow";
 import { AvailabilityMatrix } from "./AvailabilityMatrix";
@@ -179,6 +180,7 @@ function CoachDrawerBody({ planId, coach, allParticipants, allCoaches, onClose }
       <SimpleGrid cols={2} spacing="md">
         <NumberInput
           label={sv.coaches.drawer.coachLevelLabel}
+          description={<HelpTip label={sv.help.ariaLabel(sv.coaches.drawer.coachLevelLabel)}>{sv.help.coaches.coachLevel}</HelpTip>}
           min={0}
           max={1000}
           value={profileDraft.coachLevel ?? ""}
@@ -186,6 +188,9 @@ function CoachDrawerBody({ planId, coach, allParticipants, allCoaches, onClose }
         />
         <Switch
           label={sv.coaches.drawer.alsoParticipantLabel}
+          description={
+            <HelpTip label={sv.help.ariaLabel(sv.coaches.drawer.alsoParticipantLabel)}>{sv.help.coaches.alsoParticipant}</HelpTip>
+          }
           mt="xl"
           checked={profileDraft.canAlsoTrainAsParticipant}
           onChange={(event) =>
@@ -194,6 +199,9 @@ function CoachDrawerBody({ planId, coach, allParticipants, allCoaches, onClose }
         />
         <NumberInput
           label={sv.coaches.drawer.canCoachMinLabel}
+          description={
+            <HelpTip label={sv.help.ariaLabel(sv.coaches.drawer.canCoachMinLabel)}>{sv.help.coaches.canCoachRange}</HelpTip>
+          }
           min={0}
           max={1000}
           value={profileDraft.canCoachMinLevel ?? ""}
@@ -212,6 +220,9 @@ function CoachDrawerBody({ planId, coach, allParticipants, allCoaches, onClose }
         />
         <NumberInput
           label={sv.coaches.drawer.maxGroupsPerDayLabel}
+          description={
+            <HelpTip label={sv.help.ariaLabel(sv.coaches.drawer.maxGroupsPerDayLabel)}>{sv.help.coaches.maxGroupsPerDay}</HelpTip>
+          }
           min={1}
           value={profileDraft.maxGroupsPerDay ?? ""}
           onChange={(value) =>
@@ -220,6 +231,9 @@ function CoachDrawerBody({ planId, coach, allParticipants, allCoaches, onClose }
         />
         <NumberInput
           label={sv.coaches.drawer.maxGroupsPerWeekLabel}
+          description={
+            <HelpTip label={sv.help.ariaLabel(sv.coaches.drawer.maxGroupsPerWeekLabel)}>{sv.help.coaches.maxGroupsPerWeek}</HelpTip>
+          }
           min={1}
           value={profileDraft.maxGroupsPerWeek ?? ""}
           onChange={(value) =>
@@ -238,7 +252,10 @@ function CoachDrawerBody({ planId, coach, allParticipants, allCoaches, onClose }
       <Divider />
 
       <div>
-        <Title order={5}>{sv.coaches.drawer.availabilityHeading}</Title>
+        <Group gap={4}>
+          <Title order={5}>{sv.coaches.drawer.availabilityHeading}</Title>
+          <HelpTip label={sv.help.ariaLabel(sv.coaches.drawer.availabilityHeading)}>{sv.help.coaches.availability}</HelpTip>
+        </Group>
         <Text size="sm" c="dimmed" mb="sm">
           {sv.coaches.drawer.availabilityHint}
         </Text>

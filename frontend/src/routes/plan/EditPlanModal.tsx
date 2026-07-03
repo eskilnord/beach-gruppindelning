@@ -4,6 +4,7 @@ import { notifications } from "@mantine/notifications";
 import { useEffect } from "react";
 import { useUpdatePlan } from "../../api/plans";
 import { ApiError } from "../../api/client";
+import { HelpTip } from "../../components/HelpTip";
 import { sv } from "../../i18n/sv";
 import type { ActivityPlan } from "../../api/types";
 import {
@@ -77,8 +78,16 @@ export function EditPlanModal({ opened, plan, onClose }: EditPlanModalProps) {
             data-autofocus
             {...form.getInputProps("name")}
           />
-          <TextInput label={sv.common.category} {...form.getInputProps("category")} />
-          <TextInput label={sv.editPlanModal.statusLabel} {...form.getInputProps("status")} />
+          <TextInput
+            label={sv.common.category}
+            description={<HelpTip label={sv.help.ariaLabel(sv.common.category)}>{sv.help.plan.category}</HelpTip>}
+            {...form.getInputProps("category")}
+          />
+          <TextInput
+            label={sv.editPlanModal.statusLabel}
+            description={<HelpTip label={sv.help.ariaLabel(sv.editPlanModal.statusLabel)}>{sv.help.plan.status}</HelpTip>}
+            {...form.getInputProps("status")}
+          />
 
           <Text fw={500} size="sm" mt="xs">
             {sv.planDefaults.heading}

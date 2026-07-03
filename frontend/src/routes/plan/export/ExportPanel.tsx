@@ -6,6 +6,7 @@ import { ApiError } from "../../../api/client";
 import { useExportAnonymized, useExportPlan } from "../../../api/export";
 import { useOptimizationRuns } from "../../../api/runs";
 import type { ExportFormat, ExportLayout } from "../../../api/types";
+import { HelpTip } from "../../../components/HelpTip";
 import { sv } from "../../../i18n/sv";
 import { isGroupedLayoutDisabled, normalizeLayoutForFormat, showCommentsWarning } from "./exportForm";
 
@@ -112,6 +113,9 @@ export function ExportPanel() {
 
         <Checkbox
           label={sv.export.includeCommentsLabel}
+          description={
+            <HelpTip label={sv.help.ariaLabel(sv.export.includeCommentsLabel)}>{sv.help.export.includeComments}</HelpTip>
+          }
           checked={includeComments}
           disabled={!hasRun}
           onChange={(event) => setIncludeComments(event.currentTarget.checked)}
@@ -129,9 +133,10 @@ export function ExportPanel() {
       </Card>
 
       <Card withBorder padding="lg" data-testid="anonymized-export-card">
-        <Title order={5} mb="xs">
-          {sv.export.anonymized.heading}
-        </Title>
+        <Group gap={4} mb="xs">
+          <Title order={5}>{sv.export.anonymized.heading}</Title>
+          <HelpTip label={sv.help.ariaLabel(sv.export.anonymized.heading)}>{sv.help.export.anonymized}</HelpTip>
+        </Group>
         <Text size="sm" c="dimmed" mb="md">
           {sv.export.anonymized.description}
         </Text>

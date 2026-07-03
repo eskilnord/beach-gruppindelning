@@ -4,6 +4,7 @@ import { Alert, Button, Card, Group, Loader, Table, Tabs, Title } from "@mantine
 import { useFieldDefinitions } from "../../../api/fieldDefinitions";
 import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
+import { HelpTip } from "../../../components/HelpTip";
 import { FieldRow } from "./FieldRow";
 import { NewFieldModal } from "./NewFieldModal";
 import { ConstraintWeightsTable } from "./ConstraintWeightsTable";
@@ -29,7 +30,10 @@ export function FieldsPanel() {
 
         <Tabs.Panel value="fields">
           <Group justify="space-between" mb="sm">
-            <Title order={4}>{sv.fieldBuilder.heading}</Title>
+            <Group gap={4}>
+              <Title order={4}>{sv.fieldBuilder.heading}</Title>
+              <HelpTip label={sv.help.ariaLabel(sv.fieldBuilder.heading)}>{sv.help.fields.whatIsAField}</HelpTip>
+            </Group>
             <Button onClick={() => setNewFieldOpen(true)}>{sv.fieldBuilder.newFieldButton}</Button>
           </Group>
 
@@ -46,11 +50,46 @@ export function FieldsPanel() {
                   <Table.Tr>
                     <Table.Th>{sv.fieldBuilder.table.label}</Table.Th>
                     <Table.Th>{sv.fieldBuilder.table.type}</Table.Th>
-                    <Table.Th>{sv.fieldBuilder.table.affectsOptimization}</Table.Th>
-                    <Table.Th>{sv.fieldBuilder.table.constraint}</Table.Th>
-                    <Table.Th>{sv.fieldBuilder.table.hardOrSoft}</Table.Th>
-                    <Table.Th>{sv.fieldBuilder.table.weight}</Table.Th>
-                    <Table.Th>{sv.fieldBuilder.table.explanation}</Table.Th>
+                    <Table.Th>
+                      <Group gap={4} wrap="nowrap">
+                        {sv.fieldBuilder.table.affectsOptimization}
+                        <HelpTip label={sv.help.ariaLabel(sv.fieldBuilder.table.affectsOptimization)}>
+                          {sv.help.fields.affectsOptimization}
+                        </HelpTip>
+                      </Group>
+                    </Table.Th>
+                    <Table.Th>
+                      <Group gap={4} wrap="nowrap">
+                        {sv.fieldBuilder.table.constraint}
+                        <HelpTip label={sv.help.ariaLabel(sv.fieldBuilder.table.constraint)}>
+                          {sv.help.fields.constraintType}
+                        </HelpTip>
+                      </Group>
+                    </Table.Th>
+                    <Table.Th>
+                      <Group gap={4} wrap="nowrap">
+                        {sv.fieldBuilder.table.hardOrSoft}
+                        <HelpTip label={sv.help.ariaLabel(sv.fieldBuilder.table.hardOrSoft)}>
+                          {sv.help.fields.hardOrSoft}
+                        </HelpTip>
+                      </Group>
+                    </Table.Th>
+                    <Table.Th>
+                      <Group gap={4} wrap="nowrap">
+                        {sv.fieldBuilder.table.weight}
+                        <HelpTip label={sv.help.ariaLabel(sv.fieldBuilder.table.weight)}>
+                          {sv.help.fields.weightInTable}
+                        </HelpTip>
+                      </Group>
+                    </Table.Th>
+                    <Table.Th>
+                      <Group gap={4} wrap="nowrap">
+                        {sv.fieldBuilder.table.explanation}
+                        <HelpTip label={sv.help.ariaLabel(sv.fieldBuilder.table.explanation)}>
+                          {sv.help.fields.explanation}
+                        </HelpTip>
+                      </Group>
+                    </Table.Th>
                     <Table.Th />
                   </Table.Tr>
                 </Table.Thead>

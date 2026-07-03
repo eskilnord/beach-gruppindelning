@@ -82,6 +82,15 @@ describe("EditPlanModal", () => {
     expect(requestReceived).toBe(false);
   });
 
+  // v0.3.0 WI-3 smoke test: Kategori and Status each gained a HelpTip via their `description` slot
+  // (their `label` props stay untouched).
+  it("renders a HelpTip for the Kategori and Status fields (v0.3.0 WI-3)", () => {
+    renderWithProviders(<EditPlanModal opened plan={PLAN} onClose={() => {}} />);
+
+    expect(screen.getByRole("button", { name: sv.help.ariaLabel(sv.common.category) })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: sv.help.ariaLabel(sv.editPlanModal.statusLabel) })).toBeInTheDocument();
+  });
+
   it("clearing an input sends an explicit null so the saved default is cleared (three-state PATCH)", async () => {
     // v0.3.0 review fix (Finding 1): the PATCH body must contain a LITERAL null for the cleared
     // field - undefined would be dropped by JSON.stringify and the backend would keep the old

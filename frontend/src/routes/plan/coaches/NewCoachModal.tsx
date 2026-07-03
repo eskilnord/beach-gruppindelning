@@ -5,6 +5,7 @@ import { notifications } from "@mantine/notifications";
 import { useCreateCoach } from "../../../api/coaches";
 import { usePersons } from "../../../api/persons";
 import { ApiError } from "../../../api/client";
+import { HelpTip } from "../../../components/HelpTip";
 import { sv } from "../../../i18n/sv";
 
 interface NewCoachModalProps {
@@ -133,10 +134,25 @@ export function NewCoachModal({ planId, opened, onClose }: NewCoachModalProps) {
           )}
           {source === "new" && <TextInput label={sv.coaches.newCoachModal.emailLabel} {...form.getInputProps("email")} />}
 
-          <Group grow>
-            <NumberInput label={sv.coaches.newCoachModal.coachLevelLabel} min={0} max={1000} {...form.getInputProps("coachLevel")} />
+          <Group grow align="flex-start">
+            <NumberInput
+              label={sv.coaches.newCoachModal.coachLevelLabel}
+              description={
+                <HelpTip label={sv.help.ariaLabel(sv.coaches.newCoachModal.coachLevelLabel)}>
+                  {sv.help.coaches.coachLevel}
+                </HelpTip>
+              }
+              min={0}
+              max={1000}
+              {...form.getInputProps("coachLevel")}
+            />
             <NumberInput
               label={sv.coaches.newCoachModal.canCoachMinLabel}
+              description={
+                <HelpTip label={sv.help.ariaLabel(sv.coaches.newCoachModal.canCoachMinLabel)}>
+                  {sv.help.coaches.canCoachRange}
+                </HelpTip>
+              }
               min={0}
               max={1000}
               {...form.getInputProps("canCoachMinLevel")}
@@ -149,14 +165,24 @@ export function NewCoachModal({ planId, opened, onClose }: NewCoachModalProps) {
             />
           </Group>
 
-          <Group grow>
+          <Group grow align="flex-start">
             <NumberInput
               label={sv.coaches.newCoachModal.maxGroupsPerDayLabel}
+              description={
+                <HelpTip label={sv.help.ariaLabel(sv.coaches.newCoachModal.maxGroupsPerDayLabel)}>
+                  {sv.help.coaches.maxGroupsPerDay}
+                </HelpTip>
+              }
               min={1}
               {...form.getInputProps("maxGroupsPerDay")}
             />
             <NumberInput
               label={sv.coaches.newCoachModal.maxGroupsPerWeekLabel}
+              description={
+                <HelpTip label={sv.help.ariaLabel(sv.coaches.newCoachModal.maxGroupsPerWeekLabel)}>
+                  {sv.help.coaches.maxGroupsPerWeek}
+                </HelpTip>
+              }
               min={1}
               {...form.getInputProps("maxGroupsPerWeek")}
             />
@@ -164,6 +190,11 @@ export function NewCoachModal({ planId, opened, onClose }: NewCoachModalProps) {
 
           <Switch
             label={sv.coaches.newCoachModal.alsoParticipantLabel}
+            description={
+              <HelpTip label={sv.help.ariaLabel(sv.coaches.newCoachModal.alsoParticipantLabel)}>
+                {sv.help.coaches.alsoParticipant}
+              </HelpTip>
+            }
             checked={form.values.canAlsoTrainAsParticipant}
             onChange={(event) => form.setFieldValue("canAlsoTrainAsParticipant", event.currentTarget.checked)}
           />

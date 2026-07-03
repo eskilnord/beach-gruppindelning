@@ -6,6 +6,7 @@ import { notifications } from "@mantine/notifications";
 import { useCreateTimeSlot, useUpdateTimeSlot } from "../../../api/timeSlots";
 import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
+import { HelpTip } from "../../../components/HelpTip";
 import type { TimeSlot } from "../../../api/types";
 
 interface TimeSlotModalProps {
@@ -110,6 +111,9 @@ export function TimeSlotModal({ planId, opened, slot, onClose }: TimeSlotModalPr
         <Stack gap="sm">
           <Select
             label={sv.resources.slotModal.dayLabel}
+            description={
+              <HelpTip label={sv.help.ariaLabel(sv.resources.slotModal.dayLabel)}>{sv.help.resources.slotRecurrence}</HelpTip>
+            }
             placeholder={sv.resources.slotModal.dayPlaceholder}
             data={DAY_OPTIONS}
             withAsterisk
@@ -123,6 +127,7 @@ export function TimeSlotModal({ planId, opened, slot, onClose }: TimeSlotModalPr
           </Group>
           <TextInput
             label={sv.resources.slotModal.labelLabel}
+            description={<HelpTip label={sv.help.ariaLabel(sv.resources.slotModal.labelLabel)}>{sv.help.resources.slotLabel}</HelpTip>}
             placeholder={sv.resources.slotModal.labelPlaceholder}
             {...form.getInputProps("label")}
           />

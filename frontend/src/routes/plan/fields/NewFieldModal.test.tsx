@@ -108,4 +108,20 @@ describe("NewFieldModal", () => {
 
     expect(screen.getByText(sv.fieldBuilder.newFieldModal.keyPreview("villSpelaMed"))).toBeInTheDocument();
   });
+
+  // v0.3.0 WI-3 smoke test: affectsOptimization/hardOrSoft/explanation each gained a HelpTip
+  // (constraint/weight only render once "Påverkar optimering" is on - see the personRelation flow
+  // above). Their `label` props stay untouched (several are asserted exactly by e2e), so the tips
+  // live in Mantine's `description` slot instead - only the count is asserted here, not the copy.
+  it("renders a HelpTip for each explained field (v0.3.0 WI-3)", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<NewFieldModal planId={PLAN_ID} opened onClose={() => {}} />);
+
+    await selectOption(user, sv.fieldBuilder.newFieldModal.typeLabel, sv.fieldTypes.personRelation);
+    await user.click(screen.getByRole("switch", { name: sv.fieldBuilder.newFieldModal.affectsOptimizationLabel }));
+
+    const helpTips = screen.getAllByRole("button", { name: /^Förklaring:/ });
+    // affectsOptimization + constraint + hardOrSoft + weight + explanation = 5
+    expect(helpTips.length).toBeGreaterThanOrEqual(5);
+  });
 });

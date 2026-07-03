@@ -5,6 +5,7 @@ import { useConstraintDefinitions } from "../../../api/constraintDefinitions";
 import { useConstraintWeights, useUpdateConstraintWeights } from "../../../api/constraintWeights";
 import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
+import { HelpTip } from "../../../components/HelpTip";
 import type { ConstraintDefinition, ConstraintWeightOverrideRequest, ConstraintWeightView } from "../../../api/types";
 
 interface ConstraintWeightsTableProps {
@@ -26,7 +27,10 @@ export function ConstraintWeightsTable({ planId }: ConstraintWeightsTableProps) 
   return (
     <Stack gap="sm">
       <div>
-        <Text fw={500}>{sv.constraintWeights.heading}</Text>
+        <Group gap={4}>
+          <Text fw={500}>{sv.constraintWeights.heading}</Text>
+          <HelpTip label={sv.help.ariaLabel(sv.constraintWeights.heading)}>{sv.help.constraintWeights.section}</HelpTip>
+        </Group>
         <Text size="sm" c="dimmed">
           {sv.constraintWeights.subheading}
         </Text>
@@ -46,9 +50,30 @@ export function ConstraintWeightsTable({ planId }: ConstraintWeightsTableProps) 
               <Table.Tr>
                 <Table.Th>{sv.constraintWeights.table.label}</Table.Th>
                 <Table.Th>{sv.constraintWeights.table.category}</Table.Th>
-                <Table.Th>{sv.constraintWeights.table.hardOrSoft}</Table.Th>
-                <Table.Th>{sv.constraintWeights.table.weight}</Table.Th>
-                <Table.Th>{sv.constraintWeights.table.enabled}</Table.Th>
+                <Table.Th>
+                  <Group gap={4} wrap="nowrap">
+                    {sv.constraintWeights.table.hardOrSoft}
+                    <HelpTip label={sv.help.ariaLabel(sv.constraintWeights.table.hardOrSoft)}>
+                      {sv.help.fields.hardOrSoft}
+                    </HelpTip>
+                  </Group>
+                </Table.Th>
+                <Table.Th>
+                  <Group gap={4} wrap="nowrap">
+                    {sv.constraintWeights.table.weight}
+                    <HelpTip label={sv.help.ariaLabel(sv.constraintWeights.table.weight)}>
+                      {sv.help.fields.weightInTable}
+                    </HelpTip>
+                  </Group>
+                </Table.Th>
+                <Table.Th>
+                  <Group gap={4} wrap="nowrap">
+                    {sv.constraintWeights.table.enabled}
+                    <HelpTip label={sv.help.ariaLabel(sv.constraintWeights.table.enabled)}>
+                      {sv.help.constraintWeights.enabled}
+                    </HelpTip>
+                  </Group>
+                </Table.Th>
                 <Table.Th />
               </Table.Tr>
             </Table.Thead>

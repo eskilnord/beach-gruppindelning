@@ -35,6 +35,7 @@ import {
   useStartSolve,
 } from "../../../api/solve";
 import type { SolveProfile, SolveRequestBody } from "../../../api/types";
+import { HelpTip } from "../../../components/HelpTip";
 import { sv } from "../../../i18n/sv";
 import { formatDateTime } from "../../../lib/formatDateTime";
 import { effectiveGroupSizeDefaults } from "../../../lib/planDefaults";
@@ -205,7 +206,10 @@ export function OptimizePanel() {
 
         <Group justify="space-between" mb="lg" data-testid="groups-summary">
           <div>
-            <Text fw={600}>{sv.optimize.groups.heading}</Text>
+            <Group gap={4}>
+              <Text fw={600}>{sv.optimize.groups.heading}</Text>
+              <HelpTip label={sv.help.ariaLabel(sv.optimize.groups.heading)}>{sv.help.optimize.groupDefaults}</HelpTip>
+            </Group>
             <Text size="sm" c="dimmed">
               {sv.optimize.groups.count(groups.data?.length ?? 0)}
             </Text>
@@ -281,19 +285,34 @@ export function OptimizePanel() {
             {sv.optimize.optimizeOnly.heading}
           </Text>
         </Tooltip>
-        <Group mt="xs" mb="lg">
+        <Group mt="xs" mb="lg" align="flex-start">
           <Checkbox
             label={sv.optimize.optimizeOnly.players}
+            description={
+              <HelpTip label={sv.help.ariaLabel(sv.optimize.optimizeOnly.players)}>
+                {sv.help.optimize.optimizeOnlyPlayers}
+              </HelpTip>
+            }
             checked={optimizePlayers}
             onChange={(event) => setOptimizePlayers(event.currentTarget.checked)}
           />
           <Checkbox
             label={sv.optimize.optimizeOnly.schedule}
+            description={
+              <HelpTip label={sv.help.ariaLabel(sv.optimize.optimizeOnly.schedule)}>
+                {sv.help.optimize.optimizeOnlySchedule}
+              </HelpTip>
+            }
             checked={optimizeSchedule}
             onChange={(event) => setOptimizeSchedule(event.currentTarget.checked)}
           />
           <Checkbox
             label={sv.optimize.optimizeOnly.coaches}
+            description={
+              <HelpTip label={sv.help.ariaLabel(sv.optimize.optimizeOnly.coaches)}>
+                {sv.help.optimize.optimizeOnlyCoaches}
+              </HelpTip>
+            }
             checked={optimizeCoaches}
             onChange={(event) => setOptimizeCoaches(event.currentTarget.checked)}
           />
@@ -304,24 +323,38 @@ export function OptimizePanel() {
             {sv.optimize.blocking.heading}
           </Text>
         </Tooltip>
-        <Group mt="xs" mb="lg" data-testid="blocking-checkboxes">
+        <Group mt="xs" mb="lg" align="flex-start" data-testid="blocking-checkboxes">
           <Checkbox
             label={sv.optimize.blocking.blockCoaches}
+            description={
+              <HelpTip label={sv.help.ariaLabel(sv.optimize.blocking.blockCoaches)}>{sv.help.optimize.blockCoaches}</HelpTip>
+            }
             checked={blockCoaches}
             onChange={(event) => setBlockCoaches(event.currentTarget.checked)}
           />
           <Checkbox
             label={sv.optimize.blocking.blockPlayers}
+            description={
+              <HelpTip label={sv.help.ariaLabel(sv.optimize.blocking.blockPlayers)}>{sv.help.optimize.blockPlayers}</HelpTip>
+            }
             checked={blockPlayers}
             onChange={(event) => setBlockPlayers(event.currentTarget.checked)}
           />
           <Checkbox
             label={sv.optimize.blocking.blockCourts}
+            description={
+              <HelpTip label={sv.help.ariaLabel(sv.optimize.blocking.blockCourts)}>{sv.help.optimize.blockCourts}</HelpTip>
+            }
             checked={blockCourts}
             onChange={(event) => setBlockCourts(event.currentTarget.checked)}
           />
           <Checkbox
             label={sv.optimize.blocking.conflictsAsWarnings}
+            description={
+              <HelpTip label={sv.help.ariaLabel(sv.optimize.blocking.conflictsAsWarnings)}>
+                {sv.help.optimize.conflictsAsWarnings}
+              </HelpTip>
+            }
             checked={conflictsAsWarnings}
             onChange={(event) => setConflictsAsWarnings(event.currentTarget.checked)}
           />
@@ -342,6 +375,9 @@ export function OptimizePanel() {
                 value={profile}
                 onChange={(value) => setProfile(value as SolveProfile)}
                 label={sv.optimize.profileHeading}
+                description={
+                  <HelpTip label={sv.help.ariaLabel(sv.optimize.profileHeading)}>{sv.help.optimize.solveProfiles}</HelpTip>
+                }
                 mb="md"
               >
                 <Stack gap="xs" mt="xs">

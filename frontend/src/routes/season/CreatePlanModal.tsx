@@ -3,6 +3,7 @@ import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { useCreatePlan } from "../../api/plans";
 import { ApiError } from "../../api/client";
+import { HelpTip } from "../../components/HelpTip";
 import { sv } from "../../i18n/sv";
 import {
   PLAN_DEFAULTS_EMPTY_VALUES,
@@ -71,6 +72,7 @@ export function CreatePlanModal({ opened, seasonId, onClose, onCreated }: Create
           />
           <TextInput
             label={sv.createPlanModal.categoryLabel}
+            description={<HelpTip label={sv.help.ariaLabel(sv.createPlanModal.categoryLabel)}>{sv.help.plan.category}</HelpTip>}
             placeholder={sv.createPlanModal.categoryPlaceholder}
             {...form.getInputProps("category")}
           />

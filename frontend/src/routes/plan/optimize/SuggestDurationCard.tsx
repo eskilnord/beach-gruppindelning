@@ -1,6 +1,7 @@
 import { Alert, Button, Card, Group, Loader, Text, Title } from "@mantine/core";
 import { ApiError } from "../../../api/client";
 import { useSuggestDuration } from "../../../api/solve";
+import { HelpTip } from "../../../components/HelpTip";
 import { sv } from "../../../i18n/sv";
 
 interface SuggestDurationCardProps {
@@ -32,9 +33,10 @@ export function SuggestDurationCard({ planId, solveActive, startPending, onOptim
 
   return (
     <Card withBorder padding="md" mb="lg" data-testid="suggest-duration-card">
-      <Title order={5} mb="xs">
-        {sv.optimize.suggest.heading}
-      </Title>
+      <Group gap={4} mb="xs">
+        <Title order={5}>{sv.optimize.suggest.heading}</Title>
+        <HelpTip label={sv.help.ariaLabel(sv.optimize.suggest.heading)}>{sv.help.optimize.suggestedTime}</HelpTip>
+      </Group>
 
       {(solveActive || conflict) && (
         <Alert color="blue" data-testid="suggest-solve-active">

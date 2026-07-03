@@ -390,6 +390,120 @@ export const sv = {
     INFO: "Information",
     MEDIUM: "Medium",
   },
+  /**
+   * v0.3.0 WI-3 (user feedback: "Förbättra användarvänligheten genom att förklara vad olika
+   * inställningar innebär.") - short Swedish explanations shown by the `HelpTip` component. Every
+   * text here was checked against the actual backend behavior before being written (constraint
+   * provider, SolverInputAssembler, SolveController - see call sites for specifics); none of it is
+   * a guess about what a setting "probably" does.
+   */
+  help: {
+    ariaLabel: (topic: string) => `Förklaring: ${topic}`,
+    fields: {
+      whatIsAField:
+        "Ett fält är en egenskap hos varje deltagare eller tränare, t.ex. nivå eller ett kompisönskemål. Standardfälten finns alltid färdiga; du kan även skapa egna. Ett fält kan antingen bara vara information, eller kopplas till en optimeringsregel via kolumnerna nedan.",
+      affectsOptimization:
+        "Om detta är på används fältets värde av optimeringen. Är det av är fältet bara information för din egen skull, utan effekt på hur grupperna sätts ihop.",
+      constraintType:
+        "Vilken typ av optimeringsregel fältets värde kopplas till, t.ex. att hålla ihop personer som vill spela tillsammans eller undvika en viss tränare. Vilka regler som går att välja beror på fältets typ (text, person, tid osv.).",
+      // Review fix (v0.3.0 WI-3): must not promise "aldrig bryts" - the app itself surfaces
+      // remaining hard violations ("N hårda brott kvarstår" on the last-run card), and the
+      // waitlist escape only exists for player-placement constraints, not system-level ones.
+      hardOrSoft:
+        "Hård betyder att regeln har högsta prioritet och behandlas som ett krav. Går regeln inte att uppfylla försöker optimeringen hellre lämna en spelare på kölistan än att bryta den; i svåra fall kan hårda brott ändå kvarstå (visas som \"hårda brott kvarstår\"). Mjuk betyder att regeln är ett önskemål som vägs mot planens övriga mjuka regler utifrån vikterna, och kan brytas om helheten blir bättre. Använd Hård bara för sånt som verkligen aldrig får hända.",
+      weight:
+        "Hur tungt en mjuk regel väger mot planens övriga mjuka regler när optimeringen måste välja mellan dem. Bara det relativa förhållandet mellan vikter spelar roll, inte talet i sig – höj vikten för det som är viktigast för just den här planen.",
+      // Review fix (v0.3.0 WI-3): the two tables' Vikt COLUMNS also cover HARD rows (where the
+      // weight cell shows "—"), so the column-header tip needs the extra hard-rule clause.
+      // NewFieldModal's weight input only renders for SOFT, so it keeps the plain `weight` text.
+      weightInTable:
+        "Hur tungt en mjuk regel väger mot planens övriga mjuka regler när optimeringen måste välja mellan dem. Bara det relativa förhållandet mellan vikter spelar roll, inte talet i sig – höj vikten för det som är viktigast för just den här planen. För hårda regler har vikten sällan någon praktisk betydelse.",
+      // NewFieldModal's own weight input is exact-matched by e2e via getByLabel(weightLabel) with
+      // no role filter (Playwright's default substring, case-insensitive match) - a HelpTip whose
+      // trigger's own accessible name contains that same label text ("Vikt") would make that
+      // locator ambiguous within the modal. This dedicated aria-label carries the same meaning
+      // without repeating the word "vikt" verbatim, so the two stay distinguishable. The FieldRow
+      // table's/ConstraintWeightsTable's own "Vikt" column HelpTips don't share this modal's scope
+      // and can safely reuse the plain ariaLabel(...) form instead.
+      weightAriaLabelInModal: "Förklaring: hur mjuka regler vägs mot varandra",
+      explanation:
+        "En egen förklaringstext till fältet, till hjälp för den som fyller i eller granskar det. Ren dokumentation utan effekt på optimeringen.",
+    },
+    constraintWeights: {
+      section:
+        "De inbyggda standardreglerna som optimeringen alltid känner till för den här planen, t.ex. jämn nivåspridning inom en grupp eller att en tränare inte dubbelbokas. Ändra Hård/Mjuk och vikt per regel, eller stäng av en regel helt för just den här planen.",
+      enabled:
+        "Stäng av en regel helt för den här planen utan att ändra dess vikt eller hård/mjuk-inställning – bra för att se hur mycket regeln faktiskt påverkar resultatet. Rader reserverade för kölistan (Medium) kan inte stängas av.",
+    },
+    optimize: {
+      optimizeOnlyPlayers:
+        "Ikryssad: optimeringen får flytta om vilka spelare som hamnar i vilken grupp. Urkryssad: alla spelares nuvarande gruppmedlemskap fryses fast, oavsett om de är individuellt låsta eller inte.",
+      optimizeOnlySchedule:
+        "Ikryssad: optimeringen får ändra vilken tid och bana varje grupp får. Urkryssad: varje grupps nuvarande tid/bana fryses fast.",
+      optimizeOnlyCoaches:
+        "Ikryssad: optimeringen får ändra vilken tränare som tilldelas varje grupp. Urkryssad: alla tränartilldelningar fryses fast.",
+      blockCoaches:
+        "Hindrar tränare som redan är upptagna i en annan låst plan i samma säsong, under en överlappande tid, från att också tilldelas här.",
+      blockPlayers:
+        "Hindrar spelare/personer som redan är upptagna i en annan låst plan i samma säsong, under en överlappande tid, från att också placeras här.",
+      blockCourts:
+        "Hindrar banor/tider som redan används av en annan låst plan i samma säsong, under en överlappande tid, från att också användas här.",
+      conflictsAsWarnings:
+        "Nedgraderar ovanstående blockeringar till varningar för just den här körningen – optimeringen får ändå använda en upptagen person, tränare eller bana om det behövs, men visar det som en varning istället för att blockera helt. Sparas inte som en inställning på planen.",
+      solveProfiles:
+        "Optimeringen provar och förbättrar lösningen gradvis under den tid den får. Ju längre den kör desto bättre resultat hittar den oftast, men förbättringstakten avtar med tiden – de sista sekunderna ger sällan lika stor skillnad som de första.",
+      suggestedTime:
+        "Ett förslag på hur många sekunder optimeringen behöver, baserat på planens storlek (spelare, grupper, tränare, önskemål) och hur snabb den här datorn är. Använd förslaget direkt, eller välj en egen tid under Avancerat.",
+      groupDefaults:
+        "Standardvärdena för målstorlek, min/max och min-nivå styr vad knappen \"Generera grupper\" ovan föreslår innan optimeringen körs. Ändra dem för hela planen via länken \"Ändra…\".",
+    },
+    resources: {
+      courts:
+        "Antal banor styr hur många grupper som får plats på den här tiden – varje bana är en möjlig gruppplats. Sänker du antalet stängs de sista banorna av (utan att raderas); höjer du det öppnas de igen.",
+      // The courts NumberInput is exact-matched by e2e via getByLabel(courtsLabel) with no role
+      // filter, scoped to this same time-slot row - a HelpTip whose own accessible name repeats
+      // "Antal banor" verbatim would make that locator ambiguous. Same reasoning as
+      // weightAriaLabelInModal above.
+      courtsAriaLabel: "Förklaring: banor för den här tiden",
+      courtActive:
+        "Slå av en enskild bana för att undanta just den från schemaläggning vid den här tiden, t.ex. om den är bokad av någon annan. Optimeringen använder aldrig en avstängd bana, men den finns kvar och kan slås på igen senare.",
+      slotRecurrence: "Tiden återkommer varje vecka på den valda veckodagen – inte ett engångstillfälle.",
+      slotLabel:
+        "Ett eget namn för tiden, t.ex. \"Torsdag kväll\". Lämnas fältet tomt genereras ett namn automatiskt utifrån dag och klockslag.",
+    },
+    coaches: {
+      coachLevel:
+        "Tränarens egen nivå, till för din egen överblick i tabellen. Det är fältet Kan träna nivå (från–till) som faktiskt styr optimeringens tränarmatchning – inte det här värdet.",
+      canCoachRange:
+        "Nivåspannet tränaren helst tränar. Hamnar en grupps nivåsnitt utanför spannet räknas det som en mjuk avvikelse i optimeringen (ju längre utanför desto sämre poäng) – tränaren kan ändå tilldelas gruppen, matchningen blir bara sämre.",
+      // Review fix (v0.3.0 WI-3): the solver coalesces the two caps into ONE plan-wide cap
+      // (coalesceMaxGroups - week wins when both are set); there is no per-day counting, so both
+      // texts must say the cap applies to the plan as a whole.
+      maxGroupsPerDay:
+        "Hårt tak för hur många grupper tränaren kan ha (taket gäller planen som helhet) – optimeringen överskrider aldrig detta. Anger du även Max grupper/vecka är det veckotaket som gäller istället för dagstaket.",
+      maxGroupsPerWeek:
+        "Hårt tak för hur många grupper tränaren kan ha totalt under veckan (taket gäller planen som helhet) – optimeringen överskrider aldrig detta. Anger du både denna och Max grupper/dag används veckotaket.",
+      alsoParticipant:
+        "Markerar att personen även är anmäld som spelare i planen, för din egen överblick. Fältet påverkar i dagsläget inte optimeringen eller schemaläggningen.",
+      availability:
+        "Fyra lägen per träningstid: Okänd (inget angivet) och Tillgänglig behandlas exakt likadant av optimeringen – helt neutralt. Otillgänglig blockerar tränaren helt från den tiden (hård regel). Föredrar ger en liten poängbonus om tränaren faktiskt läggs där, men är inget krav.",
+    },
+    export: {
+      includeComments:
+        "Kommentarerna kan innehålla känsliga uppgifter om enskilda personer. Kryssa bara i om mottagaren verkligen behöver dem, och sprid aldrig filen vidare efteråt.",
+      anonymized:
+        "Tar bort namn och kontaktuppgifter men behåller struktur och siffror, så du kan dela planen för felsökning eller utveckling utan att exponera personuppgifter.",
+    },
+    plan: {
+      status:
+        "Fri text för din egen uppföljning av planens skede (t.ex. \"utkast\" eller \"klar\"). Fältet styr inget i appen – det är bara en etikett du själv sätter.",
+      // Review fix (v0.3.0 WI-3): category is NOT purely cosmetic - GroupGenerator uses it as the
+      // name prefix for generated groups ("Herr 1", "Herr 2" ...) - so the text must say so. It
+      // still has no effect on how the solver scores a solution.
+      category:
+        "En egen etikett för planen, t.ex. \"Herr\", \"Dam\" eller \"Ungdom\". Används också som namnprefix när du genererar grupper (\"Herr 1\", \"Herr 2\" …). Påverkar inte hur optimeringen poängsätter lösningen.",
+    },
+  },
   fieldBuilder: {
     heading: "Fältbyggare",
     tabs: {
