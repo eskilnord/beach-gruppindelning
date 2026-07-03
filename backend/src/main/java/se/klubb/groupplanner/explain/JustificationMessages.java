@@ -6,7 +6,7 @@ import se.klubb.groupplanner.solver.domain.Group;
 
 /**
  * Renders every {@link ConstraintJustification} record in {@code se.klubb.groupplanner.solver
- * .constraints.Justifications} (18 record types, covering all 32 code-implemented constraints via
+ * .constraints.Justifications} (19 record types, covering all 33 code-implemented constraints via
  * shared shapes — e.g. one {@code PairWishBrokenJustification} covers both {@code sameGroupHard} and
  * {@code differentGroupHard} via its {@code type} field) into the exact Swedish sentence shapes
  * kravspec §17.2/§17.3 show ("Kalles nivåscore 640 matchar Grupp Y:s spann 600-690", "Kompisönskemål
@@ -130,6 +130,9 @@ final class JustificationMessages {
 
             case Justifications.CoachPreferredTimeSlotJustification j -> "%s fick sin föredragna tid för %s"
                     .formatted(idx.personName(j.coachPersonId()), idx.groupName(j.groupId()));
+
+            case Justifications.CoachUnknownTimeSlotJustification j -> "%s har inte angett tillgänglighet för %s (grupp %s)"
+                    .formatted(idx.personName(j.coachPersonId()), idx.timeSlotLabel(j.timeSlotId()), idx.groupName(j.groupId()));
 
             default -> justification.toString();
         };

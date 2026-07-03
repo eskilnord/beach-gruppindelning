@@ -14,6 +14,7 @@ import se.klubb.groupplanner.solver.constraints.Justifications.CoachLevelMismatc
 import se.klubb.groupplanner.solver.constraints.Justifications.CoachOverloadedJustification;
 import se.klubb.groupplanner.solver.constraints.Justifications.CoachPreferredTimeSlotJustification;
 import se.klubb.groupplanner.solver.constraints.Justifications.CoachUnavailableJustification;
+import se.klubb.groupplanner.solver.constraints.Justifications.CoachUnknownTimeSlotJustification;
 import se.klubb.groupplanner.solver.constraints.Justifications.CoachWishJustification;
 import se.klubb.groupplanner.solver.constraints.Justifications.ContinuityJustification;
 import se.klubb.groupplanner.solver.constraints.Justifications.GroupOrderInversionJustification;
@@ -109,6 +110,7 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
             lateTimeTopGroups(factory),
             lateTimeBottomGroups(factory),
             coachPreferredTimeSlot(factory),
+            coachUnknownTimeSlot(factory),
         };
     }
 
@@ -611,5 +613,27 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
                 .justifyWith((cs, gs, score) -> new CoachPreferredTimeSlotJustification(
                         cs.getCoach().personId(), gs.getGroup().id(), gs.getTrainingBlock().timeSlotId()))
                 .asConstraint(ConstraintKeys.COACH_PREFERRED_TIME_SLOT);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────── coachUnknownTimeSlot
+    // New in WI-B (V10 migration adds the constraint_definition row): "Okänd" (neutral/unlisted)
+    // availability used to be scored EXACTLY like an explicit AVAILABLE row - fully neutral, so
+    // leaving the matrix blank was free. This SOFT penalty makes it a small "föredrar inte" instead,
+    // so the optimizer favors coaches who actually filled in their availability. The explicit-
+    // UNAVAILABLE case is deliberately excluded (via CoachFact.availableAt) - that is already a
+    // HARD violation via coachAvailabilityHard and must not be double-punished here.
+
+    Constraint coachUnknownTimeSlot(ConstraintFactory f) {
+        return f.forEach(CoachSlot.class)
+                .join(GroupSchedule.class, Joiners.equal(CoachSlot::getGroup, GroupSchedule::getGroup))
+                .filter((cs, gs) -> {
+                    long timeSlotId = gs.getTrainingBlock().timeSlotId();
+                    CoachFact coach = cs.getCoach();
+                    return !coach.hasKnownAvailabilityAt(timeSlotId) && coach.availableAt(timeSlotId);
+                })
+                .penalize(HardMediumSoftLongScore.ofSoft(20))
+                .justifyWith((cs, gs, score) -> new CoachUnknownTimeSlotJustification(
+                        cs.getCoach().personId(), gs.getGroup().id(), gs.getTrainingBlock().timeSlotId()))
+                .asConstraint(ConstraintKeys.COACH_UNKNOWN_TIME_SLOT);
     }
 }

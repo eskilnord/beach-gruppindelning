@@ -55,7 +55,7 @@ class SavedPlanConstraintsTest {
 
     @Test
     void coachClashesWithSavedPlanPersonUsagePenalizes() {
-        CoachFact coach = new CoachFact(1L, 200L, "Anna", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
+        CoachFact coach = new CoachFact(1L, 200L, "Anna", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
         Group g = group(1);
         CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
         TrainingBlock block = new TrainingBlock(1L, 1L, "Bana 1", timeKey(18 * 60, 19 * 60 + 30), "18.00", 1L);

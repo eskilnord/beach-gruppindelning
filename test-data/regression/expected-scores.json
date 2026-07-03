@@ -4,11 +4,11 @@
     "greedy" : "0hard/0medium/-88600soft"
   },
   "coach-overlap-20" : {
-    "solver" : "0hard/0medium/-95050soft",
+    "solver" : "0hard/0medium/-102800soft",
     "greedy" : "-3hard/0medium/-93300soft"
   },
   "large-120" : {
-    "solver" : "0hard/-1200medium/-2344940soft",
-    "greedy" : "-17hard/0medium/-212100soft"
+    "solver" : "0hard/-1600medium/-2338040soft",
+    "greedy" : "-17hard/0medium/-212140soft"
   }
 }

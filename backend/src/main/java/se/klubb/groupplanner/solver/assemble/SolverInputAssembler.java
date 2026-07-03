@@ -280,6 +280,18 @@ public class SolverInputAssembler {
                     .distinct()
                     .sorted()
                     .toArray();
+            // WI-B: backs coachUnknownTimeSlot - the union of explicit AVAILABLE/PREFERRED rows,
+            // i.e. every slot the coach actually expressed an opinion about (as opposed to leaving
+            // it "Okänd"/unlisted). PREFERRED is included because a PREFERRED row IS an explicit
+            // AVAILABLE-or-better statement (spec §7.3 tri-state), not a fourth independent kind.
+            long[] available = coachTimeSlots.stream()
+                    .filter(ct -> CoachTimeSlot.AVAILABLE.equals(ct.kind()) || CoachTimeSlot.PREFERRED.equals(ct.kind()))
+                    .map(CoachTimeSlot::timeSlotId)
+                    .filter(timeSlotIdx::contains)
+                    .mapToLong(timeSlotIdx::id)
+                    .distinct()
+                    .sorted()
+                    .toArray();
             int maxGroups = coalesceMaxGroups(cp);
             CoachFact fact = new CoachFact(
                     coachIdx.id(cp.id()),
@@ -290,7 +302,8 @@ public class SolverInputAssembler {
                     cp.canCoachMaxLevel() != null ? scaled(cp.canCoachMaxLevel()) : 100_000,
                     unavailable,
                     maxGroups,
-                    preferred);
+                    preferred,
+                    available);
             coachFacts.add(fact);
             coachFactByDbId.put(cp.id(), fact);
             coachPersonLongIdByProfileId.put(cp.id(), fact.personId());

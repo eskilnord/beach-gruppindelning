@@ -1062,6 +1062,7 @@ public class ExplanationService {
             case Justifications.CoachLevelMismatchJustification x -> List.of(x.groupId());
             case Justifications.LateTimeJustification x -> List.of(x.groupId());
             case Justifications.CoachPreferredTimeSlotJustification x -> List.of(x.groupId());
+            case Justifications.CoachUnknownTimeSlotJustification x -> List.of(x.groupId());
             case Justifications.PairWishBrokenJustification x -> groupsOfParticipants(idx, x.aParticipantId(), x.bParticipantId());
             case Justifications.PairWishSoftJustification x -> groupsOfParticipants(idx, x.aParticipantId(), x.bParticipantId());
             case Justifications.CoachWishJustification x -> groupsOfParticipants(idx, x.participantId());

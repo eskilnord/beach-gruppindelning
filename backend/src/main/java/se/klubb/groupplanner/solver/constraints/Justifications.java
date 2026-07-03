@@ -133,4 +133,10 @@ public final class Justifications {
     public record CoachPreferredTimeSlotJustification(long coachPersonId, long groupId, long timeSlotId)
             implements ConstraintJustification {
     }
+
+    /** coachUnknownTimeSlot (new WI-B constraint): a CoachSlot landed on a time slot the coach left
+     * neutral/unlisted ("Okänd") - no explicit AVAILABLE/PREFERRED/UNAVAILABLE row at all. */
+    public record CoachUnknownTimeSlotJustification(long coachPersonId, long groupId, long timeSlotId)
+            implements ConstraintJustification {
+    }
 }

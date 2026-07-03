@@ -84,6 +84,12 @@ public final class ConstraintKeys {
     /** New in M6b (V6 migration): rewards a {@code CoachSlot} landing on a slot the coach marked
      * {@code PREFERRED} (M5's tri-state) — the SOFT counterpart of {@code coachAvailabilityHard}. */
     public static final String COACH_PREFERRED_TIME_SLOT = "coachPreferredTimeSlot";
+    /** New in WI-B (V10 migration): penalizes a {@code CoachSlot} landing on a slot the coach left
+     * neutral/unlisted ("Okänd") — no explicit {@code AVAILABLE}/{@code PREFERRED}/{@code
+     * UNAVAILABLE} row at all. The explicit-{@code UNAVAILABLE} case is excluded (already a HARD
+     * violation via {@code coachAvailabilityHard}, never double-punished here) — see {@code
+     * CoachFact.hasKnownAvailabilityAt}. */
+    public static final String COACH_UNKNOWN_TIME_SLOT = "coachUnknownTimeSlot";
 
     /** Every constraint key {@link GroupPlanConstraintProvider} actually implements as Constraint
      * Streams code (excludes the two "satisfied by construction" keys above, which never appear in
@@ -124,7 +130,8 @@ public final class ConstraintKeys {
             COACH_PREFERENCE_SOFT,
             LATE_TIME_TOP_GROUPS,
             LATE_TIME_BOTTOM_GROUPS,
-            COACH_PREFERRED_TIME_SLOT);
+            COACH_PREFERRED_TIME_SLOT,
+            COACH_UNKNOWN_TIME_SLOT);
 
     /**
      * Complement/fan-out-child map (docs/design/05-solver-verification.md minor finding, generalized

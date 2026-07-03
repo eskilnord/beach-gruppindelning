@@ -494,8 +494,12 @@ export const sv = {
         "Hårt tak för hur många grupper tränaren kan ha totalt under veckan (taket gäller planen som helhet) – optimeringen överskrider aldrig detta. Anger du både denna och Max grupper/dag används veckotaket.",
       alsoParticipant:
         "Markerar att personen även är anmäld som spelare i planen, för din egen överblick. Fältet påverkar i dagsläget inte optimeringen eller schemaläggningen.",
+      // WI-B: "Okänd" is no longer scored identically to "Tillgänglig" - it now carries a small
+      // soft penalty (coachUnknownTimeSlot) so the optimizer favors coaches who actually filled in
+      // their availability. Keep this text truthful to that change - see backend
+      // GroupPlanConstraintProvider#coachUnknownTimeSlot / V10 migration.
       availability:
-        "Fyra lägen per träningstid: Okänd (inget angivet) och Tillgänglig behandlas exakt likadant av optimeringen – helt neutralt. Otillgänglig blockerar tränaren helt från den tiden (hård regel). Föredrar ger en liten poängbonus om tränaren faktiskt läggs där, men är inget krav.",
+        "Fyra lägen per träningstid: Okänd (inget angivet) räknas som \"föredrar inte\" – liten minuspoäng om tränaren sätts på en sådan tid. Tillgänglig är neutralt. Otillgänglig blockerar helt (hård regel). Föredrar ger en liten bonus.",
     },
     export: {
       includeComments:
@@ -1179,7 +1183,7 @@ export const sv = {
         bullets: [
           "Klicka \"Ny tränare\" och länka en befintlig deltagare eller skapa en ny person.",
           "Ange vilken nivå tränaren kan träna och hur många grupper per dag/vecka.",
-          "Fyll i tillgänglighet per träningstid: Otillgänglig, Tillgänglig eller Föredrar.",
+          "Fyll i tillgänglighet per träningstid: Otillgänglig, Tillgänglig eller Föredrar. Tider som lämnas som Okänd räknas som \"föredrar inte\" (liten minuspoäng), så det lönar sig att fylla i.",
         ],
       },
       {

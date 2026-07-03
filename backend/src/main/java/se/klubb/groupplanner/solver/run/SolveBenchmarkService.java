@@ -232,7 +232,7 @@ public class SolveBenchmarkService {
 
         List<CoachFact> coaches = new ArrayList<>();
         for (int c = 1; c <= COACH_COUNT; c++) {
-            coaches.add(new CoachFact(c, 100L + c, "Coach " + c, 60_000, 0, 100_000, new long[0], 4, new long[0]));
+            coaches.add(new CoachFact(c, 100L + c, "Coach " + c, 60_000, 0, 100_000, new long[0], 4, new long[0], new long[0]));
         }
 
         List<PlayerAssignment> players = new ArrayList<>();

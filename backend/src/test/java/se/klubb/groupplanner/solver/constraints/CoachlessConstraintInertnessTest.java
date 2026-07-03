@@ -132,4 +132,12 @@ class CoachlessConstraintInertnessTest {
 
         verifier.verifyThat(GroupPlanConstraintProvider::coachPreferredTimeSlot).given(gs).hasNoImpact();
     }
+
+    @Test
+    void coachUnknownTimeSlotIsInertWithZeroCoachSlots() {
+        Group g = group(1);
+        GroupSchedule gs = new GroupSchedule(1L, g, block(1L), false);
+
+        verifier.verifyThat(GroupPlanConstraintProvider::coachUnknownTimeSlot).given(gs).hasNoImpact();
+    }
 }

@@ -36,9 +36,11 @@ public class CoachTimeSlotRepository {
     /**
      * Coaches (by distinct {@code coach_profile_id}) with one specific {@code kind} at every time
      * slot of an activity plan, keyed by time_slot_id -&gt; count. Used by the capacity per-slot
-     * breakdown (spec §12.4): "not counted as UNAVAILABLE" is a coach's availability at a slot
-     * (neutral/unlisted = available, matching the solver design's CoachFact which carries only
-     * unavailableTimeSlotIds — docs/design/04-solver.md), and PREFERRED is surfaced separately.
+     * breakdown (spec §12.4): "not counted as UNAVAILABLE" is a coach's availability at a slot for
+     * capacity/HARD purposes (neutral/unlisted = available — docs/design/04-solver.md), and
+     * PREFERRED is surfaced separately. Since WI-B the solver's SOFT layer additionally nudges away
+     * from neutral/unlisted ("Okänd") slots (see {@code CoachFact.availableTimeSlotIds}/{@code
+     * coachUnknownTimeSlot}), but that does not change this capacity view's semantics.
      */
     public java.util.Map<String, Integer> countKindByTimeSlotForPlan(String activityPlanId, String kind) {
         java.util.Map<String, Integer> counts = new java.util.HashMap<>();

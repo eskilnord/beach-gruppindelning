@@ -60,23 +60,23 @@ class FlywayMigrationTest {
         assertThat(descriptions).containsExactly(
                 "core", "seed constraints and standard fields", "import", "resources", "solver runs",
                 "soft constraints locks saved plan", "explainability", "activity plan level min default",
-                "explanation record indirect factors");
+                "explanation record indirect factors", "coach unknown time constraint");
     }
 
     @Test
-    void exactlyThirtyTwoConstraintsAreSeeded() {
+    void exactlyThirtyThreeConstraintsAreSeeded() {
         Integer count = jdbcClient.sql("SELECT COUNT(*) FROM constraint_definition").query(Integer.class).single();
 
-        assertThat(count).isEqualTo(32);
+        assertThat(count).isEqualTo(33);
     }
 
     /**
      * The exact seed contract for all 24 spec-numbered standard constraints (§10.1-10.24) plus the
      * 7 M6a additions (backend/docs/m6a-notes.md - coachMaxGroups, coachWishRequired/Forbidden,
      * savedPlanPersonBlocked/CoachBlocked/CourtBlocked, unassignedPlayer) plus the 1 M6b addition
-     * (backend/docs/m6b-notes.md - coachPreferredTimeSlot, V6): key AND hard-or-soft classification.
-     * A future edit that flips a classification (e.g. groupMaxSizeHard -> SOFT) fails here, not
-     * silently in the solver.
+     * (backend/docs/m6b-notes.md - coachPreferredTimeSlot, V6) plus the 1 WI-B addition
+     * (coachUnknownTimeSlot, V10): key AND hard-or-soft classification. A future edit that flips a
+     * classification (e.g. groupMaxSizeHard -> SOFT) fails here, not silently in the solver.
      */
     private static final Map<String, String> EXPECTED_CONSTRAINT_CLASSIFICATIONS = Map.ofEntries(
             Map.entry("trainingBlockCapacity", "HARD"),              // §10.1
@@ -110,7 +110,8 @@ class FlywayMigrationTest {
             Map.entry("savedPlanCoachBlocked", "HARD"),              // §10.24b
             Map.entry("savedPlanCourtBlocked", "HARD"),              // §10.24c
             Map.entry("unassignedPlayer", "MEDIUM"),                 // reserved waitlist penalty (ADR-006)
-            Map.entry("coachPreferredTimeSlot", "SOFT"));            // M6b addition (V6): coach PREFERRED-slot reward
+            Map.entry("coachPreferredTimeSlot", "SOFT"),             // M6b addition (V6): coach PREFERRED-slot reward
+            Map.entry("coachUnknownTimeSlot", "SOFT"));              // WI-B addition (V10): coach unknown-slot penalty
 
     @Test
     void constraintKeyToHardOrSoftMapMatchesSpecSection10Exactly() {

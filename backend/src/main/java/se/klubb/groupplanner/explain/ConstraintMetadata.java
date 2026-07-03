@@ -14,7 +14,7 @@ import se.klubb.groupplanner.solver.constraints.ConstraintKeys;
  * drifts between "why was I placed here" and "what constraints ran".
  *
  * <p>Labels/descriptions deliberately mirror the {@code constraint_definition} seed text
- * (V2/V5/V6 migrations) so a constraint reads identically in the Field Builder/weights UI and in an
+ * (V2/V5/V6/V10 migrations) so a constraint reads identically in the Field Builder/weights UI and in an
  * explanation — kept as a static compiled registry (not read from the DB) because message templates
  * are code, not data (design's own framing), and because {@link #of(String)} must resolve for keys
  * that have NO {@code constraint_definition} row at all: the two "satisfied by construction" HARD
@@ -168,6 +168,9 @@ public final class ConstraintMetadata {
         add(ConstraintKeys.COACH_PREFERRED_TIME_SLOT, "Tränarens önskade tid",
                 "Belöna en tränare som hamnar på en tid tränaren föredrar.", HardOrSoft.SOFT, Unit.PER_MATCH,
                 Direction.REWARD);
+        add(ConstraintKeys.COACH_UNKNOWN_TIME_SLOT, "Tränare på tid utan angiven tillgänglighet",
+                "Straffa en tränare som hamnar på en tid utan angiven tillgänglighet (varken tillgänglig, "
+                        + "otillgänglig eller föredragen).", HardOrSoft.SOFT, Unit.PER_MATCH, Direction.PENALIZE);
 
         // --- fan-out parent with no code of its own (ConstraintKeys.COMPLEMENTS_OF) ---
         addFanOutParent(ConstraintKeys.LATE_TIME_FOR_LOWER_GROUPS, "Sen tid för lägre grupper",

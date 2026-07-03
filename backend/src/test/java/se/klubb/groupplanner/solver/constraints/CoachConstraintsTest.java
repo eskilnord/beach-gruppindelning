@@ -22,7 +22,7 @@ class CoachConstraintsTest {
 
     @Test
     void coachUnavailableAtScheduledTimePenalizes() {
-        CoachFact coach = new CoachFact(1L, 100L, "Coach", 50_000, 0, 100_000, new long[] {5L}, Integer.MAX_VALUE, new long[0]);
+        CoachFact coach = new CoachFact(1L, 100L, "Coach", 50_000, 0, 100_000, new long[] {5L}, Integer.MAX_VALUE, new long[0], new long[0]);
         Group g = group(1);
         CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
         TrainingBlock block = new TrainingBlock(1L, 1L, "Bana 1", new TimeKey(TimeKey.NO_DATE, 4, 21 * 60, 22 * 60 + 30), "21.00", 5L);
@@ -35,7 +35,7 @@ class CoachConstraintsTest {
 
     @Test
     void coachAvailableAtScheduledTimeHasNoImpact() {
-        CoachFact coach = new CoachFact(1L, 100L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
+        CoachFact coach = new CoachFact(1L, 100L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
         Group g = group(1);
         CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
         TrainingBlock block = new TrainingBlock(1L, 1L, "Bana 1", new TimeKey(TimeKey.NO_DATE, 4, 21 * 60, 22 * 60 + 30), "21.00", 5L);
@@ -58,7 +58,7 @@ class CoachConstraintsTest {
 
     @Test
     void filledRequiredCoachSlotHasNoImpact() {
-        CoachFact coach = new CoachFact(1L, 100L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
+        CoachFact coach = new CoachFact(1L, 100L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
         Group g = group(1);
         CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
 
@@ -69,7 +69,7 @@ class CoachConstraintsTest {
 
     @Test
     void coachAssignedToMoreGroupsThanMaxPenalizesByOverflow() {
-        CoachFact coach = new CoachFact(1L, 100L, "Coach", 50_000, 0, 100_000, new long[0], 1, new long[0]);
+        CoachFact coach = new CoachFact(1L, 100L, "Coach", 50_000, 0, 100_000, new long[0], 1, new long[0], new long[0]);
         Group g1 = group(1);
         Group g2 = group(2);
         CoachSlot cs1 = new CoachSlot(CoachSlot.syntheticId(1, 0), g1, 0, coach, false);
@@ -82,7 +82,7 @@ class CoachConstraintsTest {
 
     @Test
     void coachWithinMaxGroupsHasNoImpact() {
-        CoachFact coach = new CoachFact(1L, 100L, "Coach", 50_000, 0, 100_000, new long[0], 1, new long[0]);
+        CoachFact coach = new CoachFact(1L, 100L, "Coach", 50_000, 0, 100_000, new long[0], 1, new long[0], new long[0]);
         Group g1 = group(1);
         CoachSlot cs1 = new CoachSlot(CoachSlot.syntheticId(1, 0), g1, 0, coach, false);
 
@@ -106,7 +106,7 @@ class CoachConstraintsTest {
     void requiredCoachPresentHasNoImpact() {
         Group g = group(1);
         PlayerAssignment p = player(1, g);
-        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
+        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
         CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
         CoachWish wish = new CoachWish(1L, CoachWishType.MUST, 1L, 200L);
 
@@ -119,7 +119,7 @@ class CoachConstraintsTest {
     void forbiddenCoachPresentPenalizes() {
         Group g = group(1);
         PlayerAssignment p = player(1, g);
-        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
+        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
         CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
         CoachWish wish = new CoachWish(1L, CoachWishType.CANNOT, 1L, 200L);
 

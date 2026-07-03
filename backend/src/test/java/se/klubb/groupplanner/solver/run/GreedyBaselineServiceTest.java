@@ -85,8 +85,8 @@ class GreedyBaselineServiceTest {
 
         // Both coaches fit the group's mean level (50_000) perfectly (distance 0) and have no
         // availability/maxGroups constraint - a genuine tie, broken only by coachProfileId.
-        CoachFact higherIdCoach = new CoachFact(20L, 200L, "B", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
-        CoachFact lowerIdCoach = new CoachFact(10L, 100L, "A", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
+        CoachFact higherIdCoach = new CoachFact(20L, 200L, "B", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
+        CoachFact lowerIdCoach = new CoachFact(10L, 100L, "A", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
 
         GroupPlanSolution problem = new GroupPlanSolution(
                 "test-plan", players, schedules, List.of(slot), List.of(g1), List.of(b1),
@@ -110,8 +110,8 @@ class GreedyBaselineServiceTest {
         // the group's actual mean (50_000) -> nonzero distance. higherIdButFits: id 50, band
         // includes 50_000 -> distance 0. Fit distance must dominate id, proving id is ONLY a
         // tie-breaker, not a primary ranking criterion.
-        CoachFact lowerIdButFar = new CoachFact(5L, 500L, "Far", 90_000, 80_000, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
-        CoachFact higherIdButFits = new CoachFact(50L, 5000L, "Fits", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
+        CoachFact lowerIdButFar = new CoachFact(5L, 500L, "Far", 90_000, 80_000, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
+        CoachFact higherIdButFits = new CoachFact(50L, 5000L, "Fits", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
 
         GroupPlanSolution problem = new GroupPlanSolution(
                 "test-plan", players, schedules, List.of(slot), List.of(g1), List.of(b1),

@@ -74,8 +74,8 @@ class LockRespectTest {
         Group g1 = new Group(1L, "Grupp 1", 1, 0, 1, 1, 1, 0, 100_000);
         TrainingBlock b1 = new TrainingBlock(1L, 1L, "Bana 1", timeKey(18 * 60, 19 * 60 + 30), "18.00", 1L);
         GroupSchedule gs1 = new GroupSchedule(1L, g1, b1, false);
-        CoachFact pinnedCoach = new CoachFact(1L, 100L, "Pinned Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
-        CoachFact otherCoach = new CoachFact(2L, 200L, "Other Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
+        CoachFact pinnedCoach = new CoachFact(1L, 100L, "Pinned Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
+        CoachFact otherCoach = new CoachFact(2L, 200L, "Other Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
         CoachSlot pinnedSlot = new CoachSlot(CoachSlot.syntheticId(1, 0), g1, 0, pinnedCoach, true);
 
         GroupPlanSolution problem = new GroupPlanSolution(

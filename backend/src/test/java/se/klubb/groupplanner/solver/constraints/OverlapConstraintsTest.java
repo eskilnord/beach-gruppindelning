@@ -19,7 +19,7 @@ class OverlapConstraintsTest {
 
     @Test
     void coachDoubleBookedAtOverlappingTimesPenalizes() {
-        CoachFact coach = new CoachFact(1L, 100L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
+        CoachFact coach = new CoachFact(1L, 100L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
         Group g1 = group(1);
         Group g2 = group(2);
         CoachSlot cs1 = new CoachSlot(CoachSlot.syntheticId(1, 0), g1, 0, coach, false);
@@ -36,7 +36,7 @@ class OverlapConstraintsTest {
 
     @Test
     void coachAtTwoNonOverlappingTimesHasNoImpact() {
-        CoachFact coach = new CoachFact(1L, 100L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
+        CoachFact coach = new CoachFact(1L, 100L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
         Group g1 = group(1);
         Group g2 = group(2);
         CoachSlot cs1 = new CoachSlot(CoachSlot.syntheticId(1, 0), g1, 0, coach, false);
@@ -85,7 +85,7 @@ class OverlapConstraintsTest {
 
     @Test
     void coachPlaysWhileCoachingAtOverlappingTimePenalizes() {
-        CoachFact coach = new CoachFact(1L, 200L, "Anna", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
+        CoachFact coach = new CoachFact(1L, 200L, "Anna", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
         Group coachGroup = group(1);
         Group playGroup = group(2);
         CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), coachGroup, 0, coach, false);
@@ -102,7 +102,7 @@ class OverlapConstraintsTest {
 
     @Test
     void coachPlaysAtANonOverlappingTimeHasNoImpact() {
-        CoachFact coach = new CoachFact(1L, 200L, "Anna", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
+        CoachFact coach = new CoachFact(1L, 200L, "Anna", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
         Group coachGroup = group(1);
         Group playGroup = group(2);
         CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), coachGroup, 0, coach, false);

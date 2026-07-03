@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import se.klubb.groupplanner.common.time.TimeKey;
 import se.klubb.groupplanner.solver.constraints.Justifications.CoachLevelMismatchJustification;
 import se.klubb.groupplanner.solver.constraints.Justifications.CoachPreferredTimeSlotJustification;
+import se.klubb.groupplanner.solver.constraints.Justifications.CoachUnknownTimeSlotJustification;
 import se.klubb.groupplanner.solver.constraints.Justifications.CoachWishJustification;
 import se.klubb.groupplanner.solver.constraints.Justifications.LateTimeJustification;
 import se.klubb.groupplanner.solver.constraints.Justifications.PairWishSoftJustification;
@@ -23,7 +24,8 @@ import se.klubb.groupplanner.solver.domain.TrainingBlock;
 import se.klubb.groupplanner.solver.domain.WishType;
 
 /** §10.10 timePreferenceSoft, §10.12/10.14 sameGroupSoft/differentGroupSoft, §10.20 coachLevelFit,
- * §10.21a coachPreferenceSoft, §10.22a/b lateTimeForLowerGroups, coachPreferredTimeSlot (M6b new). */
+ * §10.21a coachPreferenceSoft, §10.22a/b lateTimeForLowerGroups, coachPreferredTimeSlot (M6b new),
+ * coachUnknownTimeSlot (WI-B new). */
 class TimeAndCoachSoftConstraintsTest {
 
     private final ConstraintVerifier<GroupPlanConstraintProvider, GroupPlanSolution> verifier = ConstraintVerifier.build(
@@ -133,7 +135,7 @@ class TimeAndCoachSoftConstraintsTest {
 
     @Test
     void coachMaxSixHundredGroupMeanSevenHundredPenalizesByOneHundred() {
-        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 60_000, new long[0], Integer.MAX_VALUE, new long[0]);
+        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 60_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
         Group g = group(1);
         CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
         PlayerAssignment p = player(1, 70_000, g);
@@ -145,7 +147,7 @@ class TimeAndCoachSoftConstraintsTest {
 
     @Test
     void coachWithinBandHasNoImpact() {
-        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
+        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
         Group g = group(1);
         CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
         PlayerAssignment p = player(1, 70_000, g);
@@ -157,7 +159,7 @@ class TimeAndCoachSoftConstraintsTest {
 
     @Test
     void justifiesWithCoachLevelMismatchJustification() {
-        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 60_000, new long[0], Integer.MAX_VALUE, new long[0]);
+        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 60_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
         Group g = group(1);
         CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
         PlayerAssignment p = player(1, 70_000, g);
@@ -173,7 +175,7 @@ class TimeAndCoachSoftConstraintsTest {
     void wantedCoachPresentRewards() {
         Group g = group(1);
         PlayerAssignment p = player(1, g);
-        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
+        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
         CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
         CoachWish wish = new CoachWish(1L, CoachWishType.WANT, 1L, 200L);
 
@@ -197,7 +199,7 @@ class TimeAndCoachSoftConstraintsTest {
     void justifiesWithCoachWishJustificationForCoachPreferenceSoft() {
         Group g = group(1);
         PlayerAssignment p = player(1, g);
-        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
+        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
         CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
         CoachWish wish = new CoachWish(1L, CoachWishType.WANT, 1L, 200L);
 
@@ -306,7 +308,7 @@ class TimeAndCoachSoftConstraintsTest {
 
     @Test
     void coachOnPreferredSlotRewards() {
-        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[] {5L});
+        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[] {5L}, new long[0]);
         Group g = group(1);
         CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
         TrainingBlock block = new TrainingBlock(1L, 1L, "Bana 1", timeKey(18 * 60, 19 * 60 + 30), "18.00", 5L);
@@ -319,7 +321,7 @@ class TimeAndCoachSoftConstraintsTest {
 
     @Test
     void coachOnUnpreferredSlotHasNoImpact() {
-        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0]);
+        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
         Group g = group(1);
         CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
         TrainingBlock block = new TrainingBlock(1L, 1L, "Bana 1", timeKey(18 * 60, 19 * 60 + 30), "18.00", 5L);
@@ -332,7 +334,7 @@ class TimeAndCoachSoftConstraintsTest {
 
     @Test
     void justifiesWithCoachPreferredTimeSlotJustification() {
-        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[] {5L});
+        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[] {5L}, new long[0]);
         Group g = group(1);
         CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
         TrainingBlock block = new TrainingBlock(1L, 1L, "Bana 1", timeKey(18 * 60, 19 * 60 + 30), "18.00", 5L);
@@ -341,6 +343,91 @@ class TimeAndCoachSoftConstraintsTest {
         verifier.verifyThat(GroupPlanConstraintProvider::coachPreferredTimeSlot)
                 .given(cs, gs)
                 .justifiesWith(new CoachPreferredTimeSlotJustification(200L, 1L, 5L));
+    }
+
+    // ───────────────────────────────────────────────────────────────── coachUnknownTimeSlot (WI-B)
+
+    @Test
+    void coachOnUnknownSlotPenalizes() {
+        // No explicit AVAILABLE/PREFERRED/UNAVAILABLE row at all for slot 5 - "Okänd".
+        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
+        Group g = group(1);
+        CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
+        TrainingBlock block = new TrainingBlock(1L, 1L, "Bana 1", timeKey(18 * 60, 19 * 60 + 30), "18.00", 5L);
+        GroupSchedule gs = new GroupSchedule(1L, g, block, false);
+
+        verifier.verifyThat(GroupPlanConstraintProvider::coachUnknownTimeSlot)
+                .given(cs, gs)
+                .penalizes(1);
+    }
+
+    @Test
+    void coachOnExplicitlyAvailableSlotHasNoImpact() {
+        // AVAILABLE (not PREFERRED) rows fold into availableTimeSlotIds but not preferredTimeSlotIds.
+        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[] {5L});
+        Group g = group(1);
+        CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
+        TrainingBlock block = new TrainingBlock(1L, 1L, "Bana 1", timeKey(18 * 60, 19 * 60 + 30), "18.00", 5L);
+        GroupSchedule gs = new GroupSchedule(1L, g, block, false);
+
+        verifier.verifyThat(GroupPlanConstraintProvider::coachUnknownTimeSlot)
+                .given(cs, gs)
+                .hasNoImpact();
+    }
+
+    @Test
+    void coachOnPreferredSlotHasNoImpact() {
+        // A PREFERRED row folds into BOTH preferredTimeSlotIds and availableTimeSlotIds (assembler
+        // fold-down rule) - it is an explicit AVAILABLE-or-better statement, never "Okänd".
+        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[] {5L}, new long[] {5L});
+        Group g = group(1);
+        CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
+        TrainingBlock block = new TrainingBlock(1L, 1L, "Bana 1", timeKey(18 * 60, 19 * 60 + 30), "18.00", 5L);
+        GroupSchedule gs = new GroupSchedule(1L, g, block, false);
+
+        verifier.verifyThat(GroupPlanConstraintProvider::coachUnknownTimeSlot)
+                .given(cs, gs)
+                .hasNoImpact();
+    }
+
+    @Test
+    void coachOnExplicitlyUnavailableSlotHasNoAdditionalImpact() {
+        // Already a HARD violation via coachAvailabilityHard - coachUnknownTimeSlot must not
+        // double-punish it.
+        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[] {5L}, Integer.MAX_VALUE, new long[0], new long[0]);
+        Group g = group(1);
+        CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
+        TrainingBlock block = new TrainingBlock(1L, 1L, "Bana 1", timeKey(18 * 60, 19 * 60 + 30), "18.00", 5L);
+        GroupSchedule gs = new GroupSchedule(1L, g, block, false);
+
+        verifier.verifyThat(GroupPlanConstraintProvider::coachUnknownTimeSlot)
+                .given(cs, gs)
+                .hasNoImpact();
+    }
+
+    @Test
+    void noCoachAssignedHasNoImpact() {
+        Group g = group(1);
+        CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, null, false);
+        TrainingBlock block = new TrainingBlock(1L, 1L, "Bana 1", timeKey(18 * 60, 19 * 60 + 30), "18.00", 5L);
+        GroupSchedule gs = new GroupSchedule(1L, g, block, false);
+
+        verifier.verifyThat(GroupPlanConstraintProvider::coachUnknownTimeSlot)
+                .given(cs, gs)
+                .hasNoImpact();
+    }
+
+    @Test
+    void justifiesWithCoachUnknownTimeSlotJustification() {
+        CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 100_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
+        Group g = group(1);
+        CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
+        TrainingBlock block = new TrainingBlock(1L, 1L, "Bana 1", timeKey(18 * 60, 19 * 60 + 30), "18.00", 5L);
+        GroupSchedule gs = new GroupSchedule(1L, g, block, false);
+
+        verifier.verifyThat(GroupPlanConstraintProvider::coachUnknownTimeSlot)
+                .given(cs, gs)
+                .justifiesWith(new CoachUnknownTimeSlotJustification(200L, 1L, 5L));
     }
 
     private static Group group(int order) {

@@ -43,13 +43,14 @@ class ConstraintDefinitionControllerTest {
     private ObjectMapper objectMapper;
 
     @Test
-    void listsAllThirtyTwoSeededConstraints() throws Exception {
+    void listsAllThirtyThreeSeededConstraints() throws Exception {
         // 24 from spec §10.1-10.24 + 7 M6a additions (coachMaxGroups, coachWishRequired/Forbidden,
         // savedPlanPersonBlocked/CoachBlocked/CourtBlocked, unassignedPlayer) - backend/docs/m6a-notes.md
-        // + 1 M6b addition (coachPreferredTimeSlot, V6) - backend/docs/m6b-notes.md.
+        // + 1 M6b addition (coachPreferredTimeSlot, V6) - backend/docs/m6b-notes.md
+        // + 1 WI-B addition (coachUnknownTimeSlot, V10).
         String body = mockMvc.perform(get("/api/constraint-definitions").header("X-GP-Token", VALID_TOKEN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(32))
+                .andExpect(jsonPath("$.length()").value(33))
                 .andReturn().getResponse().getContentAsString();
 
         List<Map<String, Object>> constraints = objectMapper.readValue(body, List.class);

@@ -212,9 +212,10 @@ class CapacityServiceTest {
     /**
      * Coach-shortage signal 1: enough coaches overall, but explicitly UNAVAILABLE at a slot that
      * needs them. Semantics per M5 review fix: only an explicit UNAVAILABLE row blocks a coach from
-     * a slot (neutral/unlisted = available, matching the solver's CoachFact which carries only
-     * unavailableTimeSlotIds), so this scenario marks the coaches UNAVAILABLE at slot2 rather than
-     * merely omitting rows for it.
+     * a slot for capacity purposes (neutral/unlisted = available - this capacity view is unaffected
+     * by the WI-B solver-only coachUnknownTimeSlot SOFT nudge, which never blocks a coach, only makes
+     * "Okänd" a small soft negative), so this scenario marks the coaches UNAVAILABLE at slot2 rather
+     * than merely omitting rows for it.
      */
     @Test
     void coachShortageDetectedWhenCoachesAreUnavailableAtTheSlotThatNeedsThem() {
