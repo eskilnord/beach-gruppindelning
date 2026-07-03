@@ -224,7 +224,16 @@ export const sv = {
       waitlistedLabel: "Kölista",
       manualReviewFlagLabel: "Behöver granskning",
       customFieldsHeading: "Anpassade fält",
-      timeRelationHint: "ex: ej 21, 18.00",
+      timeRelationHint: "Välj tider ur planens schema",
+      timeRelationPlaceholder: "Välj tider…",
+      timeRelationInvalidValuesNote: "Ogiltiga värden från import ignoreras",
+      // v0.3.0 WI-A: per-key explanations for the three seeded timeRelation standard fields, shown
+      // as the MultiSelect's description so the field is self-explanatory without opening Fältbyggare
+      // (verified against SolverInputAssembler.java's actual consumption of each field, not guessed).
+      canTimesDescription:
+        "Tider spelaren kan delta på – alla andra tider räknas som \"kan inte\". Lämna tomt om spelaren kan alla tider.",
+      cannotTimesDescription: "Tider spelaren inte kan delta på – hård regel, spelaren placeras aldrig på dessa tider.",
+      preferTimesDescription: "Tider spelaren helst vill ha – mjuk regel som ger minuspoäng om den bryts.",
       personRelationPlaceholder: "Välj deltagare…",
       tagPlaceholder: "Skriv och tryck Enter…",
       relationUnavailable: "Hanteras från och med en senare milstolpe.",

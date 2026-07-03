@@ -24,6 +24,7 @@ import { useUpdateParticipant } from "../../../api/participants";
 import { useDeleteParticipantComments } from "../../../api/comments";
 import { useCoaches } from "../../../api/coaches";
 import { usePersons } from "../../../api/persons";
+import { useTimeSlots } from "../../../api/timeSlots";
 import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
 import { DeleteConfirmModal } from "../../../components/DeleteConfirmModal";
@@ -106,6 +107,7 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
   const deleteComments = useDeleteParticipantComments(planId);
   const coaches = useCoaches(planId);
   const persons = usePersons();
+  const timeSlots = useTimeSlots(planId);
 
   const coachOptions = (coaches.data ?? []).map((coach) => {
     const person = persons.data?.find((candidate) => candidate.id === coach.personId);
@@ -268,14 +270,16 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
 
       <Title order={5}>{sv.participants.drawer.customFieldsHeading}</Title>
 
-      {fieldValues.isLoading && <Loader size="sm" />}
+      {(fieldValues.isLoading || timeSlots.isLoading) && <Loader size="sm" />}
       {fieldValues.isError && (
         <Alert color="red">
           {fieldValues.error instanceof ApiError ? fieldValues.error.message : sv.participants.drawer.fieldValuesSaveFailed}
         </Alert>
       )}
 
-      {fieldValues.data && (
+      {/* Wait for time slots too: rendering a timeRelation editor before the slot list arrives
+          would momentarily show valid stored values as "invalid" (filtered + dimmed note). */}
+      {fieldValues.data && !timeSlots.isLoading && (
         <ScrollArea.Autosize mah={320}>
           <SimpleGrid cols={2} spacing="md">
             {fieldValues.data.map((fv) => (
@@ -287,6 +291,7 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
                 onChange={(value) => setCustomDraft((prev) => ({ ...prev, [fv.key]: value }))}
                 participants={allParticipants}
                 coaches={coachOptions}
+                timeSlots={timeSlots.data ?? []}
                 selfId={participant.id}
               />
             ))}

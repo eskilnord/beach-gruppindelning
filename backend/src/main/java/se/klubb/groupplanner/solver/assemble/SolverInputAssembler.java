@@ -75,9 +75,14 @@ import se.klubb.groupplanner.solver.domain.WishType;
  *       saved_plan_resource_usage} tables don't exist until M8.</li>
  *   <li>{@code lateTimePolicy} is always {@link LateTimePolicy#DISABLED} — no M6a constraint
  *       consumes it.</li>
- *   <li>{@code canTimes} (the whitelist standard field) is not consumed — only {@code cannotTimes}
- *       (blacklist -&gt; {@code unavailableTimeSlotIds}) and {@code preferTimes} feed the model,
- *       matching this design doc's own {@code PlayerAssignment.canAttend} sketch (blacklist-only).</li>
+ *   <li>{@code canTimes} (the whitelist standard field, WI-A) IS consumed: a NON-EMPTY array means
+ *       "only these time slots are OK for this player" - its complement (every OTHER plan time slot)
+ *       is folded into {@code unavailableTimeSlotIds}, unioned with whatever {@code cannotTimes}
+ *       (blacklist) already contributed. An empty or absent {@code canTimes} array means "no
+ *       restriction at all" and must never add anything - the model is still fundamentally
+ *       blacklist-only ({@code PlayerAssignment.canAttend}'s single {@code unavailableTimeSlotIds}
+ *       array), {@code canTimes} is just a second, whitelist-shaped SOURCE that gets translated into
+ *       that same blacklist before the solver ever sees it.</li>
  *   <li>Any custom field with {@code constraintType == TIME_AVAILABILITY} other than the seeded
  *       {@code canTimes} is treated as a blacklist source (conservative default — an M4-era field
  *       builder gap: nothing distinguishes a council-created whitelist vs blacklist time field by
@@ -304,6 +309,10 @@ public class SolverInputAssembler {
         for (ParticipantProfile p : participants) {
             List<Long> unavailable = new ArrayList<>();
             List<Long> preferred = new ArrayList<>();
+            // Non-null only when this participant has a NON-EMPTY canTimes array (see class javadoc
+            // "canTimes" bullet) - an empty/absent array must impose no restriction, so it is never
+            // recorded here at all, and the complement-computation below is skipped entirely.
+            List<String> canTimesSlotIds = null;
             for (CustomFieldValue cfv : customFieldValueRepository.findByEntity(CustomFieldValue.ENTITY_TYPE_PARTICIPANT, p.id())) {
                 FieldDefinition field = fieldsById.get(cfv.fieldDefinitionId());
                 if (field == null || cfv.valueJson() == null) {
@@ -335,7 +344,17 @@ public class SolverInputAssembler {
                         }
                     }
                     case ConstraintTypes.TIME_AVAILABILITY -> {
-                        if (!"canTimes".equals(field.key())) { // whitelist field: not consumed (see class javadoc)
+                        if ("canTimes".equals(field.key())) { // whitelist field (see class javadoc)
+                            // Ids unknown to the plan (deleted slots, legacy free-text values) carry
+                            // no information; a whitelist that filters down to empty must mean "no
+                            // restriction", never "unavailable everywhere".
+                            List<String> ids = parseIdArray(cfv.valueJson()).stream()
+                                    .filter(timeSlotIdx::contains)
+                                    .toList();
+                            if (!ids.isEmpty()) {
+                                canTimesSlotIds = ids;
+                            }
+                        } else {
                             for (String slotId : parseIdArray(cfv.valueJson())) {
                                 if (timeSlotIdx.contains(slotId)) {
                                     unavailable.add(timeSlotIdx.id(slotId));
@@ -352,6 +371,17 @@ public class SolverInputAssembler {
                     }
                     default -> {
                         // NONE or a type this milestone doesn't consume - ignored.
+                    }
+                }
+            }
+            if (canTimesSlotIds != null) {
+                // Whitelist -> blacklist translation: every plan time slot NOT in canTimes becomes
+                // unavailable, unioned (via sortedDistinct below) with any cannotTimes-derived ids
+                // already collected above.
+                java.util.Set<String> allowed = new java.util.HashSet<>(canTimesSlotIds);
+                for (TimeSlot slot : timeSlots) {
+                    if (!allowed.contains(slot.id())) {
+                        unavailable.add(timeSlotIdx.id(slot.id()));
                     }
                 }
             }

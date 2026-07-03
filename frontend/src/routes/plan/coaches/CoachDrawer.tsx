@@ -292,6 +292,7 @@ function CoachDrawerBody({ planId, coach, allParticipants, allCoaches, onClose }
                 onChange={(value) => setCustomDraft((prev) => ({ ...prev, [fv.key]: value }))}
                 participants={allParticipants}
                 coaches={allCoaches}
+                timeSlots={timeSlots.data ?? []}
                 selfId={coach.id}
               />
             ))}

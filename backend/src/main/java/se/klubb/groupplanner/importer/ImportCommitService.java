@@ -17,6 +17,7 @@ import se.klubb.groupplanner.domain.ImportRun;
 import se.klubb.groupplanner.domain.ImportTemplate;
 import se.klubb.groupplanner.domain.ParticipantProfile;
 import se.klubb.groupplanner.domain.Person;
+import se.klubb.groupplanner.fields.FieldTypes;
 import se.klubb.groupplanner.importer.parse.ParsedSheet;
 import se.klubb.groupplanner.level.LevelService;
 import se.klubb.groupplanner.repo.CoachProfileRepository;
@@ -34,11 +35,13 @@ import se.klubb.groupplanner.util.Uuid7;
  * per the user's row decisions (§8.7), creates/updates {@code participant_profile} rows (comment ->
  * {@code imported_comment}, spec §8.5) and an initial unassigned {@code player_assignment}, handles
  * the {@code coachName}/{@code isCoach} coach-import targets (docs/plan.md red-team correction),
- * writes {@code custom_field_value}s for {@code customField:} mappings, records the {@code
- * import_run} audit row, and optionally saves the mapping as a reusable {@code import_template}.
- * Finally recomputes {@code estimatedLevel}/{@code levelConfidence} for the whole plan (docs/plan.md
- * M4 row: "estimatedLevel service ... also auto-run after import commit") — in the same transaction,
- * so a commit and its level recompute always succeed or roll back together.
+ * writes {@code custom_field_value}s for {@code customField:} mappings (except {@code timeRelation}
+ * targets, which cannot be represented as a raw imported cell value at all - see {@link
+ * #TIME_RELATION_IMPORT_WARNING}), records the {@code import_run} audit row, and optionally saves
+ * the mapping as a reusable {@code import_template}. Finally recomputes {@code estimatedLevel}/
+ * {@code levelConfidence} for the whole plan (docs/plan.md M4 row: "estimatedLevel service ... also
+ * auto-run after import commit") — in the same transaction, so a commit and its level recompute
+ * always succeed or roll back together.
  *
  * <p>Nothing here ever reads/writes {@code importedComment}/{@code internalNote} for any purpose
  * other than the {@code participant_profile} columns themselves (CLAUDE.md confidentiality rules).
@@ -52,6 +55,19 @@ public class ImportCommitService {
      * seeded in V2, since it is import-pipeline plumbing, not a spec §9.2 standard field.
      */
     static final String COACH_WISH_FIELD_KEY = "importedCoachWish";
+
+    /**
+     * WI-A: {@code timeRelation}-typed fields (the standard {@code canTimes}/{@code cannotTimes}/
+     * {@code preferTimes} fields, or any custom field of that type) store a JSON array of {@code
+     * time_slot} ids (post-M6a, {@code FieldValueService#validateAndEncode}) - a raw imported cell's
+     * free text ("ej 21", "18.00") is a completely different shape and would either fail that
+     * validation or, written around it as this importer used to do, silently corrupt the value into
+     * something the solver treats as empty (parseIdArray returns [] for a non-array JSON node). So a
+     * {@code timeRelation}-mapped column is never written here at all; this warning tells the user
+     * where to actually enter it instead.
+     */
+    static final String TIME_RELATION_IMPORT_WARNING =
+            "Tidsönskemål kan inte importeras från Excel – ange dem i spelarvyn efter importen.";
 
     private final ImportValidationService importValidationService;
     private final PersonRepository personRepository;
@@ -110,6 +126,7 @@ public class ImportCommitService {
         int imported = 0;
         int skipped = 0;
         List<String> warnings = new ArrayList<>();
+        List<Integer> timeRelationRows = new ArrayList<>();
         Map<Integer, RowDecision> decisionsAudit = new LinkedHashMap<>();
         FieldDefinition coachWishField = null;
 
@@ -149,11 +166,40 @@ public class ImportCommitService {
                 for (Map.Entry<String, String> entry : row.customFieldRaw().entrySet()) {
                     FieldDefinition field = fieldDefinitionRepository.findByKeyVisibleToPlan(activityPlanId, entry.getKey())
                             .orElseThrow(() -> new BadRequestException("Unknown custom field key: " + entry.getKey()));
+                    if (FieldTypes.TIME_RELATION.equals(field.fieldType())) {
+                        // Do NOT write the raw cell text (see TIME_RELATION_IMPORT_WARNING javadoc) -
+                        // skip the value and collect the row for ONE summary warning after the loop
+                        // (a per-row warning would repeat the identical message hundreds of times on
+                        // a full-roster import).
+                        if (timeRelationRows.isEmpty() || timeRelationRows.getLast() != result.rowIndex()) {
+                            timeRelationRows.add(result.rowIndex());
+                        }
+                        continue;
+                    }
                     writeCustomFieldValue(field.id(), profile.id(), entry.getValue());
                 }
             }
 
             imported++;
+        }
+
+        if (!timeRelationRows.isEmpty()) {
+            String prefix;
+            if (timeRelationRows.size() == 1) {
+                prefix = "Rad " + timeRelationRows.getFirst();
+            } else if (timeRelationRows.size() <= 10) {
+                StringBuilder rows = new StringBuilder("Rader ");
+                for (int i = 0; i < timeRelationRows.size(); i++) {
+                    if (i > 0) {
+                        rows.append(", ");
+                    }
+                    rows.append(timeRelationRows.get(i));
+                }
+                prefix = rows.toString();
+            } else {
+                prefix = timeRelationRows.size() + " rader";
+            }
+            warnings.add(prefix + ": " + TIME_RELATION_IMPORT_WARNING);
         }
 
         ImportRun importRun = recordImportRun(session, activityPlanId, sheetName, totalRows, imported, skipped, validation, decisionsAudit);
