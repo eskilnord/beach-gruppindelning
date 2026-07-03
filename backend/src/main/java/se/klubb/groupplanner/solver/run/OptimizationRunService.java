@@ -84,6 +84,14 @@ public class OptimizationRunService {
      * (i.e. the plan has no coach_profile rows at all - see {@code SolverInputAssembler}'s CoachSlot
      * skip and backend/docs/v020-notes.md); it adds a {@code note} field to the persisted summary the
      * UI can show instead of silently looking like coaches were simply forgotten.
+     *
+     * <p>{@code unchangedFromPrevious} (WI-C, v0.4 user feedback #4, root cause C) is {@code true}
+     * only when {@code SolveCoordinator} determined the writeback left every player/coach/block
+     * assignment byte-for-byte identical to how the plan looked right before this run started, AND a
+     * prior FINISHED run already existed to compare against - added to the summary only when
+     * {@code true} (mirrors {@code noCoaches}/{@code note}'s conditional-key convention), so the
+     * frontend can explain why re-running right after a successful solve can legitimately look like
+     * "nothing happened" (deterministic warm start + {@code randomSeed 0}, docs/plan.md ADR-007).
      */
     public OptimizationRun finishRun(
             String runId,
@@ -92,7 +100,8 @@ public class OptimizationRunService {
             boolean cancelled,
             ScoreAnalysis<HardMediumSoftLongScore> analysis,
             int planRevisionAtFinish,
-            boolean noCoaches) {
+            boolean noCoaches,
+            boolean unchangedFromPrevious) {
         OptimizationRun run = optimizationRunRepository.findById(runId)
                 .orElseThrow(() -> new IllegalStateException("optimization_run vanished mid-solve: " + runId));
         Instant finishedAt = Instant.now();
@@ -106,6 +115,9 @@ public class OptimizationRunService {
         summary.put("constraintSummaries", constraintSummariesOf(analysis));
         if (noCoaches) {
             summary.put("note", NOTE_NO_COACHES);
+        }
+        if (unchangedFromPrevious) {
+            summary.put("unchangedFromPrevious", true);
         }
         OptimizationRun updated = new OptimizationRun(
                 run.id(),
@@ -140,6 +152,14 @@ public class OptimizationRunService {
                 writeJson(Map.of("error", String.valueOf(error.getMessage()))),
                 run.planRevision());
         return optimizationRunRepository.update(updated);
+    }
+
+    /** WI-C unchanged-result detection: whether {@code activityPlanId} already has a prior FINISHED
+     * run - checked by {@code SolveCoordinator} BEFORE the new run's own SOLVING row is inserted, so
+     * a plan's first-ever completed solve can never be reported as "unchanged from previous" (there
+     * is nothing yet to compare against). */
+    public boolean hasFinishedRun(String activityPlanId) {
+        return optimizationRunRepository.existsFinishedByActivityPlanId(activityPlanId);
     }
 
     /** Current status of a run row, for the cancel path's did-the-event-fire probe. */

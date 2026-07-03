@@ -21,6 +21,9 @@ export function parseResultSummary(run: OptimizationRun | undefined): RunResultS
       // v0.2.0 (COACH-OPTIONAL SOLVING): present only when the solved plan had zero coaches
       // (OptimizationRunService.NOTE_NO_COACHES) - rendered verbatim (the backend owns the wording).
       note: typeof parsed.note === "string" ? parsed.note : null,
+      // WI-C ("re-run doesn't feel like it re-runs" user feedback v0.4 #4): present (and true) only
+      // when this run changed nothing versus the plan's state right before it started.
+      unchangedFromPrevious: parsed.unchangedFromPrevious === true,
     };
   } catch {
     return null;

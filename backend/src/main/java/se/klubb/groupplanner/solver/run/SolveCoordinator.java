@@ -8,6 +8,10 @@ import ai.timefold.solver.core.api.solver.SolverConfigOverride;
 import ai.timefold.solver.core.api.solver.SolverManager;
 import ai.timefold.solver.core.api.solver.SolverStatus;
 import ai.timefold.solver.core.config.solver.termination.TerminationConfig;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
@@ -96,15 +100,17 @@ public class SolveCoordinator {
         this.activityPlanRepository = activityPlanRepository;
     }
 
-    /** Convenience overload: full optimize, no cross-plan blocking (M6a's exact behavior). */
+    /** Convenience overload: full optimize, no cross-plan blocking, warm-started (M6a's exact
+     * behavior). */
     public String startSolve(String activityPlanId, SolveProfile profile) {
-        return startSolve(activityPlanId, profile, null, OptimizeSelection.ALL, BlockingOptions.NONE);
+        return startSolve(activityPlanId, profile, null, OptimizeSelection.ALL, BlockingOptions.NONE, false);
     }
 
     /** Convenience overload for a fixed preset profile (not {@link SolveProfile#CUSTOM}) — M6b's
-     * exact signature, kept for existing non-CUSTOM callers; delegates with no custom duration. */
+     * exact signature, kept for existing non-CUSTOM callers; delegates with no custom duration,
+     * warm-started. */
     public String startSolve(String activityPlanId, SolveProfile profile, OptimizeSelection optimize, BlockingOptions blocking) {
-        return startSolve(activityPlanId, profile, null, optimize, blocking);
+        return startSolve(activityPlanId, profile, null, optimize, blocking, false);
     }
 
     /**
@@ -117,9 +123,18 @@ public class SolveCoordinator {
      * SolveProfile#requireValidCustomDuration(Integer)} even though {@code SolveController} already
      * validated it — defensive re-check, same convention as {@code SolverInputAssembler}'s
      * reserved-MEDIUM guardrail) and ignored for every other profile.
+     *
+     * <p>{@code coldStart} (WI-C, v0.4 user feedback #4) is threaded straight through to {@link
+     * SolverInputAssembler#assemble(String, OptimizeSelection, BlockingOptions, boolean)}. This
+     * method also snapshots the pre-solve assignment state and whether the plan already has a prior
+     * FINISHED run, both consumed by {@link #onFinalBestSolution} to fill in {@code
+     * resultSummaryJson.unchangedFromPrevious} once the solve settles (same WI, root cause C: a
+     * re-solve of unchanged input reproduces the identical result almost instantly with the default
+     * warm start + {@code randomSeed 0}, which reads as "nothing happened" without this signal).
      */
     public String startSolve(
-            String activityPlanId, SolveProfile profile, Integer customDurationSeconds, OptimizeSelection optimize, BlockingOptions blocking) {
+            String activityPlanId, SolveProfile profile, Integer customDurationSeconds, OptimizeSelection optimize,
+            BlockingOptions blocking, boolean coldStart) {
         if (profile == SolveProfile.CUSTOM) {
             SolveProfile.requireValidCustomDuration(customDurationSeconds);
         }
@@ -131,7 +146,9 @@ public class SolveCoordinator {
                 throw new ConflictException("A solve is already running for plan " + activityPlanId);
             }
 
-            AssembledProblem assembled = assembler.assemble(activityPlanId, optimize, blocking);
+            AssembledProblem assembled = assembler.assemble(activityPlanId, optimize, blocking, coldStart);
+            boolean hadPreviousFinishedRun = optimizationRunService.hasFinishedRun(activityPlanId);
+            AssignmentSnapshot preSnapshot = currentAssignmentSnapshot(activityPlanId);
             OptimizationRun run = optimizationRunService.startRun(activityPlanId, assembled.solution());
             try {
                 assembledByActivityPlanId.put(activityPlanId, assembled);
@@ -153,7 +170,8 @@ public class SolveCoordinator {
                             progressRegistry.onBestSolution(activityPlanId, event.solution());
                             liveSolutionRegistry.onBestSolution(activityPlanId, run.id(), event.solution(), assembled);
                         })
-                        .withFinalBestSolutionEventConsumer(event -> onFinalBestSolution(activityPlanId, run.id(), event.solution()))
+                        .withFinalBestSolutionEventConsumer(event -> onFinalBestSolution(
+                                activityPlanId, run.id(), event.solution(), preSnapshot, hadPreviousFinishedRun))
                         .withExceptionHandler((id, ex) -> onException(id, run.id(), ex))
                         .withConfigOverride(new SolverConfigOverride<GroupPlanSolution>().withTerminationConfig(termination))
                         .run();
@@ -218,16 +236,19 @@ public class SolveCoordinator {
             throw new ConflictException("A solve is already running for plan " + activityPlanId);
         }
         AssembledProblem assembled = assembler.assemble(activityPlanId);
+        boolean hadPreviousFinishedRun = optimizationRunService.hasFinishedRun(activityPlanId);
+        AssignmentSnapshot preSnapshot = currentAssignmentSnapshot(activityPlanId);
         OptimizationRun run = optimizationRunService.startRun(activityPlanId, assembled.solution());
         try {
             GroupPlanSolution result = greedyBaselineService.run(assembled.solution());
             HardMediumSoftLongScore score = solutionManager.update(result); // sets result.getScore() too
             int planRevisionAtFinish = persistResult(assembled, result);
+            boolean unchangedFromPrevious = hadPreviousFinishedRun && currentAssignmentSnapshot(activityPlanId).equals(preSnapshot);
             int unassignedCount = ProgressRegistry.unassignedCount(result);
             ScoreAnalysis<HardMediumSoftLongScore> analysis =
                     solutionManager.analyze(result, ScoreAnalysisFetchPolicy.FETCH_ALL);
-            optimizationRunService.finishRun(
-                    run.id(), score, unassignedCount, false, analysis, planRevisionAtFinish, result.getCoaches().isEmpty());
+            optimizationRunService.finishRun(run.id(), score, unassignedCount, false, analysis, planRevisionAtFinish,
+                    result.getCoaches().isEmpty(), unchangedFromPrevious);
             return new GreedyResult(run.id(), score);
         } catch (RuntimeException e) {
             optimizationRunService.failRun(run.id(), e);
@@ -289,7 +310,9 @@ public class SolveCoordinator {
         progressRegistry.clear(activityPlanId);
     }
 
-    private void onFinalBestSolution(String activityPlanId, String runId, GroupPlanSolution finalSolution) {
+    private void onFinalBestSolution(
+            String activityPlanId, String runId, GroupPlanSolution finalSolution,
+            AssignmentSnapshot preSnapshot, boolean hadPreviousFinishedRun) {
         boolean cancelled = Boolean.TRUE.equals(cancelledByActivityPlanId.remove(activityPlanId));
         AssembledProblem assembled = assembledByActivityPlanId.remove(activityPlanId);
         if (assembled != null) {
@@ -309,12 +332,50 @@ public class SolveCoordinator {
             progressRegistry.clear(activityPlanId);
             return;
         }
+        // WI-C unchanged-result detection (root cause C): only meaningful once a writeback actually
+        // happened (assembled != null) AND a prior FINISHED run exists to compare against. A
+        // cancelled run never sets the flag - its search was cut short, not exhausted, so the UI
+        // note ("no better solution found") would be a lie.
+        boolean unchangedFromPrevious = !cancelled && assembled != null && hadPreviousFinishedRun
+                && currentAssignmentSnapshot(activityPlanId).equals(preSnapshot);
         int unassignedCount = ProgressRegistry.unassignedCount(finalSolution);
         ScoreAnalysis<HardMediumSoftLongScore> analysis =
                 solutionManager.analyze(finalSolution, ScoreAnalysisFetchPolicy.FETCH_ALL);
         optimizationRunService.finishRun(runId, finalSolution.getScore(), unassignedCount, cancelled, analysis,
-                planRevisionAtFinish, finalSolution.getCoaches().isEmpty());
+                planRevisionAtFinish, finalSolution.getCoaches().isEmpty(), unchangedFromPrevious);
         progressRegistry.clear(activityPlanId);
+    }
+
+    /**
+     * WI-C unchanged-result detection: a plain read of the same three tables {@link #persistResult}
+     * writes (player_assignment.group_id, training_group.assigned_training_block_id,
+     * coach_assignment), taken once BEFORE a solve starts and once AFTER its writeback - equal
+     * snapshots mean the solve reproduced the exact previous placement. Deliberately NOT derived
+     * from the in-memory {@link GroupPlanSolution}: Timefold mutates the SAME entity instances in
+     * place while solving, so a reference captured before solving would already reflect the
+     * post-solve values by the time anything compared it.
+     */
+    private AssignmentSnapshot currentAssignmentSnapshot(String activityPlanId) {
+        Map<String, String> playerGroupByParticipantId = new HashMap<>();
+        for (se.klubb.groupplanner.domain.PlayerAssignment pa : playerAssignmentRepository.findByActivityPlanId(activityPlanId)) {
+            playerGroupByParticipantId.put(pa.participantProfileId(), pa.groupId());
+        }
+        List<String> coachGroupPairs = new ArrayList<>();
+        for (CoachAssignment ca : coachAssignmentRepository.findByActivityPlanId(activityPlanId)) {
+            coachGroupPairs.add(ca.coachProfileId() + "|" + ca.groupId());
+        }
+        Collections.sort(coachGroupPairs);
+        Map<String, String> blockByGroupId = new HashMap<>();
+        for (se.klubb.groupplanner.domain.TrainingGroup g : trainingGroupRepository.findByActivityPlanId(activityPlanId)) {
+            blockByGroupId.put(g.id(), g.assignedTrainingBlockId());
+        }
+        return new AssignmentSnapshot(playerGroupByParticipantId, coachGroupPairs, blockByGroupId);
+    }
+
+    /** Structural equality is exactly "unchanged from previous" (WI-C) - a plain record so {@code
+     *  Map}/{@code List} equality does the comparison for free. */
+    private record AssignmentSnapshot(
+            Map<String, String> playerGroupByParticipantId, List<String> coachGroupPairs, Map<String, String> blockByGroupId) {
     }
 
     private void onException(String activityPlanId, String runId, Throwable ex) {

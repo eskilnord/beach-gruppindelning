@@ -80,6 +80,14 @@ public class GroupController {
         return trainingGroupRepository.findByActivityPlanId(planId);
     }
 
+    /** WI-C ("re-run doesn't feel like it re-runs" user feedback v0.4 #4, root cause A): lets the
+     * frontend warn "grupperna är inte längre i synk med planens inställningar" instead of silently
+     * solving against stale group definitions - see {@link GroupGenerator#checkSyncStatus}. */
+    @GetMapping("/api/plans/{planId}/groups/sync-status")
+    public GroupGenerator.SyncStatus syncStatus(@PathVariable String planId) {
+        return groupGenerator.checkSyncStatus(planId);
+    }
+
     /** §15.2 "Lås gruppens tid/bana" (spec §15.2): pins the group's {@code GroupSchedule} to a
      * specific training block. */
     @PutMapping("/api/groups/{groupId}/lock-block")

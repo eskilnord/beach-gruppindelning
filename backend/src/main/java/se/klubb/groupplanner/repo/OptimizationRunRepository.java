@@ -86,6 +86,19 @@ public class OptimizationRunRepository {
                 .optional();
     }
 
+    /** WI-C unchanged-result detection ({@code se.klubb.groupplanner.solver.run.OptimizationRunService
+     * #hasFinishedRun}): whether this plan has any run that reached {@link OptimizationRun
+     * #STATUS_FINISHED} (excludes CANCELLED/FAILED and any currently-SOLVING row). */
+    public boolean existsFinishedByActivityPlanId(String activityPlanId) {
+        Integer count = jdbcClient.sql(
+                        "SELECT COUNT(*) FROM optimization_run WHERE activity_plan_id = :activityPlanId AND status = :status")
+                .param("activityPlanId", activityPlanId)
+                .param("status", OptimizationRun.STATUS_FINISHED)
+                .query(Integer.class)
+                .single();
+        return count != null && count > 0;
+    }
+
     public List<OptimizationRun> findByActivityPlanId(String activityPlanId) {
         return jdbcClient.sql("SELECT * FROM optimization_run WHERE activity_plan_id = :activityPlanId "
                         + "ORDER BY started_at DESC, id DESC")

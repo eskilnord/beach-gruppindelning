@@ -1,7 +1,7 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import { coachesKey } from "./coaches";
-import { groupsKey } from "./groups";
+import { groupSyncStatusKey, groupsKey } from "./groups";
 import { participantsKey } from "./participants";
 import type {
   ActivityPlan,
@@ -49,6 +49,12 @@ export function useUpdatePlan(id: string, seasonId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: planKey(id) });
       void queryClient.invalidateQueries({ queryKey: plansForSeasonKey(seasonId) });
+      // Bugfix (WI-C, "re-run doesn't feel like it re-runs" user feedback v0.4 #4): editing the
+      // plan's group-generation defaults (target/min/max/min-nivå) used to invalidate NEITHER the
+      // groups list NOR the new sync-status check, so OptimizePanel's "Grupper"/staleness banner
+      // could sit stale on screen indefinitely after a plan-defaults edit.
+      void queryClient.invalidateQueries({ queryKey: groupsKey(id) });
+      void queryClient.invalidateQueries({ queryKey: groupSyncStatusKey(id) });
     },
   });
 }

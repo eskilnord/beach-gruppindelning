@@ -5,6 +5,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import se.klubb.groupplanner.api.error.ConflictException;
@@ -82,17 +83,14 @@ public class GroupGenerator {
         List<ParticipantProfile> active = participants.stream().filter(p -> !p.waitlisted()).toList();
         int activeBlockCount = trainingBlockRepository.countActiveByActivityPlanId(activityPlanId);
 
-        EffectiveSizes sizes = effectiveSizes(
-                plan.defaultGroupTargetSize(), plan.defaultGroupMinSize(), plan.defaultGroupMaxSize());
-        int target = sizes.target();
-        int max = sizes.max();
-        int min = sizes.min();
-
-        int groupCount = clamp(ceilDiv(Math.max(active.size(), 1), Math.max(target, 1)), 1, Math.max(activeBlockCount, 1));
+        ExpectedGroupPlan expected = computeExpectedGroupPlan(plan, active, activeBlockCount);
+        int groupCount = expected.groupCount();
+        int min = expected.sizes().min();
+        int target = expected.sizes().target();
+        int max = expected.sizes().max();
 
         String prefix = (plan.category() != null && !plan.category().isBlank()) ? plan.category() : plan.name();
-        List<double[]> bands = computeLevelBands(active, groupCount); // [min, max] per group, 1-indexed by list order
-        applyLevelMinDefault(bands, plan.defaultLevelMin(), active.isEmpty());
+        List<double[]> bands = expected.levelBands(); // [min, max] per group, 1-indexed by list order
 
         Map<Integer, TrainingGroup> existingByOrder = new HashMap<>();
         for (TrainingGroup g : existing) {
@@ -152,6 +150,102 @@ public class GroupGenerator {
             throw new ConflictException(
                     "Det finns låsta tränarplaceringar - kan inte återskapa grupper utan uttrycklig bekräftelse");
         }
+    }
+
+    /**
+     * The sizing math {@link #generate} WOULD apply right now, without writing anything - the
+     * single source of truth for {@code groupCount}/{@link EffectiveSizes}/level bands, shared by
+     * {@link #generate} itself and {@link #checkSyncStatus} (WI-C, user feedback v0.4 #4: nothing
+     * told the council that editing the plan's group-generation defaults left the already-generated
+     * {@code training_group} rows out of sync). Keeping this logic in exactly one place means the
+     * staleness dry-run can never drift from what an actual "Generera om grupper" would produce.
+     */
+    private ExpectedGroupPlan computeExpectedGroupPlan(ActivityPlan plan, List<ParticipantProfile> active, int activeBlockCount) {
+        EffectiveSizes sizes = effectiveSizes(
+                plan.defaultGroupTargetSize(), plan.defaultGroupMinSize(), plan.defaultGroupMaxSize());
+        int groupCount = clamp(ceilDiv(Math.max(active.size(), 1), Math.max(sizes.target(), 1)), 1, Math.max(activeBlockCount, 1));
+        List<double[]> bands = computeLevelBands(active, groupCount);
+        applyLevelMinDefault(bands, plan.defaultLevelMin(), active.isEmpty());
+        return new ExpectedGroupPlan(groupCount, sizes, bands, active.isEmpty());
+    }
+
+    /** {@link #computeExpectedGroupPlan}'s result: what {@link #generate} would write if run now. */
+    private record ExpectedGroupPlan(int groupCount, EffectiveSizes sizes, List<double[]> levelBands, boolean noActiveParticipants) {
+    }
+
+    /**
+     * WI-C ("re-run doesn't feel like it re-runs" root cause A, user feedback v0.4 #4): a read-only,
+     * cheap staleness check for {@code GET /api/plans/{planId}/groups/sync-status} - DRY-RUN of
+     * {@link #computeExpectedGroupPlan} (never writes to {@code training_group}, never touches the
+     * solver) compared against the rows actually on disk. Reports one Swedish reason per difference
+     * class found, in a fixed order: how many groups exist vs. how many the current participant
+     * count/target would produce, whether the stored min/target/max still match the plan's current
+     * defaults, and (only once the group count itself matches - a count mismatch already makes any
+     * level comparison meaningless) whether the stored level bands still match what a fresh
+     * generation would compute from the current participants/min-nivå. No groups yet and no
+     * participants yet is NOT stale (there is nothing to generate); no groups yet with participants
+     * present IS stale (the one prerequisite step - "Generera grupper" - was simply never run).
+     */
+    public SyncStatus checkSyncStatus(String activityPlanId) {
+        ActivityPlan plan = activityPlanRepository.findById(activityPlanId)
+                .orElseThrow(() -> new NotFoundException("Activity plan not found: " + activityPlanId));
+        List<TrainingGroup> existing = trainingGroupRepository.findByActivityPlanId(activityPlanId);
+        List<ParticipantProfile> participants = participantProfileRepository.findByActivityPlanId(activityPlanId);
+
+        if (existing.isEmpty()) {
+            return participants.isEmpty()
+                    ? new SyncStatus(false, List.of())
+                    : new SyncStatus(true, List.of("Inga grupper är genererade ännu."));
+        }
+
+        List<ParticipantProfile> active = participants.stream().filter(p -> !p.waitlisted()).toList();
+        int activeBlockCount = trainingBlockRepository.countActiveByActivityPlanId(activityPlanId);
+        ExpectedGroupPlan expected = computeExpectedGroupPlan(plan, active, activeBlockCount);
+
+        List<String> reasons = new ArrayList<>();
+        boolean countMatches = expected.groupCount() == existing.size();
+        if (!countMatches) {
+            reasons.add("Antalet deltagare motsvarar " + expected.groupCount() + " grupper men " + existing.size()
+                    + " är genererade.");
+        }
+
+        TrainingGroup sample = existing.get(0); // generate() writes the SAME min/target/max to every group.
+        if (!Objects.equals(sample.targetSize(), expected.sizes().target())
+                || !Objects.equals(sample.minSize(), expected.sizes().min())
+                || !Objects.equals(sample.maxSize(), expected.sizes().max())) {
+            reasons.add("Gruppstorlekarna i planens inställningar (mål " + expected.sizes().target()
+                    + ") matchar inte de genererade grupperna (mål " + sample.targetSize() + ").");
+        }
+
+        if (countMatches && levelBandsDiffer(existing, expected)) {
+            reasons.add("Nivågränserna för grupperna matchar inte längre deltagarnas nivåer eller planens min-nivå.");
+        }
+
+        return new SyncStatus(!reasons.isEmpty(), reasons);
+    }
+
+    private static boolean levelBandsDiffer(List<TrainingGroup> existing, ExpectedGroupPlan expected) {
+        Map<Integer, TrainingGroup> byOrder = new HashMap<>();
+        for (TrainingGroup g : existing) {
+            if (g.groupOrder() != null) {
+                byOrder.put(g.groupOrder(), g);
+            }
+        }
+        for (int n = 1; n <= expected.groupCount(); n++) {
+            TrainingGroup g = byOrder.get(n);
+            double[] band = expected.levelBands().get(n - 1);
+            Double expectedMin = expected.noActiveParticipants() ? null : band[0];
+            Double expectedMax = expected.noActiveParticipants() ? null : band[1];
+            if (g == null || !Objects.equals(g.levelMin(), expectedMin) || !Objects.equals(g.levelMax(), expectedMax)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** {@code GET /api/plans/{planId}/groups/sync-status} response shape - {@code reasons} is empty
+     *  exactly when {@code stale} is {@code false}. */
+    public record SyncStatus(boolean stale, List<String> reasons) {
     }
 
     /**

@@ -150,6 +150,12 @@ export type TrainingGroup = WithRequired<
   "id" | "activityPlanId" | "name" | "requiredCoachCount" | "locked"
 >;
 
+/** {@code GET /api/plans/{planId}/groups/sync-status} (WI-C, "re-run doesn't feel like it re-runs"
+ *  user feedback v0.4 #4) - whether the plan's CURRENT group-generation inputs (participant count,
+ *  size defaults, level bands) still match the {@link TrainingGroup} rows actually on disk, plus one
+ *  Swedish reason per difference class found (empty exactly when {@code stale} is {@code false}). */
+export type GroupSyncStatus = WithRequired<components["schemas"]["SyncStatus"], "stale" | "reasons">;
+
 export type PlayerAssignment = WithRequired<
   components["schemas"]["PlayerAssignment"],
   "id" | "participantProfileId" | "locked" | "source"
@@ -188,12 +194,15 @@ export interface BlockingSelectionRequest {
 }
 
 /** Hand-written request body for `POST .../solve`; mirrors backend SolveController.SolveRequest.
- *  `durationSeconds` is required exactly when `profile === "CUSTOM"` (v0.2.0). */
+ *  `durationSeconds` is required exactly when `profile === "CUSTOM"` (v0.2.0). `coldStart` (WI-C,
+ *  v0.4 "Börja om från grunden") defaults false/absent - see SolverInputAssembler's cold-start
+ *  overload; GREEDY ignores it (already cold, ignores every seeded value regardless). */
 export interface SolveRequestBody {
   profile: SolveProfile;
   durationSeconds?: number;
   optimize?: OptimizeSelectionRequest;
   blocking?: BlockingSelectionRequest;
+  coldStart?: boolean;
 }
 
 /** `POST .../solve/suggest-duration` (v0.2.0, SUGGESTED OPTIMIZATION TIME): the backend's proposed
@@ -270,6 +279,11 @@ export interface RunResultSummary {
    *  plan had zero coach profiles (OptimizationRunService.NOTE_NO_COACHES) - surfaced as an info
    *  Alert on the last-run card and the Resultatvy header. */
   note: string | null;
+  /** WI-C ("re-run doesn't feel like it re-runs" user feedback v0.4 #4, root cause C) - true only
+   *  when this run's writeback left every player/coach/block assignment identical to how the plan
+   *  looked right before the run started, AND a prior FINISHED run already existed to compare
+   *  against (OptimizationRunService#finishRun). Absent/false otherwise. */
+  unchangedFromPrevious: boolean;
 }
 
 export type ConflictUsage = WithRequired<

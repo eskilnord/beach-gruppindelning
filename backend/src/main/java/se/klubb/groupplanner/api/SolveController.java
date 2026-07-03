@@ -76,7 +76,11 @@ public class SolveController {
         }
         OptimizeSelection optimize = optimizeOf(request);
         BlockingOptions blocking = blockingOf(request);
-        String runId = solveCoordinator.startSolve(planId, profile, durationSeconds, optimize, blocking);
+        // WI-C ("re-run doesn't feel like it re-runs" user feedback v0.4 #4, root cause B): ignored
+        // for the synchronous GREEDY branch above (already cold - GreedyBaselineService overwrites
+        // every unlocked entity from scratch regardless of its seeded initial value).
+        boolean coldStart = request != null && Boolean.TRUE.equals(request.coldStart());
+        String runId = solveCoordinator.startSolve(planId, profile, durationSeconds, optimize, blocking, coldStart);
         // Report the ACTUAL SolverManager status (SOLVING_SCHEDULED until a solver thread picks the
         // job up, then SOLVING_ACTIVE) rather than a hardcoded value (review fix 8).
         String status = solveCoordinator.status(planId).status();
@@ -143,9 +147,11 @@ public class SolveController {
 
     /** {@code durationSeconds} (v0.2.0) is REQUIRED (10..900, 400 outside) exactly when {@code
      * profile == "CUSTOM"}; ignored for FAST/NORMAL/THOROUGH/GREEDY (no error if present, matching
-     * this record's existing lenient-unknown-fields convention). */
+     * this record's existing lenient-unknown-fields convention). {@code coldStart} (WI-C, v0.4)
+     * defaults {@code false}/absent - see {@code SolverInputAssembler#assemble}'s cold-start overload. */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record SolveRequest(String profile, Integer durationSeconds, OptimizeRequest optimize, BlockingRequest blocking) {
+    public record SolveRequest(
+            String profile, Integer durationSeconds, OptimizeRequest optimize, BlockingRequest blocking, Boolean coldStart) {
     }
 
     /** §15.5 "Optimera endast X" — a {@code null} field (or an absent {@code optimize} object

@@ -163,10 +163,25 @@ public class SolverInputAssembler {
      * cross-plan blocking — M6a's exact behavior, still used by tests and any caller that doesn't
      * need §15.5/§14.4. */
     public AssembledProblem assemble(String activityPlanId) {
-        return assemble(activityPlanId, OptimizeSelection.ALL, BlockingOptions.NONE);
+        return assemble(activityPlanId, OptimizeSelection.ALL, BlockingOptions.NONE, false);
     }
 
+    /** Convenience overload: warm-started (not {@code coldStart}) - M6a/M6b's exact behavior, kept
+     * for the many existing call sites that predate WI-C's cold-start option. */
     public AssembledProblem assemble(String activityPlanId, OptimizeSelection optimize, BlockingOptions blocking) {
+        return assemble(activityPlanId, optimize, blocking, false);
+    }
+
+    /**
+     * WI-C ("re-run doesn't feel like it re-runs" user feedback v0.4 #4, root cause B): {@code
+     * coldStart} discards the warm-start seed for every UNLOCKED planning entity (unlocked {@code
+     * PlayerAssignment.group}/{@code GroupSchedule.trainingBlock}/{@code CoachSlot.coach} all start
+     * {@code null}) so the construction heuristic builds a genuinely new solution instead of
+     * reproducing the previous writeback almost verbatim - see the three entity-construction loops
+     * below for where the null-out is applied. Locked/pinned entities are UNAFFECTED (their seed
+     * value is precisely what {@code @PlanningPin} freezes, cold or not).
+     */
+    public AssembledProblem assemble(String activityPlanId, OptimizeSelection optimize, BlockingOptions blocking, boolean coldStart) {
         ActivityPlan plan = activityPlanRepository.findById(activityPlanId)
                 .orElseThrow(() -> new NotFoundException("Activity plan not found: " + activityPlanId));
 
@@ -432,6 +447,9 @@ public class SolverInputAssembler {
                             "Participant " + p.id() + " is locked to a group that no longer exists - fix before solving");
                 }
             }
+            if (coldStart && !pinned) {
+                initialGroup = null;
+            }
             double estimatedLevel = p.estimatedLevel() != null ? p.estimatedLevel() : 500.0;
             Person person = personRepository.findById(p.personId()).orElse(null);
             se.klubb.groupplanner.solver.domain.PlayerAssignment entity = new se.klubb.groupplanner.solver.domain.PlayerAssignment(
@@ -465,6 +483,9 @@ public class SolverInputAssembler {
                 throw new BadRequestException(tg.assignedTrainingBlockId() == null
                         ? "Group '" + tg.name() + "' is locked but has no assigned training block - assign one or unlock before solving"
                         : "Group '" + tg.name() + "' is locked to a training block that is no longer active - fix before solving");
+            }
+            if (coldStart && !pinned) {
+                initialBlock = null;
             }
             groupSchedules.add(new GroupSchedule((long) fact.id(), fact, initialBlock, pinned));
         }
@@ -509,6 +530,9 @@ public class SolverInputAssembler {
                             throw new BadRequestException(
                                     "Group '" + tg.name() + "' slot " + slotIndex + " is locked to a coach outside this plan - fix before solving");
                         }
+                    }
+                    if (coldStart && !pinned) {
+                        initialCoach = null;
                     }
                     long id = CoachSlot.syntheticId(fact.id(), slotIndex);
                     coachSlots.add(new CoachSlot(id, fact, slotIndex, initialCoach, pinned));

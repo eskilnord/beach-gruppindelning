@@ -761,6 +761,12 @@ export const sv = {
       defaultsSummary: (target: number, min: number, max: number, levelMin: number | null) =>
         `Standard: mål ${target} · min ${min} · max ${max} · min-nivå ${levelMin ?? "—"}`,
       changeDefaultsLink: "Ändra…",
+      // WI-C ("re-run doesn't feel like it re-runs" user feedback v0.4 #4): the staleness banner
+      // shown above the start controls when GET .../groups/sync-status reports stale:true.
+      staleBanner: {
+        title: "Grupperna är inte uppdaterade",
+        regenerateButton: "Generera om grupper",
+      },
     },
     suggest: {
       heading: "Föreslagen optimeringstid",
@@ -784,6 +790,10 @@ export const sv = {
     advanced: {
       heading: "Avancerat",
       customSecondsLabel: "Egen tid (sekunder)",
+      // WI-C ("re-run doesn't feel like it re-runs" user feedback v0.4 #4, root cause B).
+      coldStartLabel: "Börja om från grunden",
+      coldStartDescription:
+        "Ignorera nuvarande placeringar och bygg grupperna från noll (låsta placeringar behålls). Bra när du ändrat inställningar och vill se en helt ny lösning.",
     },
     profileHeading: "Optimeringsprofil",
     profiles: {
@@ -863,6 +873,9 @@ export const sv = {
       empty: "Ingen optimering har körts ännu för den här planen.",
       feasibleTitle: "Genomförbar lösning",
       infeasibleTitle: (n: number) => `${n} hårda brott kvarstår`,
+      // WI-C ("re-run doesn't feel like it re-runs" user feedback v0.4 #4, root cause B/C).
+      unchangedNote:
+        "Resultatet är identiskt med föregående körning – optimeringen hittade ingen bättre lösning med nuvarande inställningar och data. Prova längre optimeringstid, eller kryssa i 'Börja om från grunden' under Avancerat.",
       cancelledBadge: "Avbruten",
       failedBadge: "Misslyckades",
       duration: (s: number) => `Tog ${s} s`,

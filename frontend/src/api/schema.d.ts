@@ -916,6 +916,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{planId}/groups/sync-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["syncStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans/{planId}/export": {
         parameters: {
             query?: never;
@@ -1346,6 +1362,7 @@ export interface components {
             durationSeconds?: number;
             optimize?: components["schemas"]["OptimizeRequest"];
             blocking?: components["schemas"]["BlockingRequest"];
+            coldStart?: boolean;
         };
         SolveResponse: {
             runId?: string;
@@ -1946,6 +1963,10 @@ export interface components {
             /** Format: int32 */
             headerRowIndex?: number;
             columns?: components["schemas"]["ColumnInfo"][];
+        };
+        SyncStatus: {
+            stale?: boolean;
+            reasons?: string[];
         };
         CapacityResponse: {
             /** Format: int32 */
@@ -4222,6 +4243,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["TrainingGroup"][];
+                };
+            };
+        };
+    };
+    syncStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SyncStatus"];
                 };
             };
         };

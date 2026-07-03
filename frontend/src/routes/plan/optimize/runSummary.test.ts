@@ -32,4 +32,17 @@ describe("parseResultSummary", () => {
     expect(parseResultSummary(runWith(null))).toBeNull();
     expect(parseResultSummary(runWith("not json"))).toBeNull();
   });
+
+  // WI-C ("re-run doesn't feel like it re-runs" user feedback v0.4 #4).
+  it("parses unchangedFromPrevious: true when present", () => {
+    const summary = parseResultSummary(
+      runWith('{"hard":0,"medium":0,"soft":-100,"feasible":true,"unassignedCount":0,"unchangedFromPrevious":true}'),
+    );
+    expect(summary?.unchangedFromPrevious).toBe(true);
+  });
+
+  it("defaults unchangedFromPrevious to false when absent", () => {
+    const summary = parseResultSummary(runWith('{"hard":0,"medium":0,"soft":-100,"feasible":true,"unassignedCount":0}'));
+    expect(summary?.unchangedFromPrevious).toBe(false);
+  });
 });

@@ -23,7 +23,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import { ApiError } from "../../../api/client";
 import { useConstraintWeights } from "../../../api/constraintWeights";
-import { useGenerateGroups, useGroups } from "../../../api/groups";
+import { useGenerateGroups, useGroups, useGroupSyncStatus } from "../../../api/groups";
 import { usePlan } from "../../../api/plans";
 import { runsKey, useOptimizationRuns } from "../../../api/runs";
 import {
@@ -77,6 +77,7 @@ export function OptimizePanel() {
 
   const plan = usePlan(planId);
   const groups = useGroups(planId);
+  const syncStatus = useGroupSyncStatus(planId);
   const generateGroups = useGenerateGroups(planId ?? "");
   const weights = useConstraintWeights(planId);
   const solveStatus = useSolveStatus(planId);
@@ -89,6 +90,13 @@ export function OptimizePanel() {
   const [optimizePlayers, setOptimizePlayers] = useState(true);
   const [optimizeSchedule, setOptimizeSchedule] = useState(true);
   const [optimizeCoaches, setOptimizeCoaches] = useState(true);
+  // WI-C ("re-run doesn't feel like it re-runs" user feedback v0.4 #4, root cause B): "Börja om
+  // från grunden" under Avancerat - see useStartSolve's SolveRequestBody.coldStart.
+  const [coldStart, setColdStart] = useState(false);
+  // Inline error surfaced on the staleness banner's own "Generera om grupper" button (e.g. a 409
+  // when groups/assignments are locked) - separate from the shared toast handleGenerateGroups also
+  // shows, so the reason stays visible on screen rather than only flashing as a notification.
+  const [staleRegenerateError, setStaleRegenerateError] = useState<string | null>(null);
 
   // §14.4 cross-plan blocking checkboxes. MVP note ("bör minst stödja blockering av personer och
   // tränare utifrån överlappande tider") is honored by defaulting blockPlayers+blockCoaches to true
@@ -136,16 +144,18 @@ export function OptimizePanel() {
   );
 
   const handleGenerateGroups = () => {
+    setStaleRegenerateError(null);
     generateGroups.mutate(undefined, {
       onSuccess: (data) => {
         notifications.show({ color: "green", message: sv.optimize.groups.generateSuccess(data.length) });
       },
       onError: (error) => {
-        notifications.show({
-          color: "red",
-          title: sv.common.error,
-          message: error instanceof ApiError ? error.message : sv.optimize.groups.generateFailed,
-        });
+        // WI-C: the staleness banner's own button reuses this same handler - a 409 (groups/
+        // assignments locked, GroupGenerator#requireSafeToRegenerate) is shown INLINE on the banner
+        // (not just as a toast) so the reason stays visible rather than only flashing briefly.
+        const message = error instanceof ApiError ? error.message : sv.optimize.groups.generateFailed;
+        setStaleRegenerateError(message);
+        notifications.show({ color: "red", title: sv.common.error, message });
       },
     });
   };
@@ -161,6 +171,7 @@ export function OptimizePanel() {
       durationSeconds,
       optimize: { players: optimizePlayers, schedule: optimizeSchedule, coaches: optimizeCoaches },
       blocking: { blockPlayers, blockCoaches, blockCourts, conflictsAsWarnings },
+      coldStart,
     };
     startSolve.mutate(body, {
       onSuccess: () => {
@@ -360,6 +371,36 @@ export function OptimizePanel() {
           />
         </Group>
 
+        {syncStatus.data?.stale && (
+          // WI-C ("re-run doesn't feel like it re-runs" user feedback v0.4 #4, root cause A):
+          // groups were generated from settings/participants that have since changed - warn before
+          // the user starts a solve against stale group definitions.
+          <Alert color="yellow" title={sv.optimize.groups.staleBanner.title} mb="lg" data-testid="groups-stale-banner">
+            <Stack gap={4}>
+              {syncStatus.data.reasons.map((reason) => (
+                <Text size="sm" key={reason}>
+                  {reason}
+                </Text>
+              ))}
+              {staleRegenerateError && (
+                <Text size="sm" c="red">
+                  {staleRegenerateError}
+                </Text>
+              )}
+              <Button
+                size="xs"
+                variant="light"
+                color="yellow"
+                mt="xs"
+                loading={generateGroups.isPending}
+                onClick={handleGenerateGroups}
+              >
+                {sv.optimize.groups.staleBanner.regenerateButton}
+              </Button>
+            </Stack>
+          </Alert>
+        )}
+
         <SuggestDurationCard
           planId={planId}
           solveActive={running}
@@ -403,6 +444,14 @@ export function OptimizePanel() {
                   onChange={(value) => setCustomSeconds(value === "" ? "" : Number(value))}
                 />
               )}
+
+              <Checkbox
+                label={sv.optimize.advanced.coldStartLabel}
+                description={sv.optimize.advanced.coldStartDescription}
+                checked={coldStart}
+                onChange={(event) => setColdStart(event.currentTarget.checked)}
+                mb="md"
+              />
 
               <Button
                 variant="default"
@@ -474,6 +523,14 @@ export function OptimizePanel() {
               // without coaches is fully supported.
               <Alert color="blue" data-testid="last-run-note">
                 {latestSummary.note}
+              </Alert>
+            )}
+            {latestSummary.unchangedFromPrevious && (
+              // WI-C ("re-run doesn't feel like it re-runs" user feedback v0.4 #4, root cause B/C):
+              // explains why re-running right after a successful solve can legitimately look like
+              // "nothing happened" (deterministic warm start + randomSeed 0).
+              <Alert color="blue" data-testid="last-run-unchanged-note">
+                {sv.optimize.lastRun.unchangedNote}
               </Alert>
             )}
             <Group gap="xs">
