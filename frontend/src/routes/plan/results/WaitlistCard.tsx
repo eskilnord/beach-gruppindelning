@@ -29,11 +29,19 @@ interface WaitlistCardProps {
  * works symmetrically for probing a move INTO a group from the kölista).
  */
 export function WaitlistCard({ entries, runId, highlightedParticipantId, onExplain, onTestMove }: WaitlistCardProps) {
+  const hasWaitlisted = entries.length > 0;
   return (
-    <Card withBorder padding="md" data-testid="waitlist-card">
+    <Card
+      withBorder
+      padding="md"
+      data-testid="waitlist-card"
+      // v0.3.0 WI-6: warm sand accent while anyone is waitlisted - "attention without alarm" (the
+      // count badge below still turns green, a genuinely positive state, once it's empty).
+      style={hasWaitlisted ? { borderColor: "var(--mantine-color-sand-4)", backgroundColor: "var(--mantine-color-sand-0)" } : undefined}
+    >
       <Group justify="space-between" mb="xs">
         <Title order={5}>{sv.results.waitlist.heading}</Title>
-        <Badge color={entries.length > 0 ? "yellow" : "green"} variant="light">
+        <Badge color={hasWaitlisted ? "sand" : "green"} variant="light">
           {entries.length}
         </Badge>
       </Group>

@@ -45,7 +45,7 @@ export function ConstraintWeightsTable({ planId }: ConstraintWeightsTableProps) 
 
       {weights.data && (
         <Table.ScrollContainer minWidth={820}>
-          <Table verticalSpacing="xs" withTableBorder>
+          <Table verticalSpacing="xs" withTableBorder striped highlightOnHover>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>{sv.constraintWeights.table.label}</Table.Th>

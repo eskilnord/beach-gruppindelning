@@ -198,59 +198,69 @@ export function GroupCard({
       <Text size="sm" fw={500} mb={4}>
         {sv.results.groupCard.membersHeading}
       </Text>
-      <Table verticalSpacing={4} withTableBorder>
-        <Table.Tbody>
-          {members.map((member) => (
-            <Table.Tr
-              key={member.participantProfileId}
-              id={`participant-row-${member.participantProfileId}`}
-              className={highlightedParticipantId === member.participantProfileId ? "gp-highlight-flash" : undefined}
-            >
-              <Table.Td>{member.name}</Table.Td>
-              <Table.Td>{member.level != null ? Math.round(member.level) : "—"}</Table.Td>
-              <Table.Td>
-                <Badge size="xs" variant="light">
-                  {sv.results.groupCard.sourceBadge[member.source as keyof typeof sv.results.groupCard.sourceBadge] ??
-                    member.source}
-                </Badge>
-              </Table.Td>
-              <Table.Td>
-                <Group gap={4} wrap="nowrap">
-                  <Button
-                    size="compact-xs"
-                    variant="subtle"
-                    data-testid={`member-lock-${member.participantProfileId}`}
-                    loading={lockPlayer.isPending || unlockPlayer.isPending}
-                    onClick={() => togglePlayerLock(member)}
-                  >
-                    {member.locked ? sv.results.groupCard.unlockButton : sv.results.groupCard.lockButton}
-                  </Button>
-                  <Tooltip label={sv.results.noRunTooltip} disabled={runId !== undefined}>
+      {/* v0.3.0 WI-6: wrapped in a ScrollContainer (same pattern as every other data table in the
+          app) as a safety net for narrow windows - name + level + source badge + three compact
+          action buttons are tightened (compact-xs buttons with reduced px, tight cell spacing,
+          xs badge) to fit a 2-per-row card without scrolling at typical laptop widths;
+          ScrollContainer still catches anything narrower than that. */}
+      <Table.ScrollContainer minWidth={470}>
+        <Table verticalSpacing={4} horizontalSpacing={6} withTableBorder>
+          <Table.Tbody>
+            {members.map((member) => (
+              <Table.Tr
+                key={member.participantProfileId}
+                id={`participant-row-${member.participantProfileId}`}
+                className={highlightedParticipantId === member.participantProfileId ? "gp-highlight-flash" : undefined}
+              >
+                <Table.Td>{member.name}</Table.Td>
+                <Table.Td>{member.level != null ? Math.round(member.level) : "—"}</Table.Td>
+                <Table.Td>
+                  <Badge size="xs" variant="light">
+                    {sv.results.groupCard.sourceBadge[member.source as keyof typeof sv.results.groupCard.sourceBadge] ??
+                      member.source}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Group gap={4} wrap="nowrap">
                     <Button
                       size="compact-xs"
                       variant="subtle"
-                      disabled={runId === undefined}
-                      onClick={() => onExplain(member.participantProfileId, member.name)}
+                      px={6}
+                      data-testid={`member-lock-${member.participantProfileId}`}
+                      loading={lockPlayer.isPending || unlockPlayer.isPending}
+                      onClick={() => togglePlayerLock(member)}
                     >
-                      {sv.results.groupCard.explainButton}
+                      {member.locked ? sv.results.groupCard.unlockButton : sv.results.groupCard.lockButton}
                     </Button>
-                  </Tooltip>
-                  <Tooltip label={sv.results.noRunTooltip} disabled={runId !== undefined}>
-                    <Button
-                      size="compact-xs"
-                      variant="subtle"
-                      disabled={runId === undefined}
-                      onClick={() => onTestMove(member.participantProfileId, member.name)}
-                    >
-                      {sv.results.groupCard.testMoveButton}
-                    </Button>
-                  </Tooltip>
-                </Group>
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
+                    <Tooltip label={sv.results.noRunTooltip} disabled={runId !== undefined}>
+                      <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        px={6}
+                        disabled={runId === undefined}
+                        onClick={() => onExplain(member.participantProfileId, member.name)}
+                      >
+                        {sv.results.groupCard.explainButton}
+                      </Button>
+                    </Tooltip>
+                    <Tooltip label={sv.results.noRunTooltip} disabled={runId !== undefined}>
+                      <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        px={6}
+                        disabled={runId === undefined}
+                        onClick={() => onTestMove(member.participantProfileId, member.name)}
+                      >
+                        {sv.results.groupCard.testMoveButton}
+                      </Button>
+                    </Tooltip>
+                  </Group>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </Table.ScrollContainer>
     </Card>
   );
 }

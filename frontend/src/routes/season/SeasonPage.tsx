@@ -15,11 +15,13 @@ import {
   Text,
   Title,
 } from "@mantine/core";
+import { IconListDetails } from "@tabler/icons-react";
 import { useSeasonConflicts } from "../../api/conflicts";
 import { useDeleteSeason, useSeason } from "../../api/seasons";
 import { usePlanCounts, usePlansForSeason } from "../../api/plans";
 import { ApiError } from "../../api/client";
 import { ConflictList } from "../../components/ConflictList";
+import { EmptyState } from "../../components/EmptyState";
 import { sv } from "../../i18n/sv";
 import { CreatePlanModal } from "./CreatePlanModal";
 import { EditSeasonModal } from "./EditSeasonModal";
@@ -88,9 +90,11 @@ export function SeasonPage() {
             {plans.error instanceof ApiError ? plans.error.message : sv.season.loadFailed}
           </Alert>
         )}
-        {plans.data && plans.data.length === 0 && <Text c="dimmed">{sv.season.noPlans}</Text>}
+        {plans.data && plans.data.length === 0 && (
+          <EmptyState icon={<IconListDetails size={22} stroke={1.75} />} message={sv.season.noPlans} />
+        )}
         {plans.data && plans.data.length > 0 && (
-          <Table verticalSpacing="xs">
+          <Table verticalSpacing="xs" striped highlightOnHover>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>{sv.season.columns.name}</Table.Th>

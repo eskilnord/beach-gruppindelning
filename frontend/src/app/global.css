@@ -2,12 +2,35 @@
    the reusable theme tokens; this file is for one-off keyframe animations/decorations used by a
    single feature each). */
 
+/* v0.3.0 WI-6: a faint warm-gray page canvas behind the white Cards/Papers everywhere (theme.ts
+   gives those a subtle shadow now) - reads as layered/modern instead of the flat all-white M2
+   default. AppShellLayout's own header/navbar opt out of this via an explicit white background. */
+body {
+  background-color: var(--mantine-color-gray-0);
+}
+
+/* v0.3.0 WI-6: slightly larger touch targets + a bolder active label for every Tabs instance in the
+   app (PlanLayout's plan tabs, FieldsPanel's fields/configuration sub-tabs). Targets Mantine's
+   public, stable `role`/`data-active` attributes rather than any hashed CSS-module class, so this
+   survives Mantine upgrades and never touches ARIA roles or names themselves - only their styling.
+   The underline color itself already follows the primary color via Mantine's own `--tabs-color`
+   variable (theme.ts's `primaryColor: "ocean"`), no override needed for that part. */
+[role="tablist"] [role="tab"] {
+  padding-block: 10px;
+  padding-inline: 18px;
+}
+
+[role="tablist"] [role="tab"][data-active] {
+  font-weight: 600;
+}
+
 /* Ctrl/Cmd+F player search (components/playersearch/PlayerSearchSpotlight.tsx ->
    routes/plan/results/ResultsPanel.tsx): flashes the row the search result navigated to, so the
-   user's eye finds it immediately even after the page has scrolled to it. */
+   user's eye finds it immediately even after the page has scrolled to it. Warm sand (v0.3.0 WI-6
+   palette) instead of Mantine's stock yellow, distinct from the live-flash's ocean-blue below. */
 @keyframes gp-highlight-flash {
   0% {
-    background-color: var(--mantine-color-yellow-3);
+    background-color: var(--mantine-color-sand-3);
   }
   100% {
     background-color: transparent;
@@ -20,12 +43,13 @@
 
 /* Live optimization view (routes/plan/optimize/LiveSolveView.tsx, v0.3.0 WI-2 "se det live"): flashes
    a player chip that moved to a different group (or to/from the waitlist) since the previous polled
-   frame. A distinct blue (vs. the search flash's yellow) and shorter duration - at a 500ms poll
-   interval, several chips can flash in quick succession, and a long-lingering yellow would visually
-   compete with the search-jump highlight elsewhere in the app. */
+   frame. A distinct ocean-blue (the app's primary, v0.3.0 WI-6 palette - vs. the search flash's warm
+   sand above) and shorter duration - at a 500ms poll interval, several chips can flash in quick
+   succession, and a long-lingering flash would visually compete with the search-jump highlight
+   elsewhere in the app. */
 @keyframes gp-live-flash {
   0% {
-    background-color: var(--mantine-color-blue-3);
+    background-color: var(--mantine-color-ocean-3);
   }
   100% {
     background-color: transparent;

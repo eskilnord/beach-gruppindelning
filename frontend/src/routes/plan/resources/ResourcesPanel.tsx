@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Alert, Badge, Button, Card, Group, Loader, NumberInput, Stack, Switch, Text, Title } from "@mantine/core";
+import { IconCalendarTime } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { useTrainingBlocksForPlan, useSetCourts, useUpdateTrainingBlockActive } from "../../../api/trainingBlocks";
 import { useDeleteTimeSlot } from "../../../api/timeSlots";
 import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
 import { DeleteConfirmModal } from "../../../components/DeleteConfirmModal";
+import { EmptyState } from "../../../components/EmptyState";
 import { HelpTip } from "../../../components/HelpTip";
 import { TimeSlotModal } from "./TimeSlotModal";
 import type { SlotBlocksView, TimeSlot, TrainingBlockView } from "../../../api/types";
@@ -198,7 +200,7 @@ export function ResourcesPanel() {
         </Button>
       </Group>
 
-      {isEmpty && <Text c="dimmed">{sv.resources.empty}</Text>}
+      {isEmpty && <EmptyState icon={<IconCalendarTime size={22} stroke={1.75} />} message={sv.resources.empty} />}
 
       {!isEmpty && (
         <>

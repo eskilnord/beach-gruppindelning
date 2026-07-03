@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Alert, Button, Card, Loader, SegmentedControl, SimpleGrid, Stack, Text, Title } from "@mantine/core";
+import { IconTrophy } from "@tabler/icons-react";
 import { useAssignments } from "../../../api/assignments";
 import { ApiError } from "../../../api/client";
 import { useCoaches } from "../../../api/coaches";
@@ -12,6 +13,7 @@ import { usePlan } from "../../../api/plans";
 import { useOptimizationRuns } from "../../../api/runs";
 import { useTrainingBlocksForPlan } from "../../../api/trainingBlocks";
 import { sv } from "../../../i18n/sv";
+import { EmptyState } from "../../../components/EmptyState";
 import { formatDateTime } from "../../../lib/formatDateTime";
 import { parseResultSummary } from "../optimize/runSummary";
 import { ExplainDrawer, type GroupOption } from "./explain/ExplainDrawer";
@@ -190,12 +192,15 @@ export function ResultsPanel() {
         <Title order={4} mb="xs">
           {sv.results.heading}
         </Title>
-        <Text c="dimmed" mb="md">
-          {sv.results.empty}
-        </Text>
-        <Button variant="default" onClick={() => navigate(`/plans/${planId}/optimering`)}>
-          {sv.plan.tabs.optimize}
-        </Button>
+        <EmptyState
+          icon={<IconTrophy size={22} stroke={1.75} />}
+          message={sv.results.empty}
+          action={
+            <Button variant="default" onClick={() => navigate(`/plans/${planId}/optimering`)}>
+              {sv.plan.tabs.optimize}
+            </Button>
+          }
+        />
       </Card>
     );
   }
@@ -230,7 +235,7 @@ export function ResultsPanel() {
 
       {view === "cards" && planId && (
         <>
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 2 }}>
             {model.sortedGroups.map((group) => {
               const members = (model.playersByGroupId.get(group.id) ?? [])
                 .map((pa) => {

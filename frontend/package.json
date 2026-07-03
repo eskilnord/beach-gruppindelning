@@ -15,12 +15,14 @@
     "e2e:install": "playwright install chromium"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "^5.2.8",
     "@mantine/core": "^8.3.18",
     "@mantine/dates": "^8.3.18",
     "@mantine/form": "^8.3.18",
     "@mantine/hooks": "^8.3.18",
     "@mantine/notifications": "^8.3.18",
     "@mantine/spotlight": "^8.3.18",
+    "@tabler/icons-react": "^3.44.0",
     "@tanstack/react-query": "^5.101.2",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-dialog": "^2.7.1",

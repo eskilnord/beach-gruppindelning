@@ -13,12 +13,14 @@ import {
   Text,
   Title,
 } from "@mantine/core";
+import { IconListDetails } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { useSeasons } from "../../api/seasons";
 import { useRecentPlans } from "../../api/plans";
 import { useCreateDemoData } from "../../api/demo";
 import { ApiError } from "../../api/client";
 import { sv } from "../../i18n/sv";
+import { EmptyState } from "../../components/EmptyState";
 import { TutorialBanner } from "../../components/tutorial/TutorialBanner";
 import { CreateSeasonModal } from "./CreateSeasonModal";
 import { ImportEntryModal } from "./ImportEntryModal";
@@ -99,7 +101,7 @@ export function StartPage() {
           </Alert>
         )}
         {seasons.data && seasons.data.length > 0 && (
-          <Table verticalSpacing="xs">
+          <Table verticalSpacing="xs" striped highlightOnHover>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>{sv.common.name}</Table.Th>
@@ -136,10 +138,10 @@ export function StartPage() {
         </Title>
         {recentPlans.isLoading && <Loader size="sm" />}
         {!recentPlans.isLoading && recentPlans.plans.length === 0 && (
-          <Text c="dimmed">{sv.start.noPlans}</Text>
+          <EmptyState icon={<IconListDetails size={22} stroke={1.75} />} message={sv.start.noPlans} />
         )}
         {recentPlans.plans.length > 0 && (
-          <Table verticalSpacing="xs">
+          <Table verticalSpacing="xs" striped highlightOnHover>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>{sv.common.name}</Table.Th>

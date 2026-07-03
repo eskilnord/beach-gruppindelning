@@ -45,7 +45,7 @@ export function FieldsPanel() {
           )}
           {fieldDefinitions.data && (
             <Table.ScrollContainer minWidth={960}>
-              <Table verticalSpacing="xs" withTableBorder>
+              <Table verticalSpacing="xs" withTableBorder striped highlightOnHover>
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>{sv.fieldBuilder.table.label}</Table.Th>

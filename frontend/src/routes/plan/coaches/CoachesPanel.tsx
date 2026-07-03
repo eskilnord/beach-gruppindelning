@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Alert, Badge, Button, Card, Group, Loader, Table, Text, Title } from "@mantine/core";
+import { IconUserStar } from "@tabler/icons-react";
 import { useCoachAvailabilitySummaries, useCoaches } from "../../../api/coaches";
 import { usePersons } from "../../../api/persons";
 import { useParticipants } from "../../../api/participants";
 import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
+import { EmptyState } from "../../../components/EmptyState";
 import { CoachDrawer } from "./CoachDrawer";
 import { NewCoachModal } from "./NewCoachModal";
 import type { CoachRow } from "./coachRow";
@@ -81,11 +83,11 @@ export function CoachesPanel() {
         <Button onClick={() => setNewCoachOpen(true)}>{sv.coaches.newCoachButton}</Button>
       </Group>
 
-      {isEmpty && <Text c="dimmed">{sv.coaches.empty}</Text>}
+      {isEmpty && <EmptyState icon={<IconUserStar size={22} stroke={1.75} />} message={sv.coaches.empty} />}
 
       {!isEmpty && (
         <Table.ScrollContainer minWidth={860}>
-          <Table verticalSpacing="xs" withTableBorder highlightOnHover>
+          <Table verticalSpacing="xs" withTableBorder highlightOnHover striped>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>{sv.coaches.columns.name}</Table.Th>

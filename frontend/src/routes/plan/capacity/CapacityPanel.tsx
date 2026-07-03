@@ -1,8 +1,10 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { Alert, Badge, Button, Card, Group, Loader, SimpleGrid, Table, Text, Title } from "@mantine/core";
+import { IconGauge } from "@tabler/icons-react";
 import { useCapacity } from "../../../api/capacity";
 import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
+import { EmptyState } from "../../../components/EmptyState";
 import { describeCoachShortage, describeWaitlistRisk } from "./riskBanner";
 
 function dash(value: number | null | undefined): string {
@@ -60,7 +62,7 @@ export function CapacityPanel() {
         <Title order={4} mb="xs">
           {sv.capacity.heading}
         </Title>
-        <Text c="dimmed">{sv.capacity.empty}</Text>
+        <EmptyState icon={<IconGauge size={22} stroke={1.75} />} message={sv.capacity.empty} />
       </Card>
     );
   }
@@ -133,7 +135,7 @@ export function CapacityPanel() {
         {sv.capacity.perSlotHeading}
       </Title>
       <Table.ScrollContainer minWidth={520}>
-        <Table verticalSpacing="xs" withTableBorder>
+        <Table verticalSpacing="xs" withTableBorder striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
               <Table.Th>{sv.capacity.perSlotTable.slot}</Table.Th>

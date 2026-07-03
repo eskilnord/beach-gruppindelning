@@ -10,16 +10,17 @@ import { sv } from "../i18n/sv";
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 /**
- * Sober Quartz theme tuned to match Mantine's default blue primary color (app/theme.ts) rather than
- * AG Grid's default purple accent, so the grid doesn't look like a foreign widget dropped into the
- * app (M4 brief: "quartz theme, sober").
+ * Sober Quartz theme tuned to match the app's ocean-blue primary color (app/theme.ts, v0.3.0 WI-6)
+ * rather than AG Grid's default purple accent, so the grid doesn't look like a foreign widget dropped
+ * into the app (M4 brief: "quartz theme, sober"). Font-family + accent-color + a matching border
+ * radius is deliberately as far as this goes - AG Grid 35's own theming API isn't fought further.
  */
 export const dataGridTheme = themeQuartz.withParams({
-  accentColor: "#228be6",
-  fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+  accentColor: "#0e7490",
+  fontFamily: "'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
   headerFontWeight: 600,
   spacing: 7,
-  wrapperBorderRadius: "4px",
+  wrapperBorderRadius: "8px",
 });
 
 // Not generic over TData (a plain `ColDef<any>` literal) - passed as the first, lower-priority

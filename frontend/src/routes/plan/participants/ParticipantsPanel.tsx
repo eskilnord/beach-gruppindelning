@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Alert, Badge, Button, Card, Group, Loader, Text, TextInput, Title, Tooltip } from "@mantine/core";
+import { IconUsers } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { DataGrid } from "../../../components/DataGrid";
@@ -10,6 +11,7 @@ import { useAnonymizeAllComments } from "../../../api/comments";
 import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
 import { DeleteConfirmModal } from "../../../components/DeleteConfirmModal";
+import { EmptyState } from "../../../components/EmptyState";
 import { describeLevelConfidence } from "./levelConfidence";
 import { ParticipantDrawer } from "./ParticipantDrawer";
 import type { ParticipantRow } from "./participantRow";
@@ -198,7 +200,7 @@ export function ParticipantsPanel() {
         </Group>
       </Group>
 
-      {isEmpty && <Text c="dimmed">{sv.participants.empty}</Text>}
+      {isEmpty && <EmptyState icon={<IconUsers size={22} stroke={1.75} />} message={sv.participants.empty} />}
 
       {!isEmpty && (
         <>

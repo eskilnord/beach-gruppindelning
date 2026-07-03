@@ -1,14 +1,20 @@
 import { ActionIcon, AppShell, Group, NavLink, Text, Title, Tooltip } from "@mantine/core";
+import { IconCalendarWeek, IconClipboardList, IconHome2 } from "@tabler/icons-react";
 import { Outlet, useParams } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { useSeason } from "../api/seasons";
 import { usePlan } from "../api/plans";
 import { sv } from "../i18n/sv";
 import { BackendStatusFooter } from "./BackendStatusFooter";
+import { BrandMark } from "./BrandMark";
 import { ReconnectOverlay } from "./ReconnectOverlay";
 import { PlayerSearchSpotlight } from "./playersearch/PlayerSearchSpotlight";
 import { TutorialModal } from "./tutorial/TutorialModal";
 import { useTutorialStore } from "./tutorial/tutorialStore";
+
+/** Shared icon sizing for every navbar NavLink (v0.3.0 WI-6) - kept as a constant so Hem/Säsong/Plan
+ *  visually line up regardless of which entries are present. */
+const NAV_ICON_PROPS = { size: 18, stroke: 1.75 } as const;
 
 /**
  * App shell: sidebar navigation (Hem, aktiv säsong, aktiv plan) + footer backend-status indicator +
@@ -28,9 +34,14 @@ export function AppShellLayout() {
 
   return (
     <AppShell header={{ height: 56 }} navbar={{ width: 240, breakpoint: "sm" }} padding="md">
-      <AppShell.Header>
+      <AppShell.Header
+        style={{ backgroundColor: "var(--mantine-color-white)", borderBottomColor: "var(--mantine-color-gray-3)" }}
+      >
         <Group h="100%" px="md" justify="space-between">
-          <Title order={4}>{sv.app.title}</Title>
+          <Group gap="xs">
+            <BrandMark />
+            <Title order={4}>{sv.app.title}</Title>
+          </Group>
           <Tooltip label={sv.tutorial.headerButtonTooltip}>
             <ActionIcon
               variant="default"
@@ -46,8 +57,11 @@ export function AppShellLayout() {
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar p="md">
-        <NavLink component={Link} to="/" label={sv.nav.home} />
+      <AppShell.Navbar
+        p="md"
+        style={{ backgroundColor: "var(--mantine-color-gray-0)", borderRightColor: "var(--mantine-color-gray-3)" }}
+      >
+        <NavLink component={Link} to="/" label={sv.nav.home} leftSection={<IconHome2 {...NAV_ICON_PROPS} />} />
         {season && (
           <NavLink
             component={Link}
@@ -55,6 +69,7 @@ export function AppShellLayout() {
             label={season.name}
             description={sv.nav.season}
             active={!planId}
+            leftSection={<IconCalendarWeek {...NAV_ICON_PROPS} />}
           />
         )}
         {plan && season && (
@@ -64,6 +79,7 @@ export function AppShellLayout() {
             label={plan.name}
             description={sv.nav.plan}
             active
+            leftSection={<IconClipboardList {...NAV_ICON_PROPS} />}
           />
         )}
         <AppShell.Section grow />

@@ -247,7 +247,7 @@ export function OptimizePanel() {
               )}
               {weights.data && (
                 <Table.ScrollContainer minWidth={480}>
-                  <Table verticalSpacing={4} withTableBorder>
+                  <Table verticalSpacing={4} withTableBorder striped highlightOnHover>
                     <Table.Thead>
                       <Table.Tr>
                         <Table.Th>{sv.optimize.weightsSummary.table.label}</Table.Th>

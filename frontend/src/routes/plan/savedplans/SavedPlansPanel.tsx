@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { Alert, Badge, Button, Card, Group, Loader, Stack, Table, Text, TextInput, Title, Tooltip } from "@mantine/core";
+import { IconBookmark } from "@tabler/icons-react";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { ApiError } from "../../../api/client";
@@ -9,6 +10,7 @@ import type { SavedPlan } from "../../../api/types";
 import { sv } from "../../../i18n/sv";
 import { formatDateTime } from "../../../lib/formatDateTime";
 import { DeleteConfirmModal } from "../../../components/DeleteConfirmModal";
+import { EmptyState } from "../../../components/EmptyState";
 import { canDeleteSavedPlan, statusActions, statusColor } from "./savedPlanActions";
 
 function showError(error: unknown, fallback: string) {
@@ -115,11 +117,13 @@ export function SavedPlansPanel() {
             {savedPlans.error instanceof ApiError ? savedPlans.error.message : sv.savedPlans.loadFailed}
           </Alert>
         )}
-        {savedPlans.data && rows.length === 0 && <Text c="dimmed">{sv.savedPlans.empty}</Text>}
+        {savedPlans.data && rows.length === 0 && (
+          <EmptyState icon={<IconBookmark size={22} stroke={1.75} />} message={sv.savedPlans.empty} />
+        )}
 
         {rows.length > 0 && (
           <Table.ScrollContainer minWidth={720}>
-            <Table verticalSpacing="xs" withTableBorder>
+            <Table verticalSpacing="xs" withTableBorder striped highlightOnHover>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>{sv.savedPlans.columns.version}</Table.Th>

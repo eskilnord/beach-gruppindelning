@@ -1,3 +1,7 @@
+// Bundled variable sans (v0.3.0 WI-6) - weight axis only (no italics needed), so the desktop shell
+// never fetches a remote font (Tauri runs offline; CLAUDE.md's confidentiality/offline rules are
+// absolute about not depending on network access at runtime).
+import "@fontsource-variable/inter/wght.css";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import "@mantine/dates/styles.css";

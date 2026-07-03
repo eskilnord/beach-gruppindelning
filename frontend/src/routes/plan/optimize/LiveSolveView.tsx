@@ -209,7 +209,10 @@ export function LiveSolveView({ planId, snapshot, running }: LiveSolveViewProps)
     <Card withBorder padding="md" data-testid="live-solve-view" style={running ? undefined : { opacity: 0.6 }}>
       <MantineGroup justify="space-between" mb="xs">
         <Title order={5}>{sv.optimize.live.heading}</Title>
-        <Text key={snapshot.sequence} fw={600} size="sm" className="gp-live-pulse">
+        {/* Warm sand accent (v0.3.0 WI-6 palette) - the brief calls this out by name as one of the
+            sparing places the accent color should show up, since it's the one piece of text that
+            visibly ticks forward on every polled frame ("it's alive"). */}
+        <Text key={snapshot.sequence} fw={600} size="sm" c="sand.7" className="gp-live-pulse">
           {sv.optimize.live.improvementNumber(snapshot.improvementCount)}
         </Text>
       </MantineGroup>
