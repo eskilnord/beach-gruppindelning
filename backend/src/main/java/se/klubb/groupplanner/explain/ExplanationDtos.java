@@ -213,4 +213,37 @@ public final class ExplanationDtos {
     public record WhatIfWhyNotResponse(
             String runId, int basedOnRevision, int currentRevision, boolean stale, AlternativeGroupView alternative) {
     }
+
+    // ─────────────────────────────────────────────────────────────────── improvement suggestions
+
+    /**
+     * One "small data change would unlock a big improvement" suggestion ({@link
+     * ImprovementSuggestionService}, WI-D — user feedback v0.4 #2). {@code kind} is one of {@code
+     * PLAYER_TIME | GROUP_MAX | COACH_TIME | COACH_MAX | GROUP_MAX_WISH | PLAYER_TIME_WISH}.
+     * {@code titleSv}/{@code detailSv}/{@code impactSv} are finished Swedish sentences, rendered
+     * server-side like every other message field in this API (same "no client-side copy" pattern as
+     * {@link BrokenWishView}/{@link IndirectFactorView}) — {@code detailSv} is {@code null} whenever
+     * the title+impact already say everything (most suggestions). The four reference ids are
+     * whichever of {groupId, participantProfileId, coachProfileId, timeSlotId} are relevant to that
+     * {@code kind}; irrelevant ones are {@code null}, never fabricated.
+     */
+    public record SuggestionView(
+            String kind,
+            String titleSv,
+            String detailSv,
+            String impactSv,
+            String groupId,
+            String participantProfileId,
+            String coachProfileId,
+            String timeSlotId) {
+    }
+
+    public record ImprovementSuggestionsResponse(
+            String runId,
+            int basedOnRevision,
+            int currentRevision,
+            boolean stale,
+            List<SuggestionView> suggestions,
+            int omittedCount) {
+    }
 }

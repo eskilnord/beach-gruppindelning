@@ -1064,6 +1064,23 @@ export const sv = {
       membersWithBrokenWishesHeading: "Spelare med brutna önskemål",
       noBrokenWishMembers: "Inga spelare med brutna önskemål.",
     },
+    // WI-D "Förbättringsförslag" (user feedback v0.4 #2): post-solve, low-hanging-fruit suggestions
+    // for SMALL data changes the council could make to unlock a bigger improvement (one more seat in
+    // a group, one coach's availability). Rendered by ImprovementSuggestions.tsx above the group
+    // cards grid on the Resultat tab.
+    suggestions: {
+      heading: "Förbättringsförslag",
+      subtitle: "Små ändringar i data som styrelsen kan göra för att förbättra resultatet.",
+      loadFailed: "Kunde inte hämta förbättringsförslag",
+      empty: "Inga uppenbara förbättringar hittades – kölistan och tränartäckningen ser bra ut.",
+      // Same truthfulness nuance as results.explain.staleBanner: the list is RE-COMPUTED from the
+      // plan's current state, not replayed from the old run - what's outdated is the RUN.
+      staleBanner:
+        "Planen har ändrats efter denna körning — förslagen speglar nuvarande läge. Kör om optimeringen för förslag som matchar en aktuell körning.",
+      omittedCount: (n: number) => (n === 1 ? "1 ytterligare förslag visas inte." : `${n} ytterligare förslag visas inte.`),
+      showButton: "Visa förslag",
+      hideButton: "Dölj förslag",
+    },
   },
   savedPlans: {
     heading: "Sparade planer",

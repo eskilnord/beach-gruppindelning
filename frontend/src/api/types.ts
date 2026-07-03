@@ -491,6 +491,29 @@ export type WhatIfWhyNotResponse = Omit<
   "alternative"
 > & { alternative: AlternativeGroupView };
 
+// --- WI-D: Förbättringsförslag (post-solve improvement suggestions, user feedback v0.4 #2) ---
+
+/** {@code kind} on a {@link SuggestionView} - see backend ImprovementSuggestionService's class
+ *  javadoc for the three families (A: waitlisted players, B: coachless groups, C: broken WANT_SAME
+ *  wishes) each of these six kinds belongs to. */
+export type SuggestionKind = "PLAYER_TIME" | "GROUP_MAX" | "COACH_TIME" | "COACH_MAX" | "GROUP_MAX_WISH" | "PLAYER_TIME_WISH";
+
+/** One data-derived "this small change would help" suggestion. `titleSv`/`detailSv`/`impactSv` are
+ *  finished Swedish sentences rendered server-side (same "no client-side copy" pattern as {@link
+ *  BrokenWishView}); the four reference ids are whichever of them are relevant to `kind` - the
+ *  others are `undefined`, never fabricated. */
+export type SuggestionView = Omit<WithRequired<components["schemas"]["SuggestionView"], "kind" | "titleSv" | "impactSv">, "kind"> & {
+  kind: SuggestionKind;
+};
+
+export type ImprovementSuggestionsResponse = Omit<
+  WithRequired<
+    components["schemas"]["ImprovementSuggestionsResponse"],
+    "runId" | "basedOnRevision" | "currentRevision" | "stale" | "suggestions" | "omittedCount"
+  >,
+  "suggestions"
+> & { suggestions: SuggestionView[] };
+
 export type WhatIfMoveRequest = components["schemas"]["WhatIfMoveRequest"];
 export type WhatIfWhyNotRequest = components["schemas"]["WhyNotRequest"];
 

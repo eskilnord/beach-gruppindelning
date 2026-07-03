@@ -20,6 +20,7 @@ import { ExplainDrawer, type GroupOption } from "./explain/ExplainDrawer";
 import { GroupExplainDrawer } from "./explain/GroupExplainDrawer";
 import { WhatIfDialog } from "./explain/WhatIfDialog";
 import { GroupCard } from "./GroupCard";
+import { ImprovementSuggestions } from "./ImprovementSuggestions";
 import { ScheduleView } from "./ScheduleView";
 import { WaitlistCard, type WaitlistEntry } from "./WaitlistCard";
 
@@ -232,6 +233,12 @@ export function ResultsPanel() {
           </Alert>
         )}
       </Card>
+
+      {/* WI-D "Förbättringsförslag" (user feedback v0.4 #2): only meaningful once a run exists -
+       *  self-contained (owns its own fetch/loading/error/empty/stale states), so mounting it is the
+       *  only integration point needed here. Deliberately NOT nested inside the cards/schedule view
+       *  toggle below - it's relevant regardless of which sub-view the user is looking at. */}
+      {planId && latestRunId && <ImprovementSuggestions planId={planId} runId={latestRunId} />}
 
       {view === "cards" && planId && (
         <>

@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
-import type { GroupExplanationResponse, PersonExplanationResponse, PlanExplanationResponse } from "./types";
+import type { GroupExplanationResponse, ImprovementSuggestionsResponse, PersonExplanationResponse, PlanExplanationResponse } from "./types";
 
 /** Broad prefix key for every explanation query under a plan (person/group/plan level, any run) -
  *  used to invalidate ALL of them in one call after a mutation that bumps `activity_plan
@@ -21,6 +21,9 @@ const groupExplanationKey = (planId: string, runId: string, groupId: string) =>
 
 const planExplanationKey = (planId: string, runId: string) =>
   [...explanationsKey(planId), "runs", runId, "plan"] as const;
+
+const suggestionsKey = (planId: string, runId: string) =>
+  [...explanationsKey(planId), "runs", runId, "suggestions"] as const;
 
 /** Person-level explanation (spec §17.1/§17.2, "Personnivå" of the Förklarbarhet chapter) - the
  *  explain-drawer's data source for both a placed member (selectedGroup + factors + alternatives)
@@ -53,6 +56,19 @@ export function usePlanExplanation(planId: string | undefined, runId: string | u
   return useQuery({
     queryKey: planExplanationKey(planId ?? "", runId ?? ""),
     queryFn: () => api.get<PlanExplanationResponse>(`/api/plans/${planId}/runs/${runId}/explanations/plan`),
+    enabled: planId !== undefined && runId !== undefined,
+  });
+}
+
+/** Improvement suggestions (WI-D "Förbättringsförslag", user feedback v0.4 #2) - the Resultat tab's
+ *  post-solve "which small data change would unlock a big improvement" card. Same staleness envelope
+ *  and `enabled` gating (no run yet = nothing to suggest against) as the three explanation levels
+ *  above; lives under the same {@link explanationsKey} prefix so a plan-mutating action's broad
+ *  invalidation picks this up too. */
+export function useImprovementSuggestions(planId: string | undefined, runId: string | undefined) {
+  return useQuery({
+    queryKey: suggestionsKey(planId ?? "", runId ?? ""),
+    queryFn: () => api.get<ImprovementSuggestionsResponse>(`/api/plans/${planId}/runs/${runId}/suggestions`),
     enabled: planId !== undefined && runId !== undefined,
   });
 }

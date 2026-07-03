@@ -135,6 +135,14 @@ class ExplanationRecordLeakTest {
         }
         mockMvc.perform(get("/api/plans/" + planId + "/runs/" + runId + "/explanations/plan").header("X-GP-Token", VALID_TOKEN));
 
+        // WI-D "Förbättringsförslag" (v0.4 #2): the suggestion service reads the SAME solver-domain
+        // facts (PlayerAssignment/CoachFact/Group) as the explain endpoints above, none of which
+        // carry importedComment/internalNote at all (SolverInputAssembler never folds them in) - this
+        // asserts that structural guarantee against the actual live JSON response, not just the DB.
+        String suggestionsJson = mockMvc.perform(get("/api/plans/" + planId + "/runs/" + runId + "/suggestions").header("X-GP-Token", VALID_TOKEN))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(suggestionsJson).doesNotContain(SENSITIVE_IMPORTED_COMMENT).doesNotContain(SENSITIVE_INTERNAL_NOTE);
+
         List<Map<String, Object>> explanationRecordRows = jdbcClient.sql("SELECT * FROM explanation_record WHERE optimization_run_id = :runId")
                 .param("runId", runId)
                 .query((rs, rowNum) -> Map.<String, Object>of(

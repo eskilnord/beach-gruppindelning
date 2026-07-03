@@ -804,6 +804,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{planId}/runs/{runId}/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["suggestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans/{planId}/runs/{runId}/explanations/players/{participantProfileId}": {
         parameters: {
             query?: never;
@@ -1758,6 +1774,27 @@ export interface components {
             resultSummaryJson?: string;
             /** Format: int32 */
             planRevision?: number;
+        };
+        ImprovementSuggestionsResponse: {
+            runId?: string;
+            /** Format: int32 */
+            basedOnRevision?: number;
+            /** Format: int32 */
+            currentRevision?: number;
+            stale?: boolean;
+            suggestions?: components["schemas"]["SuggestionView"][];
+            /** Format: int32 */
+            omittedCount?: number;
+        };
+        SuggestionView: {
+            kind?: string;
+            titleSv?: string;
+            detailSv?: string;
+            impactSv?: string;
+            groupId?: string;
+            participantProfileId?: string;
+            coachProfileId?: string;
+            timeSlotId?: string;
         };
         AppliedWeightView: {
             key?: string;
@@ -4078,6 +4115,29 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["OptimizationRun"][];
+                };
+            };
+        };
+    };
+    suggestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ImprovementSuggestionsResponse"];
                 };
             };
         };
