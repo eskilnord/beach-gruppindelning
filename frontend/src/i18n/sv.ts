@@ -919,8 +919,20 @@ export const sv = {
       schedule: "Schema",
     },
     groupCard: {
-      playersCount: (n: number, target: number | null, max: number | null) =>
-        target != null && max != null ? `${n}/${target}/${max} spelare` : `${n} spelare`,
+      // User feedback v0.4.1: the old "n/target/max spelare" chip was not self-explanatory - spell
+      // out what each number means. Handles all four presence combinations of target/max.
+      playersCount: (n: number, target: number | null, max: number | null) => {
+        if (target != null && max != null) {
+          return `${n} spelare (mål ${target}, max ${max})`;
+        }
+        if (target != null) {
+          return `${n} spelare (mål ${target})`;
+        }
+        if (max != null) {
+          return `${n} spelare (max ${max})`;
+        }
+        return `${n} spelare`;
+      },
       levelMean: "Nivåsnitt",
       levelSpread: "Nivåspridning",
       noLevelData: "Nivådata saknas",
@@ -1083,9 +1095,16 @@ export const sv = {
       // plan's current state, not replayed from the old run - what's outdated is the RUN.
       staleBanner:
         "Planen har ändrats efter denna körning — förslagen speglar nuvarande läge. Kör om optimeringen för förslag som matchar en aktuell körning.",
-      omittedCount: (n: number) => (n === 1 ? "1 ytterligare förslag visas inte." : `${n} ytterligare förslag visas inte.`),
+      // "punkt", not "förslag" - the backend cap is applied before the frontend splits suggestions
+      // from limitations, so the omitted items can be either.
+      omittedCount: (n: number) => (n === 1 ? "1 ytterligare punkt visas inte." : `${n} ytterligare punkter visas inte.`),
       showButton: "Visa förslag",
       hideButton: "Dölj förslag",
+      // User feedback v0.4.1: GROUP_MAX/GROUP_MAX_WISH describe a fixed limit (court capacity/plan
+      // max sizes) the council can't actually change - rendered in their own subsection so they read
+      // as an explanation of the result, not an actionable to-do alongside the real suggestions.
+      limitationsHeading: "Begränsningar som påverkar resultatet",
+      limitationsSubtitle: "Fasta gränser (t.ex. planens maxstorlekar) som förklarar resultatet – inget att ändra, bara att känna till.",
     },
     // "Are these groups good?" at-a-glance strip (user feedback v0.4 #5) - ResultsSummary.tsx (the
     // Resultatvy strip above ImprovementSuggestions) and the per-GroupCard status dot/border/chips,

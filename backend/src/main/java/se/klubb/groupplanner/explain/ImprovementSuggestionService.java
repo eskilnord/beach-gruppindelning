@@ -242,46 +242,55 @@ public class ImprovementSuggestionService {
         int n = agg.waitlistedPlayers.size();
         int k = agg.wishPairs.size();
         // Opus review FIX 1 (truthfulness, same class as M7 review fix M1): groupMaxSizeHard being
-        // the SOLE blocker of every merged beneficiary means the group is EXACTLY at max - raising
-        // it by 1 opens exactly ONE seat, so a merged suggestion covering N waitlisted players and
-        // K wish pairs (each pair's moving partner needs one seat) must ask for N+K extra seats or
-        // its "everyone benefits" claim is false. Singular "med 1" falls out of %d when the sum is 1.
-        int seatsNeeded = n + k;
+        // the SOLE blocker of every merged beneficiary means the group is EXACTLY at max - a merged
+        // suggestion covering N waitlisted players and K wish pairs (each pair's moving partner needs
+        // one seat) must name EVERY one of the N+K beneficiaries it claims to cover (n/k below), never
+        // imply a single beneficiary when there is more than one.
         String kind;
         String title;
         String impact;
         String participantId = null;
+        // User feedback v0.4.1: a group's max size is a HARD constraint (court capacity) the council
+        // cannot actually change from this screen - phrasing it as an imperative ("Öka maxstorleken
+        // ...") reads as an actionable suggestion when it isn't one. GROUP_MAX/GROUP_MAX_WISH are now
+        // phrased as an EXPLANATION of the limitation ("Grupp X är full (max N)") plus what that
+        // fullness costs, not a call to action - the beneficiary aggregation (Opus review FIX 1,
+        // above) is untouched; the old "+N seats" claim went away with the imperative wording.
         if (n > 0) {
             kind = "GROUP_MAX";
             StringBuilder tail = new StringBuilder();
             if (n == 1) {
                 PlayerAssignment only = agg.waitlistedPlayers.get(0);
-                tail.append("då får %s plats".formatted(only.getDisplayName()));
+                tail.append("det hindrar %s från en plats".formatted(only.getDisplayName()));
                 participantId = explanationService.participantDbId(ctx, only.getId());
             } else {
-                tail.append("då får %d spelare på kölistan plats".formatted(n));
+                tail.append("det hindrar %d spelare från platser".formatted(n));
             }
             if (k > 0) {
+                // "samt" rather than a second "och hindrar" - the tail already chains "X och Y" pair
+                // names, so a plain "och" would stack three "och":s in one sentence.
                 tail.append(k == 1
-                        ? " och %s och %s kan spela ihop".formatted(agg.wishPairs.get(0)[0], agg.wishPairs.get(0)[1])
-                        : " och %d spelpar kan spela ihop".formatted(k));
+                        ? " samt %s och %s från att spela ihop".formatted(agg.wishPairs.get(0)[0], agg.wishPairs.get(0)[1])
+                        : " samt %d spelpar från att spela ihop".formatted(k));
             }
-            title = "Öka maxstorleken i %s (nu %d) med %d – %s.".formatted(agg.group.name(), agg.group.maxSize(), seatsNeeded, tail);
-            impact = n == 1 ? "1 spelare färre på kölistan" : "%d spelare färre på kölistan".formatted(n);
+            title = "Grupp %s är full (max %d) – %s.".formatted(agg.group.name(), agg.group.maxSize(), tail);
+            impact = n == 1 ? "hindrar 1 spelare från en plats" : "hindrar %d spelare från platser".formatted(n);
             if (k > 0) {
                 impact += k == 1
-                        ? "; dessutom kan %s och %s spela ihop".formatted(agg.wishPairs.get(0)[0], agg.wishPairs.get(0)[1])
-                        : "; dessutom kan %d spelpar spela ihop".formatted(k);
+                        ? "; hindrar %s och %s från att spela ihop".formatted(agg.wishPairs.get(0)[0], agg.wishPairs.get(0)[1])
+                        : "; hindrar %d spelpar från att spela ihop".formatted(k);
             }
         } else {
             kind = "GROUP_MAX_WISH";
             if (k == 1) {
                 String[] pair = agg.wishPairs.get(0);
-                title = "Öka maxstorleken i %s med 1 så kan %s och %s spela ihop.".formatted(agg.group.name(), pair[0], pair[1]);
+                title = "Grupp %s är full (max %d) – det hindrar %s och %s från att spela ihop.".formatted(
+                        agg.group.name(), agg.group.maxSize(), pair[0], pair[1]);
             } else {
-                title = "Öka maxstorleken i %s med %d så kan %d spelpar spela ihop.".formatted(agg.group.name(), seatsNeeded, k);
+                title = "Grupp %s är full (max %d) – det hindrar %d spelpar från att spela ihop.".formatted(
+                        agg.group.name(), agg.group.maxSize(), k);
             }
-            impact = k == 1 ? "1 spelpar kan spela ihop" : "%d spelpar kan spela ihop".formatted(k);
+            impact = k == 1 ? "hindrar 1 spelpar från att spela ihop" : "hindrar %d spelpar från att spela ihop".formatted(k);
         }
         String detail = n > 1
                 ? "Berörda spelare: %s.".formatted(String.join(", ", agg.waitlistedPlayers.stream().map(PlayerAssignment::getDisplayName).toList()))

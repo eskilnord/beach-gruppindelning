@@ -28,6 +28,16 @@ const KIND_ICON: Record<SuggestionKind, Icon> = {
   COACH_MAX: IconUserStar,
 };
 
+/** User feedback v0.4.1: GROUP_MAX/GROUP_MAX_WISH name a fixed limit (court capacity/plan max size)
+ *  that cannot actually be changed from this screen - they are rendered as an explanation of the
+ *  result ("limitation"), never alongside the genuinely actionable "ask a person" suggestions
+ *  (PLAYER_TIME/PLAYER_TIME_WISH/COACH_TIME/COACH_MAX). */
+const LIMITATION_KINDS: ReadonlySet<SuggestionKind> = new Set(["GROUP_MAX", "GROUP_MAX_WISH"]);
+
+function isLimitation(kind: SuggestionKind): boolean {
+  return LIMITATION_KINDS.has(kind);
+}
+
 /**
  * "Förbättringsförslag" (WI-D, user feedback v0.4 #2): post-solve, low-hanging-fruit suggestions for
  * SMALL data changes the council could make to unlock a bigger improvement - e.g. "Om tränaren Lisa
@@ -39,11 +49,15 @@ export function ImprovementSuggestions({ planId, runId }: ImprovementSuggestions
   const suggestions = useImprovementSuggestions(planId, runId);
   const [opened, setOpened] = useState(true);
 
+  const all = suggestions.data?.suggestions ?? [];
+  const actionable = all.filter((s) => !isLimitation(s.kind));
+  const limitations = all.filter((s) => isLimitation(s.kind));
+
   return (
     <Card withBorder padding="lg" data-testid="improvement-suggestions">
       <Group justify="space-between" mb={4}>
         <Title order={4}>{sv.results.suggestions.heading}</Title>
-        {suggestions.data && suggestions.data.suggestions.length > 0 && (
+        {all.length > 0 && (
           <ActionIcon
             variant="subtle"
             aria-label={opened ? sv.results.suggestions.hideButton : sv.results.suggestions.showButton}
@@ -54,9 +68,13 @@ export function ImprovementSuggestions({ planId, runId }: ImprovementSuggestions
           </ActionIcon>
         )}
       </Group>
-      <Text size="sm" c="dimmed" mb="sm">
-        {sv.results.suggestions.subtitle}
-      </Text>
+      {/* The card subtitle promises "changes the council can make" - hide it when the body holds
+          ONLY fixed limitations, or the card would contradict its own content. */}
+      {!(suggestions.data && actionable.length === 0 && limitations.length > 0) && (
+        <Text size="sm" c="dimmed" mb="sm">
+          {sv.results.suggestions.subtitle}
+        </Text>
+      )}
 
       {suggestions.isLoading && (
         <Group gap="xs" data-testid="improvement-suggestions-loading">
@@ -78,17 +96,38 @@ export function ImprovementSuggestions({ planId, runId }: ImprovementSuggestions
             </Alert>
           )}
 
-          {suggestions.data.suggestions.length === 0 ? (
+          {/* Only fall back to the "nothing found" empty text when there is truly NOTHING to show -
+              a plan with only limitations (GROUP_MAX*) must never claim no improvements exist. */}
+          {all.length === 0 ? (
             <Text size="sm" c="dimmed" data-testid="improvement-suggestions-empty">
               {sv.results.suggestions.empty}
             </Text>
           ) : (
             <Collapse in={opened}>
-              <Stack gap="sm">
-                {suggestions.data.suggestions.map((suggestion, index) => (
-                  <SuggestionRow key={index} suggestion={suggestion} />
-                ))}
-              </Stack>
+              {actionable.length > 0 && (
+                <Stack gap="sm">
+                  {actionable.map((suggestion, index) => (
+                    <SuggestionRow key={index} suggestion={suggestion} />
+                  ))}
+                </Stack>
+              )}
+
+              {limitations.length > 0 && (
+                <div>
+                  <Title order={6} mt={actionable.length > 0 ? "md" : 0}>
+                    {sv.results.suggestions.limitationsHeading}
+                  </Title>
+                  <Text size="xs" c="dimmed" mb="xs">
+                    {sv.results.suggestions.limitationsSubtitle}
+                  </Text>
+                  <Stack gap="sm">
+                    {limitations.map((suggestion, index) => (
+                      <SuggestionRow key={index} suggestion={suggestion} isLimitation />
+                    ))}
+                  </Stack>
+                </div>
+              )}
+
               {suggestions.data.omittedCount > 0 && (
                 <Text size="xs" c="dimmed" mt="sm" data-testid="improvement-suggestions-omitted">
                   {sv.results.suggestions.omittedCount(suggestions.data.omittedCount)}
@@ -102,10 +141,15 @@ export function ImprovementSuggestions({ planId, runId }: ImprovementSuggestions
   );
 }
 
-function SuggestionRow({ suggestion }: { suggestion: SuggestionView }) {
+function SuggestionRow({ suggestion, isLimitation }: { suggestion: SuggestionView; isLimitation?: boolean }) {
   const KindIcon = KIND_ICON[suggestion.kind] ?? IconClock;
   return (
-    <Group align="flex-start" gap="sm" wrap="nowrap" data-testid="improvement-suggestion-row">
+    <Group
+      align="flex-start"
+      gap="sm"
+      wrap="nowrap"
+      data-testid={isLimitation ? "improvement-limitation-row" : "improvement-suggestion-row"}
+    >
       <KindIcon size={20} style={{ flexShrink: 0, marginTop: 2 }} />
       <div style={{ flex: 1 }}>
         <Text size="sm">{suggestion.titleSv}</Text>
@@ -114,7 +158,9 @@ function SuggestionRow({ suggestion }: { suggestion: SuggestionView }) {
             {suggestion.detailSv}
           </Text>
         )}
-        <Badge size="xs" variant="light" color="green" mt={4}>
+        {/* Non-green badge for limitations (task brief) - a fixed constraint explanation must never
+            read as a "win" the way an actionable suggestion's green badge does. */}
+        <Badge size="xs" variant="light" color={isLimitation ? "gray" : "green"} mt={4}>
           {suggestion.impactSv}
         </Badge>
       </div>

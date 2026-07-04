@@ -165,7 +165,13 @@ function WhatIfDialogBody({ planId, runId, participantProfileId, participantName
         data={targetOptions}
         value={targetValue}
         onChange={setTargetValue}
-        comboboxProps={{ withinPortal: false }}
+        // User feedback v0.4.1: withinPortal:false clipped the dropdown against the Modal's
+        // overflow when there were many groups, with no way to scroll to the rest. Portalling (the
+        // Mantine 8 default) renders the dropdown outside the modal's DOM subtree so it isn't
+        // clipped, and keeps its default max-height + internal scroll. Confirmed no test queries
+        // options scoped to the dialog element (both the e2e spec and any vitest coverage query
+        // options at page/document level), so the portal move doesn't break anything.
+        comboboxProps={{ withinPortal: true }}
         data-testid="whatif-target-select"
       />
 

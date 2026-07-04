@@ -156,7 +156,7 @@ test("Optimering (förslag+CUSTOM utan tränare+GREEDY+FAST) → Resultatvy (gru
 
   const groupCard = page.getByTestId("group-card").filter({ hasText: `${planName} 1` });
   await expect(groupCard).toHaveCount(1);
-  await expect(groupCard.getByText("6/10/12")).toBeVisible();
+  await expect(groupCard.getByText("6 spelare (mål 10, max 12)")).toBeVisible();
   await expect(groupCard.getByRole("row").filter({ hasText: "Tova Lindberg" })).toHaveCount(1);
   await expect(groupCard.getByRole("row").filter({ hasText: "Rasmus Falk" })).toHaveCount(1);
 

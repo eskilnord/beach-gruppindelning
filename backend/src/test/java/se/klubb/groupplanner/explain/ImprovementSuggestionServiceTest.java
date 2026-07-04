@@ -182,8 +182,10 @@ class ImprovementSuggestionServiceTest {
         assertThat(s.kind()).isEqualTo("GROUP_MAX");
         assertThat(s.groupId()).isEqualTo(groupA);
         assertThat(s.participantProfileId()).isEqualTo(kalle);
-        assertThat(s.titleSv()).contains("Grupp A").contains("nu 2").contains("Kalle Karlsson");
-        assertThat(s.impactSv()).isEqualTo("1 spelare färre på kölistan");
+        // User feedback v0.4.1: GROUP_MAX is a limitation explanation ("Grupp X är full"), not an
+        // actionable imperative ("Öka maxstorleken") - court capacity can't actually be changed.
+        assertThat(s.titleSv()).contains("Grupp A är full (max 2)").contains("Kalle Karlsson");
+        assertThat(s.impactSv()).isEqualTo("hindrar 1 spelare från en plats");
     }
 
     @Test
@@ -210,10 +212,10 @@ class ImprovementSuggestionServiceTest {
         assertThat(s.kind()).isEqualTo("GROUP_MAX");
         assertThat(s.groupId()).isEqualTo(groupA);
         assertThat(s.participantProfileId()).isNull(); // ambiguous for the merged (N>1) case.
-        // Opus review FIX 1: +1 opens exactly ONE seat in an exactly-full group - a merged
-        // suggestion for 2 waitlisted players must ask for 2 extra seats, or its claim is false.
-        assertThat(s.titleSv()).contains("med 2 –").contains("2 spelare på kölistan plats");
-        assertThat(s.impactSv()).isEqualTo("2 spelare färre på kölistan");
+        // Opus review FIX 1: a merged suggestion for 2 waitlisted players must name BOTH as blocked
+        // by the group's fullness, or its claim is false.
+        assertThat(s.titleSv()).contains("Grupp A är full (max 2)").contains("hindrar 2 spelare från platser");
+        assertThat(s.impactSv()).isEqualTo("hindrar 2 spelare från platser");
         assertThat(s.detailSv()).contains("Kalle Karlsson").contains("Anna Andersson");
     }
 
@@ -371,11 +373,10 @@ class ImprovementSuggestionServiceTest {
         SuggestionView s = response.suggestions().get(0);
         assertThat(s.kind()).isEqualTo("GROUP_MAX");
         assertThat(s.groupId()).isEqualTo(groupA);
-        // Opus review FIX 1: one waitlisted player (Erik) + one wish pair (Kalle/Lisa, the moving
-        // partner needs a seat too) = 2 extra seats - the title must ask for BOTH and name every
-        // beneficiary group ("med 2"), not claim a single +1 fixes them all.
-        assertThat(s.titleSv()).contains("med 2 –").contains("Erik Eriksson").contains("kan spela ihop");
-        assertThat(s.impactSv()).contains("spelare färre på kölistan").contains("Kalle Karlsson").contains("Lisa Larsson").contains("spela ihop");
+        // Opus review FIX 1: one waitlisted player (Erik) + one wish pair (Kalle/Lisa) both blocked
+        // by the SAME group's fullness - the title must name every beneficiary, not just one.
+        assertThat(s.titleSv()).contains("Grupp A är full (max 1)").contains("Erik Eriksson").contains("spela ihop");
+        assertThat(s.impactSv()).contains("hindrar 1 spelare från en plats").contains("Kalle Karlsson").contains("Lisa Larsson").contains("spela ihop");
     }
 
     // ─────────────────────────────────────────────────────────────────────── (vi) cap + omittedCount

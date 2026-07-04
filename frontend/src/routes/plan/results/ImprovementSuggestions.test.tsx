@@ -85,9 +85,9 @@ describe("ImprovementSuggestions", () => {
       suggestions: [
         {
           kind: "GROUP_MAX",
-          titleSv: "Öka maxstorleken i Grupp A (nu 2) med 1 – då får Kalle Karlsson plats.",
+          titleSv: "Grupp A är full (max 2) – det hindrar Kalle Karlsson från en plats.",
           detailSv: undefined,
-          impactSv: "1 spelare färre på kölistan",
+          impactSv: "hindrar 1 spelare från plats",
           groupId: "group-1",
           participantProfileId: "participant-2",
           coachProfileId: undefined,
@@ -125,6 +125,72 @@ describe("ImprovementSuggestions", () => {
     renderWithProviders(<ImprovementSuggestions planId="plan-1" runId="run-1" />);
 
     expect(await screen.findByTestId("improvement-suggestions-omitted")).toHaveTextContent(sv.results.suggestions.omittedCount(2));
+  });
+
+  it("partitions actionable suggestions from GROUP_MAX limitations into separate sections", async () => {
+    const response: ImprovementSuggestionsResponse = {
+      ...BASE_RESPONSE,
+      suggestions: [
+        {
+          kind: "PLAYER_TIME",
+          titleSv: "Om Erik Eriksson kunde träna Torsdag 18.00-19.30 skulle hen få plats i Grupp A.",
+          detailSv: undefined,
+          impactSv: "1 spelare färre på kölistan",
+          groupId: "group-1",
+          participantProfileId: "participant-1",
+          coachProfileId: undefined,
+          timeSlotId: "slot-1",
+        },
+        {
+          kind: "GROUP_MAX",
+          titleSv: "Grupp A är full (max 2) – det hindrar Kalle Karlsson från en plats.",
+          detailSv: undefined,
+          impactSv: "hindrar 1 spelare från plats",
+          groupId: "group-1",
+          participantProfileId: "participant-2",
+          coachProfileId: undefined,
+          timeSlotId: undefined,
+        },
+      ],
+    };
+    server.use(http.get(SUGGESTIONS_URL, () => HttpResponse.json(response)));
+
+    renderWithProviders(<ImprovementSuggestions planId="plan-1" runId="run-1" />);
+
+    expect(await screen.findAllByTestId("improvement-suggestion-row")).toHaveLength(1);
+    expect(screen.getAllByTestId("improvement-limitation-row")).toHaveLength(1);
+    expect(screen.getByText(sv.results.suggestions.limitationsHeading)).toBeInTheDocument();
+    expect(screen.getByText(response.suggestions[0].titleSv)).toBeInTheDocument();
+    expect(screen.getByText(response.suggestions[1].titleSv)).toBeInTheDocument();
+    expect(screen.queryByTestId("improvement-suggestions-empty")).not.toBeInTheDocument();
+  });
+
+  it("shows only the limitations section (no false empty text) when every suggestion is a limitation", async () => {
+    const response: ImprovementSuggestionsResponse = {
+      ...BASE_RESPONSE,
+      suggestions: [
+        {
+          kind: "GROUP_MAX_WISH",
+          titleSv: "Grupp A är full (max 2) – det hindrar Kalle Karlsson och Lisa Larsson från att spela ihop.",
+          detailSv: undefined,
+          impactSv: "hindrar 1 spelpar från att spela ihop",
+          groupId: "group-1",
+          participantProfileId: undefined,
+          coachProfileId: undefined,
+          timeSlotId: undefined,
+        },
+      ],
+    };
+    server.use(http.get(SUGGESTIONS_URL, () => HttpResponse.json(response)));
+
+    renderWithProviders(<ImprovementSuggestions planId="plan-1" runId="run-1" />);
+
+    expect(await screen.findAllByTestId("improvement-limitation-row")).toHaveLength(1);
+    expect(screen.queryByTestId("improvement-suggestion-row")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("improvement-suggestions-empty")).not.toBeInTheDocument();
+    // The card subtitle promises "changes the council can make" - it must be hidden when the body
+    // holds only fixed limitations, or the card contradicts its own content.
+    expect(screen.queryByText(sv.results.suggestions.subtitle)).not.toBeInTheDocument();
   });
 
   it("renders a non-404 failure as an error message", async () => {
