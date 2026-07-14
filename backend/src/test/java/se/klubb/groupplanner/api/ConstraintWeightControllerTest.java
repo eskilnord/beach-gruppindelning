@@ -220,6 +220,31 @@ class ConstraintWeightControllerTest {
                 .andExpect(jsonPath("$.error").exists());
     }
 
+    /**
+     * M7 review finding: {@code applyOverrides} used to validate+upsert item-by-item, so a batch
+     * with an invalid second entry left the first entry persisted. It's now pre-validated as a whole
+     * and applied inside a single transaction (see {@code ConstraintWeightService}).
+     */
+    @Test
+    void invalidSecondEntryInABatchRejectsTheWholeBatchAndPersistsNothing() throws Exception {
+        String planId = createPlan();
+
+        String body = objectMapper.writeValueAsString(List.of(
+                new ConstraintWeightOverrideRequest("sameGroupSoft", null, 95, null),
+                new ConstraintWeightOverrideRequest("levelBalance", null, 0, null)));
+
+        mockMvc.perform(put("/api/plans/" + planId + "/constraint-weights")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").exists());
+
+        mockMvc.perform(get("/api/plans/" + planId + "/constraint-weights").header("X-GP-Token", VALID_TOKEN))
+                .andExpect(jsonPath("$[?(@.key=='sameGroupSoft')].weight").value(80))
+                .andExpect(jsonPath("$[?(@.key=='sameGroupSoft')].overridden").value(false));
+    }
+
     @Test
     void listForUnknownPlanReturns404() throws Exception {
         mockMvc.perform(get("/api/plans/does-not-exist/constraint-weights").header("X-GP-Token", VALID_TOKEN))

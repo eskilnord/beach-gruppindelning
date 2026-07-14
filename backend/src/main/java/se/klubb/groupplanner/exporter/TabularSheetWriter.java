@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
@@ -55,12 +56,47 @@ final class TabularSheetWriter {
             try (OutputStreamWriter writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
                     CSVPrinter printer = new CSVPrinter(writer, format)) {
                 for (List<String> row : rows) {
-                    printer.printRecord(row);
+                    List<String> neutralized = new ArrayList<>(row.size());
+                    for (String cell : row) {
+                        neutralized.add(neutralizeFormula(cell));
+                    }
+                    printer.printRecord(neutralized);
                 }
             }
             return out.toByteArray();
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to write csv export", e);
         }
+    }
+
+    /**
+     * CSV formula injection guard (Excel/LibreOffice interpret a cell starting with {@code =}, {@code
+     * +}, {@code -} or {@code @} as a formula even when the cell is quoted) — user-controlled strings
+     * (names, comments, group names, solver warnings) flow into {@link FlatExporter}'s csv path
+     * unescaped otherwise. Prefixing with a single quote forces Excel to treat the cell as text,
+     * mirroring how Excel itself displays a leading apostrophe for text-forced values. Only the CSV
+     * path needs this: the xlsx path uses explicit {@code setCellValue(String)} text cells, which
+     * Excel never re-interprets as formulas.
+     */
+    private static String neutralizeFormula(String cell) {
+        if (cell == null || cell.isEmpty()) {
+            return cell;
+        }
+        int i = 0;
+        while (i < cell.length()) {
+            char c = cell.charAt(i);
+            if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+                i++;
+                continue;
+            }
+            break;
+        }
+        if (i < cell.length()) {
+            char first = cell.charAt(i);
+            if (first == '=' || first == '+' || first == '-' || first == '@') {
+                return "'" + cell;
+            }
+        }
+        return cell;
     }
 }

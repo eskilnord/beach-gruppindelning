@@ -1,12 +1,15 @@
 package se.klubb.groupplanner.fields;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import se.klubb.groupplanner.api.error.BadRequestException;
 import se.klubb.groupplanner.domain.ConstraintDefinition;
 import se.klubb.groupplanner.domain.ConstraintWeightConfig;
+import se.klubb.groupplanner.repo.ActivityPlanRepository;
 import se.klubb.groupplanner.repo.ConstraintDefinitionRepository;
 import se.klubb.groupplanner.repo.ConstraintWeightConfigRepository;
 
@@ -59,12 +62,15 @@ public class ConstraintWeightService {
 
     private final ConstraintDefinitionRepository constraintDefinitionRepository;
     private final ConstraintWeightConfigRepository constraintWeightConfigRepository;
+    private final ActivityPlanRepository activityPlanRepository;
 
     public ConstraintWeightService(
             ConstraintDefinitionRepository constraintDefinitionRepository,
-            ConstraintWeightConfigRepository constraintWeightConfigRepository) {
+            ConstraintWeightConfigRepository constraintWeightConfigRepository,
+            ActivityPlanRepository activityPlanRepository) {
         this.constraintDefinitionRepository = constraintDefinitionRepository;
         this.constraintWeightConfigRepository = constraintWeightConfigRepository;
+        this.activityPlanRepository = activityPlanRepository;
     }
 
     public List<ConstraintWeightView> listForPlan(String planId) {
@@ -74,8 +80,12 @@ public class ConstraintWeightService {
                 .toList();
     }
 
-    /** Applies each override entry (merged onto the currently-effective row), validates it, persists
-     * it, and returns the full merged list (same shape as {@link #listForPlan}). */
+    /** Validates the ENTIRE batch of override entries (merged onto the currently-effective rows)
+     * before persisting any of them, then upserts all of them plus the plan's revision bump inside a
+     * single transaction, and returns the full merged list (same shape as {@link #listForPlan}). A
+     * batch where entry k is invalid must leave entries 1..k-1 untouched (M7 review finding: the
+     * previous item-by-item loop persisted a prefix of the batch before failing on a later item). */
+    @Transactional
     public List<ConstraintWeightView> applyOverrides(String planId, List<ConstraintWeightOverrideRequest> requests) {
         if (requests == null || requests.isEmpty()) {
             throw new BadRequestException("Request body must be a non-empty list of overrides");
@@ -85,6 +95,8 @@ public class ConstraintWeightService {
             defsByKey.put(def.key(), def);
         }
 
+        List<ResolvedOverride> resolved = new ArrayList<>(requests.size());
+        Map<String, ResolvedOverride> resolvedByKey = new HashMap<>();
         for (ConstraintWeightOverrideRequest request : requests) {
             if (request == null || request.key() == null || request.key().isBlank()) {
                 throw new BadRequestException("key is required for every constraint-weight override entry");
@@ -94,12 +106,25 @@ public class ConstraintWeightService {
                 throw new BadRequestException("Unknown constraint key: " + request.key());
             }
 
-            ConstraintWeightConfig existing = constraintWeightConfigRepository
-                    .findByActivityPlanIdAndKey(planId, request.key())
-                    .orElse(null);
-            String baseHardOrSoft = existing != null ? existing.hardOrSoft() : def.hardOrSoft();
-            int baseWeight = existing != null ? existing.weight() : def.defaultWeight();
-            boolean baseEnabled = existing != null ? existing.enabled() : def.enabled();
+            // A later entry for the same key in this batch chains onto the earlier entry's resolved
+            // values (not yet persisted), matching the old item-by-item loop's behavior where the
+            // earlier entry's upsert was already visible to the later entry's DB read.
+            ResolvedOverride previousInBatch = resolvedByKey.get(request.key());
+            String baseHardOrSoft;
+            int baseWeight;
+            boolean baseEnabled;
+            if (previousInBatch != null) {
+                baseHardOrSoft = previousInBatch.hardOrSoft();
+                baseWeight = previousInBatch.weight();
+                baseEnabled = previousInBatch.enabled();
+            } else {
+                ConstraintWeightConfig existing = constraintWeightConfigRepository
+                        .findByActivityPlanIdAndKey(planId, request.key())
+                        .orElse(null);
+                baseHardOrSoft = existing != null ? existing.hardOrSoft() : def.hardOrSoft();
+                baseWeight = existing != null ? existing.weight() : def.defaultWeight();
+                baseEnabled = existing != null ? existing.enabled() : def.enabled();
+            }
 
             String newHardOrSoft = request.hardOrSoft() != null ? request.hardOrSoft() : baseHardOrSoft;
             int newWeight = request.weight() != null ? request.weight() : baseWeight;
@@ -107,9 +132,20 @@ public class ConstraintWeightService {
 
             validateReclassification(def, newHardOrSoft, newWeight, newEnabled);
 
-            constraintWeightConfigRepository.upsert(planId, request.key(), newHardOrSoft, newWeight, newEnabled);
+            ResolvedOverride entry = new ResolvedOverride(request.key(), newHardOrSoft, newWeight, newEnabled);
+            resolved.add(entry);
+            resolvedByKey.put(request.key(), entry);
         }
+
+        for (ResolvedOverride override : resolved) {
+            constraintWeightConfigRepository.upsert(
+                    planId, override.key(), override.hardOrSoft(), override.weight(), override.enabled());
+        }
+        activityPlanRepository.bumpRevision(planId);
         return listForPlan(planId);
+    }
+
+    private record ResolvedOverride(String key, String hardOrSoft, int weight, boolean enabled) {
     }
 
     private void validateReclassification(ConstraintDefinition def, String hardOrSoft, int weight, boolean enabled) {

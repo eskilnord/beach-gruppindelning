@@ -146,6 +146,7 @@ function CoachDrawerBody({ planId, coach, allParticipants, allCoaches, onClose }
   const customChanges = diff(customDraft, originalCustom);
   const availabilityChanged = !availabilityDraftsEqual(availabilityDraft, originalAvailability);
   const isDirty = Object.keys(profileChanges).length > 0 || Object.keys(customChanges).length > 0 || availabilityChanged;
+  const availabilityLoadFailed = timeSlots.isError || availability.isError;
 
   const handleSave = async () => {
     setSaving(true);
@@ -259,7 +260,28 @@ function CoachDrawerBody({ planId, coach, allParticipants, allCoaches, onClose }
         <Text size="sm" c="dimmed" mb="sm">
           {sv.coaches.drawer.availabilityHint}
         </Text>
-        {timeSlots.isLoading || availability.isLoading ? (
+        {availabilityLoadFailed ? (
+          <Alert
+            color="red"
+            title={sv.common.error}
+            withCloseButton={false}
+          >
+            <Stack gap="xs">
+              <Text size="sm">{sv.coaches.drawer.availabilityLoadFailed}</Text>
+              <Button
+                size="xs"
+                variant="light"
+                color="red"
+                onClick={() => {
+                  void timeSlots.refetch();
+                  void availability.refetch();
+                }}
+              >
+                {sv.coaches.drawer.retryButton}
+              </Button>
+            </Stack>
+          </Alert>
+        ) : timeSlots.isLoading || availability.isLoading ? (
           <Loader size="sm" />
         ) : (
           <AvailabilityMatrix
@@ -308,7 +330,7 @@ function CoachDrawerBody({ planId, coach, allParticipants, allCoaches, onClose }
           <Button variant="default" onClick={onClose}>
             {sv.coaches.drawer.closeButton}
           </Button>
-          <Button onClick={handleSave} disabled={!isDirty} loading={saving}>
+          <Button onClick={handleSave} disabled={!isDirty || availabilityLoadFailed} loading={saving}>
             {sv.coaches.drawer.saveButton}
           </Button>
         </Group>
