@@ -38,7 +38,7 @@ public class ImportSession {
     private final Map<String, Integer> headerRowIndexBySheet = new HashMap<>();
     private final Map<String, List<ColumnMapping>> mappingsBySheet = new HashMap<>();
     private final Map<String, TemplateMatch> templateMatchBySheet = new HashMap<>();
-    private final Map<Integer, RowDecision> decisions = new HashMap<>();
+    private final Map<String, Map<Integer, RowDecision>> decisionsBySheet = new HashMap<>();
     private volatile List<RowValidationResult> lastValidation;
     private volatile String selectedSheet;
 
@@ -100,8 +100,16 @@ public class ImportSession {
 
     public synchronized void setHeaderRow(String sheetName, int headerRowIndex) {
         sheetOrThrow(sheetName);
-        headerRowIndexBySheet.put(sheetName, headerRowIndex);
+        Integer previous = headerRowIndexBySheet.put(sheetName, headerRowIndex);
         this.selectedSheet = sheetName;
+        // Row indices are relative to the header row - actually moving it shifts what every
+        // existing rowIndex-keyed decision for this sheet refers to, so they can no longer be
+        // trusted (same invalidation philosophy as lastValidation below). Re-selecting the same
+        // sheet with its already-current header row (the wizard does this on every "select this
+        // sheet" step, spec §8.3 steps 2-4) must NOT wipe decisions the user already made.
+        if (previous == null || previous != headerRowIndex) {
+            decisionsBySheet.remove(sheetName);
+        }
     }
 
     public synchronized void setTemplateMatch(String sheetName, TemplateMatch match) {
@@ -131,12 +139,13 @@ public class ImportSession {
         return mappingsBySheet.getOrDefault(sheetName, List.of());
     }
 
-    public synchronized void setDecision(int rowIndex, RowDecision decision) {
-        decisions.put(rowIndex, decision);
+    public synchronized void setDecision(String sheetName, int rowIndex, RowDecision decision) {
+        decisionsBySheet.computeIfAbsent(sheetName, name -> new HashMap<>()).put(rowIndex, decision);
     }
 
-    public synchronized Optional<RowDecision> decision(int rowIndex) {
-        return Optional.ofNullable(decisions.get(rowIndex));
+    public synchronized Optional<RowDecision> decision(String sheetName, int rowIndex) {
+        Map<Integer, RowDecision> sheetDecisions = decisionsBySheet.get(sheetName);
+        return sheetDecisions == null ? Optional.empty() : Optional.ofNullable(sheetDecisions.get(rowIndex));
     }
 
     public synchronized void setLastValidation(List<RowValidationResult> results) {

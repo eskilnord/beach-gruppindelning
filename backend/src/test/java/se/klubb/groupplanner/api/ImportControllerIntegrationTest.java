@@ -333,6 +333,53 @@ class ImportControllerIntegrationTest {
     }
 
     @Test
+    void headerRowIndexIsValidatedAgainstTheSheetsRowCount() throws Exception {
+        // A headerRowIndex >= rowCount (or Integer.MAX_VALUE) must be rejected with 400, not accepted
+        // and later blow up ImportValidationService's headerRowIndex + 1 loop bound with an overflow.
+        String planId = createPlan();
+        MessyWorkbookBuilder.BuiltWorkbook built = MessyWorkbookBuilder.build();
+        String base = "/api/plans/" + planId + "/import";
+
+        String createResponse = mockMvc.perform(multipart(base + "/sessions")
+                        .file(fixtureFile(built.bytes()))
+                        .header("X-GP-Token", VALID_TOKEN))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String sessionId = objectMapper.readTree(createResponse).get("sessionId").asText();
+        String sid = base + "/sessions/" + sessionId;
+
+        String previewResponse = mockMvc.perform(get(sid + "/preview")
+                        .param("sheet", MessyWorkbookBuilder.SHEET_NAME)
+                        .param("rows", "1")
+                        .header("X-GP-Token", VALID_TOKEN))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        int rowCount = objectMapper.readTree(previewResponse).get("rowCount").asInt();
+
+        mockMvc.perform(put(sid + "/header")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new ImportController.HeaderRequest(MessyWorkbookBuilder.SHEET_NAME, rowCount))))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(put(sid + "/header")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new ImportController.HeaderRequest(MessyWorkbookBuilder.SHEET_NAME, Integer.MAX_VALUE))))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(put(sid + "/header")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new ImportController.HeaderRequest(MessyWorkbookBuilder.SHEET_NAME, rowCount - 1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.headerRowIndex").value(rowCount - 1));
+    }
+
+    @Test
     void requestsWithoutTokenAreRejected() throws Exception {
         String planId = createPlan();
         mockMvc.perform(get("/api/plans/" + planId + "/import/sessions/does-not-exist/validate"))

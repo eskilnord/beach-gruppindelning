@@ -295,8 +295,6 @@ export const sv = {
       customGroup: "Anpassade fält",
       saveFailed: "Kunde inte spara kolumnmappningen",
       nextButton: "Nästa: Validera",
-      customFieldUnavailable:
-        'Att skapa nya fält stöds inte ännu i den här versionen (kommer i en senare milstolpe). Kolumnen mappas till "Ignorera" tills vidare.',
       targets: {
         firstName: "Förnamn",
         lastName: "Efternamn",
@@ -325,6 +323,8 @@ export const sv = {
         boolean: "Ja/nej",
         singleSelect: "Envalslista",
       },
+      createSuccess: (label: string) => `Fältet "${label}" skapades.`,
+      createFailed: "Kunde inte skapa fältet",
     },
     validate: {
       heading: "Validera importerade rader",
@@ -697,6 +697,8 @@ export const sv = {
       saveSuccess: "Sparat.",
       saveFailed: "Kunde inte spara tränaren",
       availabilitySaveFailed: "Kunde inte spara tillgängligheten",
+      availabilityLoadFailed: "Kunde inte hämta tillgängligheten. Spara är avstängt tills det går att läsa in den igen.",
+      retryButton: "Försök igen",
       fieldValuesSaveFailed: "Kunde inte spara fältvärdena",
       deleteButton: "Ta bort tränare",
     },

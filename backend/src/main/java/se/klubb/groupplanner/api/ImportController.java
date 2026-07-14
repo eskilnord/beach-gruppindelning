@@ -126,8 +126,12 @@ public class ImportController {
         if (request == null || request.sheet() == null || request.sheet().isBlank()) {
             throw new BadRequestException("sheet is required");
         }
+        ParsedSheet sheet = session.sheetOrThrow(request.sheet());
         if (request.headerRowIndex() == null || request.headerRowIndex() < 0) {
             throw new BadRequestException("headerRowIndex must be >= 0");
+        }
+        if (request.headerRowIndex() >= sheet.rowCount()) {
+            throw new BadRequestException("headerRowIndex must be < sheet row count (" + sheet.rowCount() + ")");
         }
         session.setHeaderRow(request.sheet(), request.headerRowIndex());
         return new HeaderResponse(request.sheet(), request.headerRowIndex());
@@ -214,6 +218,7 @@ public class ImportController {
         if (decisions == null) {
             throw new BadRequestException("Request body (rowIndex -> decision map) is required");
         }
+        String sheetName = session.selectedSheetOrThrow();
         Map<String, DecisionDto> applied = new LinkedHashMap<>();
         for (Map.Entry<String, DecisionDto> entry : decisions.entrySet()) {
             int rowIndex = parseRowIndex(entry.getKey());
@@ -227,7 +232,7 @@ public class ImportController {
                 case "MATCH_EXISTING" -> RowDecision.matchExisting(dto.personId());
                 default -> throw new BadRequestException("Unknown decision action: " + dto.action());
             };
-            session.setDecision(rowIndex, decision);
+            session.setDecision(sheetName, rowIndex, decision);
             applied.put(entry.getKey(), dto);
         }
         return applied;

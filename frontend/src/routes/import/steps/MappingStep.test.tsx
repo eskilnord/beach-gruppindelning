@@ -113,4 +113,70 @@ describe("MappingStep", () => {
       { columnIndex: 2, target: "email" },
     ]);
   });
+
+  it("creating a field via 'Skapa nytt fält…' auto-maps the originating column to the new customField target", async () => {
+    // Stateful field-definitions mock: empty until the POST creates the field, so the
+    // useCreateFieldDefinition onSuccess invalidation refetches a list containing it - exactly
+    // what makes the new customField:<key> option (and thus the Select's display value) exist.
+    const createdFields: object[] = [];
+    server.use(
+      http.get(`/api/plans/${PLAN_ID}/import/sessions/${SESSION_ID}/columns`, () => HttpResponse.json(COLUMNS)),
+      http.get(`/api/plans/${PLAN_ID}/field-definitions`, () => HttpResponse.json(createdFields)),
+      http.post(`/api/plans/${PLAN_ID}/field-definitions`, async ({ request }) => {
+        const body = (await request.json()) as { key: string; label: string; fieldType: string };
+        const field = {
+          id: "field-1",
+          activityPlanId: PLAN_ID,
+          key: body.key,
+          label: body.label,
+          fieldType: body.fieldType,
+          isStandard: false,
+          storageKind: "CUSTOM",
+          affectsOptimization: false,
+          constraintType: "NONE",
+        };
+        createdFields.push(field);
+        return HttpResponse.json(field, { status: 201 });
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(
+      <MappingStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onExpired={() => {}} />,
+    );
+
+    const unknownSelect = await screen.findByRole("textbox", { name: "Mappning för kolumn Mystisk kolumn" });
+    await user.click(unknownSelect);
+    const listbox = openListboxFor(unknownSelect);
+    await user.click(
+      within(listbox).getByRole("option", { name: sv.importWizard.mapping.createFieldOption, hidden: true }),
+    );
+
+    await user.type(
+      await screen.findByRole("textbox", { name: sv.importWizard.newFieldModal.nameLabel }),
+      "Vill spela med",
+    );
+    await user.click(screen.getByRole("button", { name: sv.importWizard.newFieldModal.submit }));
+
+    // The originating column is now mapped to the created field (Select displays its label).
+    await waitFor(() => expect(unknownSelect).toHaveValue("Vill spela med"));
+
+    // And "Nästa" sends customField:<generated key> for that column.
+    let receivedMappings: ImportColumnMapping[] | null = null;
+    server.use(
+      http.put(`/api/plans/${PLAN_ID}/import/sessions/${SESSION_ID}/mapping`, async ({ request }) => {
+        const body = (await request.json()) as { sheet: string; mappings: ImportColumnMapping[] };
+        receivedMappings = body.mappings;
+        return HttpResponse.json(body);
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: sv.importWizard.mapping.nextButton }));
+    await waitFor(() =>
+      expect(receivedMappings).toEqual([
+        { columnIndex: 0, target: "firstName" },
+        { columnIndex: 1, target: "comment" },
+        { columnIndex: 2, target: "customField:villSpelaMed" },
+      ]),
+    );
+  });
 });

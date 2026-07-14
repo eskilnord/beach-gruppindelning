@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { Alert, Badge, Button, Group, Loader, MantineColor, Select, Stack, Table, Text, Title } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import { usePersons } from "../../../api/persons";
 import {
   useImportValidation,
@@ -36,22 +35,18 @@ export function ValidateStep({ planId, sessionId, onNext, onExpired }: ValidateS
   const persons = usePersons();
   const setDecisions = useSetImportDecisions(planId, sessionId);
 
-  const [decisions, setLocalDecisions] = useState<Record<number, ImportRowDecision>>({});
-
-  useEffect(() => {
-    if (!validation.data) {
-      return;
-    }
-    setLocalDecisions((prev) => {
-      const next = { ...prev };
-      for (const row of validation.data!.rows) {
-        if (!(row.rowIndex in next)) {
-          next[row.rowIndex] = defaultDecisionFor(row.status);
-        }
-      }
-      return next;
-    });
-  }, [validation.data]);
+  // Draft state only — a row's decision is never sent to the backend until "Nästa" is clicked and
+  // the whole draft is submitted as one batch (M7 review: per-change fire-and-forget saves could
+  // race a fast decision -> Nästa -> Importera click, a network error, or two rapid changes into
+  // committing with silently-defaulted decisions). `edits` holds only rows the user actually
+  // touched; unedited rows keep the backend's own status-derived default (ImportCommitService
+  // mirrors the same defaulting for anything never explicitly decided).
+  const [edits, setEdits] = useState<Record<number, ImportRowDecision>>({});
+  const [saveError, setSaveError] = useState<string | null>(null);
+  // Re-entrancy guard for handleNext: `setDecisions.isPending` only flips after a render, and the
+  // empty-draft path never goes pending at all, so a double-click could otherwise fire onNext()
+  // (or the batch PUT) twice. A ref is synchronous - the second click is a no-op immediately.
+  const navigating = useRef(false);
 
   if (validation.isError && isNotFoundError(validation.error)) {
     return <SessionExpiredPanel onRestart={onExpired} />;
@@ -75,20 +70,31 @@ export function ValidateStep({ planId, sessionId, onNext, onExpired }: ValidateS
     return person.displayName || `${person.firstName} ${person.lastName}`.trim();
   };
 
-  const handleDecisionChange = async (rowIndex: number, decision: ImportRowDecision) => {
-    setLocalDecisions((prev) => ({ ...prev, [rowIndex]: decision }));
+  const handleDecisionChange = (rowIndex: number, decision: ImportRowDecision) => {
+    setSaveError(null);
+    setEdits((prev) => ({ ...prev, [rowIndex]: decision }));
+  };
+
+  const handleNext = async () => {
+    if (navigating.current) {
+      return;
+    }
+    navigating.current = true;
+    if (Object.keys(edits).length === 0) {
+      onNext();
+      return;
+    }
+    setSaveError(null);
     try {
-      await setDecisions.mutateAsync({ [String(rowIndex)]: decision });
+      await setDecisions.mutateAsync(edits);
+      onNext();
     } catch (error) {
       if (isNotFoundError(error)) {
         onExpired();
         return;
       }
-      notifications.show({
-        color: "red",
-        title: sv.common.error,
-        message: error instanceof ApiError ? error.message : sv.importWizard.validate.saveDecisionFailed,
-      });
+      setSaveError(error instanceof ApiError ? error.message : sv.importWizard.validate.saveDecisionFailed);
+      navigating.current = false; // Save failed - stay on the step and allow a retry.
     }
   };
 
@@ -111,7 +117,7 @@ export function ValidateStep({ planId, sessionId, onNext, onExpired }: ValidateS
           </Table.Thead>
           <Table.Tbody>
             {validation.data.rows.map((row) => {
-              const decision = decisions[row.rowIndex] ?? defaultDecisionFor(row.status);
+              const decision = edits[row.rowIndex] ?? defaultDecisionFor(row.status);
               const options = [
                 { value: "CREATE_NEW", label: sv.importWizard.validate.decision.createNew },
                 { value: "SKIP", label: sv.importWizard.validate.decision.skip },
@@ -159,7 +165,7 @@ export function ValidateStep({ planId, sessionId, onNext, onExpired }: ValidateS
                         const newDecision: ImportRowDecision = value.startsWith(MATCH_PREFIX)
                           ? { action: "MATCH_EXISTING", personId: value.slice(MATCH_PREFIX.length) }
                           : { action: value as "CREATE_NEW" | "SKIP" };
-                        void handleDecisionChange(row.rowIndex, newDecision);
+                        handleDecisionChange(row.rowIndex, newDecision);
                       }}
                       w={340}
                       comboboxProps={{ withinPortal: false }}
@@ -172,8 +178,12 @@ export function ValidateStep({ planId, sessionId, onNext, onExpired }: ValidateS
         </Table>
       </Table.ScrollContainer>
 
+      {saveError && <Alert color="red">{saveError}</Alert>}
+
       <Group justify="flex-end">
-        <Button onClick={onNext}>{sv.importWizard.validate.nextButton}</Button>
+        <Button onClick={() => void handleNext()} loading={setDecisions.isPending} disabled={setDecisions.isPending}>
+          {sv.importWizard.validate.nextButton}
+        </Button>
       </Group>
     </Stack>
   );

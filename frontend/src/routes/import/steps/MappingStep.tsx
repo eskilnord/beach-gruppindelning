@@ -50,7 +50,7 @@ export function MappingStep({ planId, sessionId, onNext, onExpired }: MappingSte
   const setMapping = useSetImportMapping(planId, sessionId);
 
   const [targets, setTargets] = useState<Record<number, string>>({});
-  const [newFieldModalOpen, setNewFieldModalOpen] = useState(false);
+  const [newFieldModalColumn, setNewFieldModalColumn] = useState<number | null>(null);
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -96,7 +96,7 @@ export function MappingStep({ planId, sessionId, onNext, onExpired }: MappingSte
       return;
     }
     if (value === CREATE_FIELD_VALUE) {
-      setNewFieldModalOpen(true);
+      setNewFieldModalColumn(columnIndex);
       return;
     }
     setTargets((prev) => ({ ...prev, [columnIndex]: value }));
@@ -180,7 +180,16 @@ export function MappingStep({ planId, sessionId, onNext, onExpired }: MappingSte
         </Button>
       </Group>
 
-      <NewCustomFieldModal opened={newFieldModalOpen} onClose={() => setNewFieldModalOpen(false)} />
+      <NewCustomFieldModal
+        planId={planId}
+        opened={newFieldModalColumn !== null}
+        onClose={() => setNewFieldModalColumn(null)}
+        onCreated={(field) => {
+          if (newFieldModalColumn !== null) {
+            setTargets((prev) => ({ ...prev, [newFieldModalColumn]: `customField:${field.key}` }));
+          }
+        }}
+      />
     </Stack>
   );
 }

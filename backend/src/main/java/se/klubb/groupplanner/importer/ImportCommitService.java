@@ -132,7 +132,7 @@ public class ImportCommitService {
 
         for (RowValidationResult result : validation) {
             totalRows++;
-            RowDecision decision = session.decision(result.rowIndex()).orElseGet(() -> defaultDecisionFor(result));
+            RowDecision decision = session.decision(sheetName, result.rowIndex()).orElseGet(() -> defaultDecisionFor(result));
             decisionsAudit.put(result.rowIndex(), decision);
 
             if (result.status() == RowStatus.WARN) {

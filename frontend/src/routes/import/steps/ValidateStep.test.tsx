@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { server } from "../../../test/server";
@@ -81,20 +81,23 @@ describe("ValidateStep", () => {
     expect(screen.getByText("Saknat namn")).toBeInTheDocument();
   });
 
-  it("offers a match-proposal choice for a row with a potential duplicate, and saves the decision", async () => {
+  it("offers a match-proposal choice for a row with a potential duplicate, keeps it as a local draft, and batches it into the backend save only on Nästa", async () => {
     mockValidationAndPersons();
 
     let receivedDecisions: Record<string, ImportRowDecision> | null = null;
+    let putCallCount = 0;
     server.use(
       http.put(`/api/plans/${PLAN_ID}/import/sessions/${SESSION_ID}/decisions`, async ({ request }) => {
+        putCallCount++;
         receivedDecisions = (await request.json()) as Record<string, ImportRowDecision>;
         return HttpResponse.json(receivedDecisions);
       }),
     );
 
+    const onNext = vi.fn();
     const user = userEvent.setup();
     renderWithProviders(
-      <ValidateStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onExpired={() => {}} />,
+      <ValidateStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={onNext} onExpired={() => {}} />,
     );
 
     const decisionSelect = await screen.findByRole("textbox", { name: "Beslut för rad 1" });
@@ -110,7 +113,67 @@ describe("ValidateStep", () => {
     await user.click(await screen.findByRole("option", { name: matchLabel, hidden: true }));
 
     expect(decisionSelect).toHaveValue(matchLabel);
+    // Changing the Select must not fire a network call by itself — only "Nästa" does.
+    expect(putCallCount).toBe(0);
+
+    await user.click(screen.getByRole("button", { name: sv.importWizard.validate.nextButton }));
 
     await waitFor(() => expect(receivedDecisions).toEqual({ "1": { action: "MATCH_EXISTING", personId: "person-1" } }));
+    expect(putCallCount).toBe(1);
+    expect(onNext).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips the PUT entirely and navigates straight on if the draft is empty", async () => {
+    mockValidationAndPersons();
+    let putCallCount = 0;
+    server.use(
+      http.put(`/api/plans/${PLAN_ID}/import/sessions/${SESSION_ID}/decisions`, () => {
+        putCallCount++;
+        return HttpResponse.json({});
+      }),
+    );
+
+    const onNext = vi.fn();
+    const user = userEvent.setup();
+    renderWithProviders(
+      <ValidateStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={onNext} onExpired={() => {}} />,
+    );
+
+    await screen.findByRole("textbox", { name: "Beslut för rad 1" });
+    await user.click(screen.getByRole("button", { name: sv.importWizard.validate.nextButton }));
+
+    await waitFor(() => expect(onNext).toHaveBeenCalledTimes(1));
+    expect(putCallCount).toBe(0);
+  });
+
+  it("shows an error and stays on the step with Nästa re-enabled when the batch PUT fails", async () => {
+    mockValidationAndPersons();
+    server.use(
+      http.put(`/api/plans/${PLAN_ID}/import/sessions/${SESSION_ID}/decisions`, () =>
+        HttpResponse.json({ error: sv.importWizard.validate.saveDecisionFailed }, { status: 500 }),
+      ),
+    );
+
+    const onNext = vi.fn();
+    const user = userEvent.setup();
+    renderWithProviders(
+      <ValidateStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={onNext} onExpired={() => {}} />,
+    );
+
+    const decisionSelect = await screen.findByRole("textbox", { name: "Beslut för rad 2" });
+    await user.click(decisionSelect);
+    const listboxId = decisionSelect.getAttribute("aria-controls");
+    if (!listboxId) {
+      throw new Error("Select is missing aria-controls - is it open?");
+    }
+    const listbox = document.getElementById(listboxId)!;
+    await user.click(within(listbox).getByRole("option", { name: sv.importWizard.validate.decision.createNew, hidden: true }));
+
+    const nextButton = screen.getByRole("button", { name: sv.importWizard.validate.nextButton });
+    await user.click(nextButton);
+
+    await waitFor(() => expect(screen.getByText(sv.importWizard.validate.saveDecisionFailed)).toBeInTheDocument());
+    expect(onNext).not.toHaveBeenCalled();
+    await waitFor(() => expect(nextButton).not.toBeDisabled());
   });
 });
