@@ -182,6 +182,9 @@ public class SolverInputAssembler {
      * value is precisely what {@code @PlanningPin} freezes, cold or not).
      */
     public AssembledProblem assemble(String activityPlanId, OptimizeSelection optimize, BlockingOptions blocking, boolean coldStart) {
+        // First DB read of assembly (see AssembledProblem.planRevisionAtAssemble's javadoc) - the
+        // baseline SolveResultWriteback's revision CAS compares against at writeback time.
+        int planRevisionAtAssemble = activityPlanRepository.getPlanRevision(activityPlanId);
         ActivityPlan plan = activityPlanRepository.findById(activityPlanId)
                 .orElseThrow(() -> new NotFoundException("Activity plan not found: " + activityPlanId));
 
@@ -516,8 +519,17 @@ public class SolverInputAssembler {
             }
             for (TrainingGroup tg : trainingGroups) {
                 Group fact = groupByDbId.get(tg.id());
+                // LOCKED rows first (id ascending as tiebreaker in both partitions): only the first
+                // requiredCoachCount rows get a CoachSlot at all, so a locked row sorted purely by
+                // id could land BEYOND that cutoff whenever an older unlocked (solver-written) row
+                // already occupies a slot - the user's explicit lock would then be silently ignored
+                // by the solve despite the 200 from GroupController#lockCoach (whose occupancy check
+                // counts LOCKED rows against requiredCoachCount for exactly this pairing - see
+                // CoachAssignmentRepository#countByGroupId). Locked-first guarantees every locked
+                // row a modeled slot; determinism (§9.3) is preserved since locked/id is a total
+                // order over the rows.
                 List<CoachAssignment> existingForGroup = coachAssignmentsByGroupId.getOrDefault(tg.id(), List.of()).stream()
-                        .sorted((a, b) -> a.id().compareTo(b.id()))
+                        .sorted((a, b) -> a.locked() == b.locked() ? a.id().compareTo(b.id()) : (a.locked() ? -1 : 1))
                         .toList();
                 for (int slotIndex = 0; slotIndex < tg.requiredCoachCount(); slotIndex++) {
                     CoachFact initialCoach = null;
@@ -573,7 +585,8 @@ public class SolverInputAssembler {
         Map<Long, String> blockDbIdByLongId = new HashMap<>();
         activeBlocks.forEach(b -> blockDbIdByLongId.put(blockIdx.id(b.id()), b.id()));
 
-        return new AssembledProblem(solution, participantDbIdByLongId, coachDbIdByLongId, groupDbIdByLongId, blockDbIdByLongId);
+        return new AssembledProblem(
+                solution, participantDbIdByLongId, coachDbIdByLongId, groupDbIdByLongId, blockDbIdByLongId, planRevisionAtAssemble);
     }
 
     /**

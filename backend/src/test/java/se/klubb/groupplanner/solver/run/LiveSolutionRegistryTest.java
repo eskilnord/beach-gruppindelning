@@ -36,7 +36,7 @@ class LiveSolutionRegistryTest {
                 .collect(java.util.stream.Collectors.toMap(PlayerAssignment::getId, pa -> "participant-db-" + pa.getId()));
         Map<Long, String> groupDbIdByLongId = solution.getGroups().stream()
                 .collect(java.util.stream.Collectors.toMap(Group::id, g -> "group-db-" + g.id()));
-        return new AssembledProblem(solution, participantDbIdByLongId, Map.of(), groupDbIdByLongId, Map.of());
+        return new AssembledProblem(solution, participantDbIdByLongId, Map.of(), groupDbIdByLongId, Map.of(), 0);
     }
 
     @Test
@@ -208,7 +208,8 @@ class LiveSolutionRegistryTest {
                 Map.of(1L, "participant-db-1", 2L, "participant-db-2"),
                 Map.of(),
                 Map.of(1L, "group-db-1"),
-                Map.of());
+                Map.of(),
+                0);
 
         LiveSolutionRegistry registry = new LiveSolutionRegistry();
         registry.onBestSolution(PLAN_ID, "run-1", solution, assembled);

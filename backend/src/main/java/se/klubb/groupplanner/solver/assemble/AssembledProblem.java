@@ -16,5 +16,11 @@ public record AssembledProblem(
         Map<Long, String> participantProfileDbIdByLongId,
         Map<Long, String> coachProfileDbIdByLongId,
         Map<Long, String> trainingGroupDbIdByLongId,
-        Map<Long, String> trainingBlockDbIdByLongId) {
+        Map<Long, String> trainingBlockDbIdByLongId,
+        /** {@code plan_revision} read as the FIRST database access of {@code
+         *  SolverInputAssembler.assemble} — the baseline {@code
+         *  se.klubb.groupplanner.solver.run.SolveResultWriteback}'s revision CAS compares against at
+         *  writeback time, so any mutation that commits between assembly and writeback (a manual
+         *  move, a lock/unlock, ...) is detected instead of silently overwritten. */
+        int planRevisionAtAssemble) {
 }

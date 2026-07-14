@@ -43,6 +43,20 @@ public class CoachAssignmentRepository {
                 .list();
     }
 
+    /** Count of LOCKED assignment rows for a group (used by {@code GroupController#lockCoach}'s
+     * occupancy check: {@code SolverInputAssembler} only models the first {@code requiredCoachCount}
+     * rows by id order — see its javadoc — so a new lock beyond a group's already-locked slots would
+     * return 200 but be silently ignored by the solver). Deliberately locked-only, not every row: an
+     * UNLOCKED existing row is intentionally left behind by {@link #unlockForCoachAndGroup} for "a
+     * future solve ... free to move it" (see that method's javadoc) — it is not a commitment the way
+     * a lock is, so it must not block a fresh lock from taking the now-freed slot. */
+    public int countByGroupId(String groupId) {
+        return jdbcClient.sql("SELECT COUNT(*) FROM coach_assignment WHERE group_id = :groupId AND locked = 1")
+                .param("groupId", groupId)
+                .query(Integer.class)
+                .single();
+    }
+
     public CoachAssignment insert(String coachProfileId, String groupId, boolean locked, String source) {
         CoachAssignment assignment = new CoachAssignment(Uuid7.generate(), coachProfileId, groupId, locked, source);
         jdbcClient.sql("""

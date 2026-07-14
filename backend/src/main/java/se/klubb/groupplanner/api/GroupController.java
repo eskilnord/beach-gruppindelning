@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import se.klubb.groupplanner.api.error.BadRequestException;
+import se.klubb.groupplanner.api.error.ConflictException;
 import se.klubb.groupplanner.api.error.NotFoundException;
 import se.klubb.groupplanner.domain.CoachProfile;
 import se.klubb.groupplanner.domain.TrainingBlock;
@@ -131,6 +132,17 @@ public class GroupController {
         if (request.slotIndex() != null && (request.slotIndex() < 0 || request.slotIndex() >= group.requiredCoachCount())) {
             throw new BadRequestException(
                     "slotIndex " + request.slotIndex() + " is out of range for requiredCoachCount " + group.requiredCoachCount());
+        }
+        // Occupancy check: SolverInputAssembler only models the first requiredCoachCount
+        // coach_assignment rows for a group (sorted by id - see its own javadoc); a NEW row beyond
+        // an already-full set of LOCKED slots would be accepted here (200) but silently ignored by
+        // the solver. A coach that already has a row in this group (locked or not) is always allowed
+        // through (re-lock / no-op case) - see CoachAssignmentRepository#countByGroupId's javadoc for
+        // why the occupancy count itself is locked-only.
+        if (coachAssignmentRepository.findByGroupIdAndCoachProfileId(groupId, coach.id()).isEmpty()
+                && coachAssignmentRepository.countByGroupId(groupId) >= group.requiredCoachCount()) {
+            throw new ConflictException(
+                    "Group '" + group.name() + "' already has " + group.requiredCoachCount() + " coach slot(s) filled - unlock one first");
         }
         coachAssignmentRepository.lockToGroup(coach.id(), groupId);
         activityPlanRepository.bumpRevision(group.activityPlanId());

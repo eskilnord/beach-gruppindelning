@@ -39,7 +39,10 @@ import se.klubb.groupplanner.repo.TimeSlotRepository;
 import se.klubb.groupplanner.repo.TrainingBlockRepository;
 import se.klubb.groupplanner.repo.TrainingGroupRepository;
 import se.klubb.groupplanner.resources.TrainingBlockGenerationService;
+import se.klubb.groupplanner.solver.assemble.AssembledProblem;
 import se.klubb.groupplanner.solver.assemble.GroupGenerator;
+import se.klubb.groupplanner.solver.assemble.SolverInputAssembler;
+import se.klubb.groupplanner.solver.domain.CoachSlot;
 import se.klubb.groupplanner.solver.regression.TestDatasetLoader;
 import se.klubb.groupplanner.solver.run.SolveCoordinator;
 import se.klubb.groupplanner.solver.run.SolveProfile;
@@ -105,6 +108,8 @@ class LockEndpointIntegrationTest {
     private CoachAssignmentRepository coachAssignmentRepository;
     @Autowired
     private SolveCoordinator solveCoordinator;
+    @Autowired
+    private SolverInputAssembler solverInputAssembler;
 
     private String loadPlan() {
         TestDatasetLoader loader = new TestDatasetLoader(
@@ -257,6 +262,87 @@ class LockEndpointIntegrationTest {
         // The lock was NOT applied - the DB row is untouched.
         PlayerAssignment untouched = playerAssignmentRepository.findByParticipantProfileId(participant.id()).orElseThrow();
         assertThat(untouched.locked()).isFalse();
+    }
+
+    /** M9 (found by the M9 review): {@code SolverInputAssembler} only models the first {@code
+     * requiredCoachCount} {@code coach_assignment} rows for a group (sorted by id) - a lock beyond
+     * that count used to return 200 but be silently ignored by the solver. {@code small-10}'s groups
+     * have {@code requiredCoachCount == 1} and the fixture seeds two coaches ({@code c01}/{@code
+     * c02}), so this exercises: fill the one slot (A, 200) -> a second coach is refused (B, 409) ->
+     * re-locking the SAME coach already in the slot still succeeds (A again, 200, no-op-ish) ->
+     * unlocking frees the slot for B (200). */
+    @Test
+    void lockingASecondCoachBeyondRequiredCoachCountReturns409UntilTheSlotIsFreed() throws Exception {
+        String planId = loadPlan();
+        TrainingGroup group = trainingGroupRepository.findByActivityPlanId(planId).get(0); // requiredCoachCount == 1
+        List<CoachProfile> coaches = coachProfileRepository.findByActivityPlanId(planId);
+        CoachProfile coachA = coaches.get(0);
+        CoachProfile coachB = coaches.get(1);
+
+        mockMvc.perform(put("/api/groups/" + group.id() + "/lock-coach")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"coachProfileId\":\"" + coachA.id() + "\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(put("/api/groups/" + group.id() + "/lock-coach")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"coachProfileId\":\"" + coachB.id() + "\"}"))
+                .andExpect(status().isConflict());
+
+        // Re-locking the coach already occupying the (only) slot is always allowed - not a new row.
+        mockMvc.perform(put("/api/groups/" + group.id() + "/lock-coach")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"coachProfileId\":\"" + coachA.id() + "\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/groups/" + group.id() + "/lock-coach")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .param("coachProfileId", coachA.id()))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(put("/api/groups/" + group.id() + "/lock-coach")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"coachProfileId\":\"" + coachB.id() + "\"}"))
+                .andExpect(status().isOk());
+    }
+
+    /** The original defect's exact precondition (M9 review replay): an UNLOCKED solver-written row
+     * already occupies the group's only coach_assignment row when the user locks a DIFFERENT coach.
+     * The lock must succeed (locked-count occupancy: 0 locked < requiredCoachCount 1) AND actually
+     * reach the solver's modeled slot - {@code SolverInputAssembler} sorts locked rows first, so the
+     * new lock (a LATER id than the solver row) still claims slot 0 instead of falling beyond the
+     * requiredCoachCount cutoff and being silently ignored. */
+    @Test
+    void lockingANewCoachOverAnExistingUnlockedSolverRowOccupiesTheModeledSlot() throws Exception {
+        String planId = loadPlan();
+        TrainingGroup group = trainingGroupRepository.findByActivityPlanId(planId).get(0); // requiredCoachCount == 1
+        List<CoachProfile> coaches = coachProfileRepository.findByActivityPlanId(planId);
+        CoachProfile coachA = coaches.get(0);
+        CoachProfile coachB = coaches.get(1);
+
+        // Stands in for a previous solve's writeback: an unlocked source=solver row for coach A.
+        coachAssignmentRepository.insert(coachA.id(), group.id(), false, CoachAssignment.SOURCE_SOLVER);
+
+        mockMvc.perform(put("/api/groups/" + group.id() + "/lock-coach")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"coachProfileId\":\"" + coachB.id() + "\"}"))
+                .andExpect(status().isOk());
+
+        // The lock reached the solver model: the group's single CoachSlot is pinned to coach B.
+        AssembledProblem assembled = solverInputAssembler.assemble(planId);
+        List<CoachSlot> slotsForGroup = assembled.solution().getCoachSlots().stream()
+                .filter(cs -> group.groupOrder() == cs.getGroup().id())
+                .toList();
+        assertThat(slotsForGroup).hasSize(1);
+        CoachSlot slot = slotsForGroup.get(0);
+        assertThat(slot.isPinned()).isTrue();
+        assertThat(slot.getCoach()).isNotNull();
+        assertThat(assembled.coachProfileDbIdByLongId().get(slot.getCoach().coachProfileId())).isEqualTo(coachB.id());
     }
 
     @Test
