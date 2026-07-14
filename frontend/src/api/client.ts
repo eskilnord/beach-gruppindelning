@@ -1,4 +1,4 @@
-import { getBackendInfo, type BackendInfo } from "../lib/platform";
+import { getBackendInfo, restartBackend as restartBackendInfo, type BackendInfo } from "../lib/platform";
 
 /**
  * Thrown for any non-2xx API response. `message` is the normalized human-readable text: the
@@ -29,7 +29,19 @@ let backendInfoPromise: Promise<BackendInfo> | null = null;
 
 function loadBackendInfo(): Promise<BackendInfo> {
   if (!backendInfoPromise) {
-    backendInfoPromise = getBackendInfo();
+    const promise = getBackendInfo();
+    backendInfoPromise = promise;
+    // A crashed-before-first-request backend (or one whose Tauri handshake never completes) leaves
+    // a permanently rejected promise cached, so every subsequent call would fail forever even after
+    // the backend recovers. Clear the cache once it rejects — but only if nothing else has already
+    // replaced it (e.g. a concurrent restartBackend() call) — so the next apiFetch re-resolves it.
+    // Attaching this via a separate `.catch` (rather than awaiting here) means callers of
+    // `loadBackendInfo()` still see the original rejection on the promise we return below.
+    promise.catch(() => {
+      if (backendInfoPromise === promise) {
+        backendInfoPromise = null;
+      }
+    });
   }
   return backendInfoPromise;
 }
@@ -37,6 +49,31 @@ function loadBackendInfo(): Promise<BackendInfo> {
 /** Test-only escape hatch to force re-resolution of backend info between test cases. */
 export function resetBackendInfoCacheForTests(): void {
   backendInfoPromise = null;
+}
+
+/**
+ * Recovers from a mid-session backend crash (verified problem: previously required restarting the
+ * whole packaged app) by delegating to platform.ts's `restartBackend` (Tauri: kills+respawns the
+ * backend child and re-handshakes via the `retry_backend` command; browser: no-op fixed dev info)
+ * and atomically swapping the cache to the fresh result so the very next `apiFetch`/`apiUpload`/
+ * `apiDownload` call talks to the new port/token instead of replaying a stale or rejected promise.
+ * On failure the cache is cleared (not left pointing at a rejected promise) and the error is
+ * rethrown so the caller (ReconnectOverlay) can show it.
+ */
+export async function restartBackend(): Promise<BackendInfo> {
+  const cachedBeforeRestart = backendInfoPromise;
+  try {
+    const info = await restartBackendInfo();
+    backendInfoPromise = Promise.resolve(info);
+    return info;
+  } catch (error) {
+    // Only clear what we started with: a concurrent loadBackendInfo() may have re-resolved fresh
+    // (correct) info while the restart was in flight — don't discard it on our failure.
+    if (backendInfoPromise === cachedBeforeRestart) {
+      backendInfoPromise = null;
+    }
+    throw error;
+  }
 }
 
 async function parseErrorMessage(response: Response): Promise<string> {

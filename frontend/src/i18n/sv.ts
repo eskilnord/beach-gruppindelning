@@ -154,6 +154,7 @@ export const sv = {
     down: "Kan inte nå motorn",
     reconnecting: "Försöker återansluta till motorn…",
     retryButton: "Försök igen",
+    restartFailed: "Det gick inte att starta om motorn. Försök igen.",
   },
   importEntry: {
     title: "Importera ny fil",

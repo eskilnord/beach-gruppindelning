@@ -44,6 +44,21 @@ export async function getBackendInfo(): Promise<BackendInfo> {
 }
 
 /**
+ * Recovers from a crashed backend without restarting the whole desktop app: in Tauri this invokes
+ * the shell's `retry_backend` command (desktop/src-tauri/src/backend.rs), which kills the (likely
+ * already-dead) child process, respawns it, redoes the handshake, and returns a fresh BackendInfo
+ * (new port + token) — or throws if the respawn itself fails. In browser dev mode there's no child
+ * process to restart, so this just resolves with the same fixed dev info as {@link getBackendInfo}.
+ */
+export async function restartBackend(): Promise<BackendInfo> {
+  if (isTauri()) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<BackendInfo>("retry_backend");
+  }
+  return { base_url: "", token: "dev" };
+}
+
+/**
  * Saves a downloaded file (M8 export, spec §20/§21.3) to disk, browser-vs-Tauri per CLAUDE.md's dev
  * commands note ("export = byte download, Tauri APIs isolated in platform.ts with browser
  * fallbacks"): in the browser, a temporary `<a download>` + object URL (no filesystem access
