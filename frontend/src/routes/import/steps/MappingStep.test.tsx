@@ -72,6 +72,38 @@ describe("MappingStep", () => {
     expect(unknownSelect).toHaveValue(sv.importWizard.mapping.ignoreOption);
   });
 
+  it("shows the derived badge and hint for a synthetic (WP1 block-group) column", async () => {
+    server.use(
+      http.get(`/api/plans/${PLAN_ID}/import/sessions/${SESSION_ID}/columns`, () =>
+        HttpResponse.json({
+          sheet: "Blad1",
+          headerRowIndex: 0,
+          columns: [
+            { columnIndex: 0, headerText: "Förnamn", sampleValues: ["Anna"], suggestedTarget: "firstName" },
+            {
+              columnIndex: -1,
+              headerText: "Grupp i filen",
+              sampleValues: ["Torsdagsträning 1", "Torsdagsträning 2"],
+              suggestedTarget: "previousGroupName",
+              synthetic: true,
+            },
+          ],
+        } satisfies ImportColumns),
+      ),
+      http.get(`/api/plans/${PLAN_ID}/field-definitions`, () => HttpResponse.json([])),
+    );
+
+    renderWithProviders(
+      <MappingStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onExpired={() => {}} />,
+    );
+
+    await screen.findByRole("textbox", { name: "Mappning för kolumn Förnamn" });
+    expect(screen.getByText(sv.importWizard.mapping.derivedBadge)).toBeInTheDocument();
+    expect(screen.getByText(sv.importWizard.mapping.derivedHint)).toBeInTheDocument();
+    const syntheticSelect = screen.getByRole("textbox", { name: "Mappning för kolumn Grupp i filen" });
+    expect(syntheticSelect).toHaveValue(sv.importWizard.mapping.targets.previousGroupName);
+  });
+
   it("lets the user change a column's target and sends the updated mapping on 'Nästa'", async () => {
     mockColumnsAndFields();
 

@@ -113,9 +113,11 @@ class ImportValidationServiceIntegrationTest {
         assertThat(resultFor(results, built.row("blankRow1")).status()).isEqualTo(RowStatus.SKIP);
         assertThat(resultFor(results, built.row("blankRow1")).reasons()).contains("Tom rad");
 
-        // saknat namn: the group "N spelare" count row and the section heading rows.
+        // saknat namn / strukturrad: the group "N spelare" count row and the section heading rows -
+        // WP1's BlockStructureDetector now recognizes the messy fixture's column-A metadata stack, so
+        // this count row is classified as a structure row (skipped for that reason, not "Saknar namn").
         assertThat(resultFor(results, built.row("group1CountRow")).status()).isEqualTo(RowStatus.SKIP);
-        assertThat(resultFor(results, built.row("group1CountRow")).reasons()).contains("Saknar namn");
+        assertThat(resultFor(results, built.row("group1CountRow")).reasons()).contains("Strukturrad (rubrik/metadata)");
         assertThat(resultFor(results, built.row("kolistaHeaderRow")).status()).isEqualTo(RowStatus.SKIP);
         assertThat(resultFor(results, built.row("utanforHeaderRow")).status()).isEqualTo(RowStatus.SKIP);
 

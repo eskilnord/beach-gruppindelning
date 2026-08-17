@@ -60,6 +60,7 @@ public class ImportValidationService {
         Set<String> timeIshFieldKeys = timeIshCustomFieldKeys(mappings, activityPlanId);
         Set<String> knownPreviousGroupNames = hasPreviousGroupMapping ? knownGroupNames() : Set.of();
         List<Person> existingPersons = personRepository.findAll();
+        BlockStructureDetector.BlockStructure blockStructure = session.blockStructure(sheetName).orElse(null);
 
         int rowStart = headerRowIndex + 1;
         int rowEnd = sheet.rowCount() - 1;
@@ -68,10 +69,10 @@ public class ImportValidationService {
         Map<String, List<Integer>> rowsByNameKey = new HashMap<>();
         Map<String, List<Integer>> rowsByEmailKey = new HashMap<>();
         for (int rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
-            if (sheet.isRowEntirelyBlank(rowIndex)) {
+            if (sheet.isRowEntirelyBlank(rowIndex) || isStructureRow(blockStructure, rowIndex)) {
                 continue;
             }
-            ExtractedRow extracted = RowExtractor.extract(sheet, rowIndex, mappings);
+            ExtractedRow extracted = RowExtractor.extract(sheet, rowIndex, mappings, blockStructure);
             extractedByRow.put(rowIndex, extracted);
             if (extracted.hasAnyName()) {
                 rowsByNameKey.computeIfAbsent(PersonMatcher.normalizeName(extracted.firstName(), extracted.lastName(), extracted.displayName()),
@@ -86,6 +87,11 @@ public class ImportValidationService {
         for (int rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
             if (sheet.isRowEntirelyBlank(rowIndex)) {
                 results.add(new RowValidationResult(rowIndex, RowStatus.SKIP, List.of("Tom rad"), List.of()));
+                continue;
+            }
+            if (isStructureRow(blockStructure, rowIndex)) {
+                results.add(new RowValidationResult(
+                        rowIndex, RowStatus.SKIP, List.of("Strukturrad (rubrik/metadata)"), List.of()));
                 continue;
             }
             ExtractedRow extracted = extractedByRow.get(rowIndex);
@@ -158,6 +164,12 @@ public class ImportValidationService {
 
         RowStatus status = !skipReasons.isEmpty() ? RowStatus.SKIP : (!warnReasons.isEmpty() ? RowStatus.WARN : RowStatus.OK);
         return new RowValidationResult(row.rowIndex(), status, reasons, matchProposals);
+    }
+
+    /** True when {@code rowIndex} is a heading/metadata/count row of a detected group block (WP1) -
+     *  such a row carries no participant and must never reach name/email/etc. validation. */
+    private static boolean isStructureRow(BlockStructureDetector.BlockStructure blockStructure, int rowIndex) {
+        return blockStructure != null && blockStructure.classByRow().get(rowIndex) == BlockStructureDetector.RowClass.STRUCTURE;
     }
 
     private static void checkInvalidNumber(ParsedCell cell, List<String> warnReasons) {

@@ -60,7 +60,10 @@ import se.klubb.groupplanner.util.Uuid7;
  * on every platform (see its class javadoc), so every "Prova med demodata" click across machines/OSes
  * produces byte-identical rosters, wishes and levels. Every structural choice (who is unavailable,
  * who has a must-coach wish, which pairs are "impossible") is a fixed participant INDEX, not a random
- * draw, so those invariants are exact and assertable in tests.
+ * draw, so those invariants are exact and assertable in tests. {@code previousGroupName} (WP1) is a
+ * pure function of a participant's already-drawn, already-clamped level (see {@link
+ * #previousGroupNameForIndex}) plus two fixed-index exceptions - it consumes no extra RNG draws, so
+ * it cannot perturb this determinism guarantee either.
  *
  * <h2>Coach-capacity math (why the plan is guaranteed hard-feasible)</h2>
  *
@@ -127,6 +130,17 @@ public class DemoDataService {
     // fictional Swedish free text, purely to demo the comment-privacy machinery.
     private static final int FIRST_COMMENT_INDEX = 52;
     private static final int[] NEW_TO_CLUB_INDICES = {53, 57};
+    // Deliberately mis-bucketed vs. this term's level (WP1 demo): the council can see a real
+    // continuity-vs-level trade-off in "why here" explanations for these three, rather than every
+    // participant's previous group trivially matching their current level band.
+    private static final int[] OFF_BY_TWO_GROUP_INDICES = {60, 61, 62};
+
+    /** WP1: previous-group buckets (8, matching the demo plan's fixed 8-group layout - see the class
+     *  javadoc's "coach-capacity math" section) derived purely from the already-drawn, already-clamped
+     *  level - NOT a new RNG draw, so the byte-identical-across-platforms determinism guarantee (see
+     *  class javadoc) is unaffected. Highest band first (bucket 1 = strongest), mirroring {@code
+     *  GroupGenerator}'s own "index 0 = group 1 = highest level" ordering. */
+    private static final int[] PREVIOUS_GROUP_LEVEL_CUTOFFS = {800, 720, 650, 580, 510, 440, 350};
 
     private static final String[] DEMO_COMMENTS = {
         "Vill helst träna tidigt på kvällen.",
@@ -315,11 +329,12 @@ public class DemoDataService {
             }
             Double rankingPoints = (double) Math.round(level);
             String comment = commentForIndex(i);
+            String previousGroupName = previousGroupNameForIndex(i, level);
 
             Person person = personRepository.insert(new Person(
                     Uuid7.generate(), firstName, lastName, null, null, null, null, true, false, null, now, now));
             ParticipantProfile profile = participantProfileRepository.insert(new ParticipantProfile(
-                    Uuid7.generate(), person.id(), planId, rankingPoints, "seriespel", null, null, null, null, null,
+                    Uuid7.generate(), person.id(), planId, rankingPoints, "seriespel", previousGroupName, null, null, null, null,
                     comment, null, false, false, false));
             playerAssignmentRepository.insertImportedIfAbsent(profile.id());
             ids.add(profile.id());
@@ -333,6 +348,36 @@ public class DemoDataService {
             return null;
         }
         return DEMO_COMMENTS[commentIndex];
+    }
+
+    /** WP1: {@code participant_profile.previous_group_name} for one participant - a pure function of
+     *  their already-drawn level (see {@link #PREVIOUS_GROUP_LEVEL_CUTOFFS}), except the two "new to
+     *  club" indices (no previous group at all) and {@link #OFF_BY_TWO_GROUP_INDICES} (deliberately
+     *  wrong by two bands, to demonstrate the continuity-vs-level trade-off). */
+    private static String previousGroupNameForIndex(int index, double level) {
+        for (int newToClubIndex : NEW_TO_CLUB_INDICES) {
+            if (index == newToClubIndex) {
+                return null;
+            }
+        }
+        int bucket = previousGroupBucketForLevel(level);
+        for (int offByTwoIndex : OFF_BY_TWO_GROUP_INDICES) {
+            if (index == offByTwoIndex) {
+                int shifted = bucket + 2;
+                bucket = shifted <= PREVIOUS_GROUP_LEVEL_CUTOFFS.length + 1 ? shifted : bucket - 2;
+                break;
+            }
+        }
+        return CATEGORY + " " + bucket;
+    }
+
+    private static int previousGroupBucketForLevel(double level) {
+        for (int i = 0; i < PREVIOUS_GROUP_LEVEL_CUTOFFS.length; i++) {
+            if (level >= PREVIOUS_GROUP_LEVEL_CUTOFFS[i]) {
+                return i + 1;
+            }
+        }
+        return PREVIOUS_GROUP_LEVEL_CUTOFFS.length + 1;
     }
 
     /**

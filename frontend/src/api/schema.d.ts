@@ -2000,6 +2000,7 @@ export interface components {
             headerText?: string;
             sampleValues?: string[];
             suggestedTarget?: string;
+            synthetic?: boolean;
         };
         ColumnsResponse: {
             sheet?: string;

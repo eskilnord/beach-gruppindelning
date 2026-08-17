@@ -9,6 +9,14 @@ import se.klubb.groupplanner.api.error.BadRequestException;
  */
 public record ColumnMapping(int columnIndex, MappingTargetKind kind, String customFieldKey) {
 
+    /**
+     * The synthetic "Grupp i filen" column (WP1, {@link BlockStructureDetector}): not a real column
+     * in the source file - its value is derived per-row from the detected group-block structure
+     * instead of read from {@code sheet.cellAt(rowIndex, columnIndex)}. Only valid when the sheet
+     * has a detected {@link BlockStructureDetector.BlockStructure} (see {@code ImportController}).
+     */
+    public static final int BLOCK_GROUP_COLUMN_INDEX = -1;
+
     private static final String CUSTOM_FIELD_PREFIX = "customField:";
 
     public ColumnMapping {

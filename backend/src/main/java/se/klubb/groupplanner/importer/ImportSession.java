@@ -39,6 +39,7 @@ public class ImportSession {
     private final Map<String, List<ColumnMapping>> mappingsBySheet = new HashMap<>();
     private final Map<String, TemplateMatch> templateMatchBySheet = new HashMap<>();
     private final Map<String, Map<Integer, RowDecision>> decisionsBySheet = new HashMap<>();
+    private final Map<String, Optional<BlockStructureDetector.BlockStructure>> blockStructureBySheet = new HashMap<>();
     private volatile List<RowValidationResult> lastValidation;
     private volatile String selectedSheet;
 
@@ -93,9 +94,22 @@ public class ImportSession {
                 .orElseThrow(() -> new BadRequestException("Unknown sheet: " + sheetName));
     }
 
-    /** The header row index for a sheet: an explicit override if set, else the heuristic default. */
+    /**
+     * The header row index for a sheet: an explicit override if set, else a heuristic default. WP1
+     * fix: when {@link BlockStructureDetector#firstRepeatedHeaderRow} finds an earlier/later repeated
+     * player-header row than {@link HeaderDetector}'s own guess, that row wins instead - re-uploading
+     * this app's own grouped export otherwise lands on the width-1 group-heading row (which trivially
+     * satisfies {@code HeaderDetector}'s "high non-blank ratio" heuristic first), leaving every real
+     * column ("Namn", "Ranking", ...) unmapped by default.
+     */
     public synchronized int headerRowIndex(String sheetName) {
-        return headerRowIndexBySheet.computeIfAbsent(sheetName, name -> HeaderDetector.detect(sheetOrThrow(name)));
+        return headerRowIndexBySheet.computeIfAbsent(sheetName, name -> {
+            ParsedSheet sheet = sheetOrThrow(name);
+            int detected = HeaderDetector.detect(sheet);
+            return BlockStructureDetector.firstRepeatedHeaderRow(sheet)
+                    .filter(repeatedHeaderRow -> repeatedHeaderRow != detected)
+                    .orElse(detected);
+        });
     }
 
     public synchronized void setHeaderRow(String sheetName, int headerRowIndex) {
@@ -109,7 +123,18 @@ public class ImportSession {
         // sheet" step, spec §8.3 steps 2-4) must NOT wipe decisions the user already made.
         if (previous == null || previous != headerRowIndex) {
             decisionsBySheet.remove(sheetName);
+            blockStructureBySheet.remove(sheetName);
         }
+    }
+
+    /**
+     * The detected group-block structure for a sheet (WP1, {@link BlockStructureDetector}), lazily
+     * computed and cached against its current header row - invalidated in {@link #setHeaderRow} the
+     * same way {@code decisionsBySheet} is, since block detection depends on where the header row is.
+     */
+    public synchronized Optional<BlockStructureDetector.BlockStructure> blockStructure(String sheetName) {
+        return blockStructureBySheet.computeIfAbsent(
+                sheetName, name -> BlockStructureDetector.detect(sheetOrThrow(name), headerRowIndex(name)));
     }
 
     public synchronized void setTemplateMatch(String sheetName, TemplateMatch match) {

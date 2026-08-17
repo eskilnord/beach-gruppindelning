@@ -143,12 +143,24 @@ export function MappingStep({ planId, sessionId, onNext, onExpired }: MappingSte
               return (
                 <Table.Tr key={column.columnIndex}>
                   <Table.Td>
-                    <Text fw={500}>{columnLabel}</Text>
+                    <Group gap="xs" wrap="nowrap">
+                      <Text fw={500}>{columnLabel}</Text>
+                      {column.synthetic && (
+                        <Badge color="blue" variant="light">
+                          {sv.importWizard.mapping.derivedBadge}
+                        </Badge>
+                      )}
+                    </Group>
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm" c="dimmed">
                       {column.sampleValues.join(", ") || "—"}
                     </Text>
+                    {column.synthetic && (
+                      <Text size="xs" c="dimmed" fs="italic">
+                        {sv.importWizard.mapping.derivedHint}
+                      </Text>
+                    )}
                   </Table.Td>
                   <Table.Td>
                     <Group gap="xs" wrap="nowrap">

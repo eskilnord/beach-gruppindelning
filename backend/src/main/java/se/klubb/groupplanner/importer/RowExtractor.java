@@ -13,6 +13,17 @@ public final class RowExtractor {
     }
 
     public static ExtractedRow extract(ParsedSheet sheet, int rowIndex, List<ColumnMapping> mappings) {
+        return extract(sheet, rowIndex, mappings, null);
+    }
+
+    /**
+     * Block-aware overload (WP1): a mapping on {@link ColumnMapping#BLOCK_GROUP_COLUMN_INDEX} reads
+     * its raw value from {@code blockStructure}'s per-row group name instead of the sheet grid -
+     * that column doesn't exist in the source file. {@code blockStructure} may be {@code null} (no
+     * detected structure, or the caller doesn't care) - such a mapping then simply yields no value.
+     */
+    public static ExtractedRow extract(
+            ParsedSheet sheet, int rowIndex, List<ColumnMapping> mappings, BlockStructureDetector.BlockStructure blockStructure) {
         String firstName = null;
         String lastName = null;
         String displayName = null;
@@ -31,8 +42,16 @@ public final class RowExtractor {
         Map<String, ParsedCell> customFieldCell = new LinkedHashMap<>();
 
         for (ColumnMapping mapping : mappings) {
-            ParsedCell cell = sheet.cellAt(rowIndex, mapping.columnIndex());
-            String raw = cell.isBlank() ? null : cell.rawString();
+            ParsedCell cell;
+            String raw;
+            if (mapping.columnIndex() == ColumnMapping.BLOCK_GROUP_COLUMN_INDEX) {
+                String groupName = blockStructure == null ? null : blockStructure.groupNameByRow().get(rowIndex);
+                raw = (groupName == null || groupName.isBlank()) ? null : groupName;
+                cell = raw == null ? ParsedCell.blank() : ParsedCell.ofString(raw);
+            } else {
+                cell = sheet.cellAt(rowIndex, mapping.columnIndex());
+                raw = cell.isBlank() ? null : cell.rawString();
+            }
             switch (mapping.kind()) {
                 case FIRST_NAME -> firstName = raw;
                 case LAST_NAME -> lastName = raw;

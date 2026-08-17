@@ -23,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 import se.klubb.groupplanner.api.error.BadRequestException;
 import se.klubb.groupplanner.api.error.NotFoundException;
 import se.klubb.groupplanner.domain.ImportTemplate;
+import se.klubb.groupplanner.importer.BlockStructureDetector;
 import se.klubb.groupplanner.importer.ColumnMapping;
 import se.klubb.groupplanner.importer.ColumnMappingSuggester;
 import se.klubb.groupplanner.importer.CommitOptions;
@@ -54,6 +55,10 @@ public class ImportController {
 
     private static final int DEFAULT_PREVIEW_ROWS = 30;
     private static final int SAMPLE_VALUES_PER_COLUMN = 5;
+
+    /** Backend-owned Swedish literal for the synthetic block-group column (WP1) - it isn't a real
+     *  column in the source file, so there is no header cell to read the label from. */
+    private static final String BLOCK_GROUP_COLUMN_HEADER = "Grupp i filen";
 
     private final ImportSessionService importSessionService;
     private final ImportValidationService importValidationService;
@@ -151,6 +156,7 @@ public class ImportController {
                 .orElse(Map.of());
 
         List<ColumnInfo> columns = new ArrayList<>(sheet.columnCount());
+        boolean anyRealColumnSuggestsPreviousGroup = false;
         for (int col = 0; col < sheet.columnCount(); col++) {
             String headerText = sheet.cellAt(headerRowIndex, col).rawString();
             List<String> samples = sampleValues(sheet, headerRowIndex, col);
@@ -158,9 +164,38 @@ public class ImportController {
             if (suggested == null) {
                 suggested = ColumnMappingSuggester.suggest(headerText).map(MappingTargetKind::wireName).orElse(null);
             }
-            columns.add(new ColumnInfo(col, headerText, samples, suggested));
+            if (MappingTargetKind.PREVIOUS_GROUP_NAME.wireName().equals(suggested)) {
+                anyRealColumnSuggestsPreviousGroup = true;
+            }
+            columns.add(new ColumnInfo(col, headerText, samples, suggested, false));
+        }
+
+        Optional<BlockStructureDetector.BlockStructure> blockStructure = session.blockStructure(sheetName);
+        if (blockStructure.isPresent()) {
+            String syntheticSuggested = templateMapping.get(ColumnMapping.BLOCK_GROUP_COLUMN_INDEX);
+            if (syntheticSuggested == null && !anyRealColumnSuggestsPreviousGroup) {
+                syntheticSuggested = MappingTargetKind.PREVIOUS_GROUP_NAME.wireName();
+            }
+            columns.add(new ColumnInfo(
+                    ColumnMapping.BLOCK_GROUP_COLUMN_INDEX, BLOCK_GROUP_COLUMN_HEADER,
+                    blockLabelSamples(blockStructure.get()), syntheticSuggested, true));
         }
         return new ColumnsResponse(sheetName, headerRowIndex, columns);
+    }
+
+    /** Up to {@link #SAMPLE_VALUES_PER_COLUMN} distinct group labels, in row order, for the synthetic
+     *  block-group column's sample-values preview (WP1). */
+    private static List<String> blockLabelSamples(BlockStructureDetector.BlockStructure blockStructure) {
+        java.util.LinkedHashSet<String> samples = new java.util.LinkedHashSet<>();
+        for (Map.Entry<Integer, String> entry : new java.util.TreeMap<>(blockStructure.groupNameByRow()).entrySet()) {
+            if (entry.getValue() != null) {
+                samples.add(entry.getValue());
+            }
+            if (samples.size() >= SAMPLE_VALUES_PER_COLUMN) {
+                break;
+            }
+        }
+        return new ArrayList<>(samples);
     }
 
     @PutMapping("/api/plans/{planId}/import/sessions/{sid}/mapping")
@@ -180,6 +215,12 @@ public class ImportController {
         for (ColumnMappingDto dto : request.mappings()) {
             if (!seenColumns.add(dto.columnIndex())) {
                 throw new BadRequestException("Duplicate mapping for column " + dto.columnIndex());
+            }
+            if (dto.columnIndex() == ColumnMapping.BLOCK_GROUP_COLUMN_INDEX
+                    && session.blockStructure(request.sheet()).isEmpty()) {
+                throw new BadRequestException(
+                        "Column " + ColumnMapping.BLOCK_GROUP_COLUMN_INDEX
+                                + " (\"" + BLOCK_GROUP_COLUMN_HEADER + "\") requires a detected group-block structure for this sheet");
             }
             ColumnMapping mapping = ColumnMapping.fromTargetString(dto.columnIndex(), dto.target());
             if (mapping.kind() == MappingTargetKind.CUSTOM_FIELD) {
@@ -301,7 +342,8 @@ public class ImportController {
     public record PreviewResponse(String sheet, int headerRowIndex, int rowCount, List<List<String>> rows) {
     }
 
-    public record ColumnInfo(int columnIndex, String headerText, List<String> sampleValues, String suggestedTarget) {
+    public record ColumnInfo(
+            int columnIndex, String headerText, List<String> sampleValues, String suggestedTarget, boolean synthetic) {
     }
 
     public record ColumnsResponse(String sheet, int headerRowIndex, List<ColumnInfo> columns) {

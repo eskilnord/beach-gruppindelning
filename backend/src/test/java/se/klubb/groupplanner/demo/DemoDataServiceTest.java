@@ -130,6 +130,25 @@ class DemoDataServiceTest {
     }
 
     @Test
+    void previousGroupNameIsSetForMostParticipantsButNullForNewToClubIndices() {
+        DemoDataService.DemoResult result = demoDataService.createDemoSeason();
+        List<ParticipantProfile> participants = participantProfileRepository.findByActivityPlanId(result.planId());
+
+        // previousGroupLevel is never set by the demo (WP1: only the derived group NAME is).
+        assertThat(participants).allSatisfy(p -> assertThat(p.previousGroupLevel()).isNull());
+
+        long withPreviousGroup = participants.stream().filter(p -> p.previousGroupName() != null).count();
+        // 100 participants minus the 2 "new to club" indices.
+        assertThat(withPreviousGroup).isEqualTo(DemoDataService.PLAYER_COUNT - 2);
+
+        assertThat(participants).allSatisfy(p -> {
+            if (p.previousGroupName() != null) {
+                assertThat(p.previousGroupName()).matches("Torsdagsträning [1-8]");
+            }
+        });
+    }
+
+    @Test
     void secondInvocationCreatesASecondSeasonWithoutFailing() {
         DemoDataService.DemoResult first = demoDataService.createDemoSeason();
         DemoDataService.DemoResult second = demoDataService.createDemoSeason();

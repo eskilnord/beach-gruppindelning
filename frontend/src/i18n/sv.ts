@@ -294,6 +294,8 @@ export const sv = {
       sampleHeader: "Exempelvärden",
       targetHeader: "Mappas till",
       sensitiveBadge: "Känslig — endast referens",
+      derivedBadge: "Härledd från filens struktur",
+      derivedHint: "Kolumnen finns inte i filen – gruppnamnet läses från gruppblocken i filen.",
       ignoreOption: "Ignorera",
       createFieldOption: "Skapa nytt fält…",
       standardGroup: "Standardfält",

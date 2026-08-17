@@ -121,6 +121,10 @@ public class ImportCommitService {
         // Re-validate at commit time so decisions are always checked against the current state
         // (mapping/decisions may have changed since the last GET .../validate call).
         List<RowValidationResult> validation = importValidationService.validate(session, activityPlanId);
+        BlockStructureDetector.BlockStructure blockStructure = session.blockStructure(sheetName).orElse(null);
+        boolean usedBlockGroupMapping = blockStructure != null
+                && mappings.stream().anyMatch(m -> m.columnIndex() == ColumnMapping.BLOCK_GROUP_COLUMN_INDEX
+                        && m.kind() == MappingTargetKind.PREVIOUS_GROUP_NAME);
 
         int totalRows = 0;
         int imported = 0;
@@ -146,7 +150,7 @@ public class ImportCommitService {
                 continue;
             }
 
-            ExtractedRow row = RowExtractor.extract(sheet, result.rowIndex(), mappings);
+            ExtractedRow row = RowExtractor.extract(sheet, result.rowIndex(), mappings, blockStructure);
 
             Person person = resolvePerson(decision, row);
             person = ensurePersonCapabilities(person, row.isCoach());
@@ -200,6 +204,10 @@ public class ImportCommitService {
                 prefix = timeRelationRows.size() + " rader";
             }
             warnings.add(prefix + ": " + TIME_RELATION_IMPORT_WARNING);
+        }
+
+        if (usedBlockGroupMapping) {
+            warnings.add("Tidigare grupp hämtades från filens gruppstruktur (" + blockStructure.blockCount() + " grupper).");
         }
 
         ImportRun importRun = recordImportRun(session, activityPlanId, sheetName, totalRows, imported, skipped, validation, decisionsAudit);

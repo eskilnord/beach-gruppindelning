@@ -45,6 +45,9 @@ export interface ImportColumnInfo {
   headerText: string;
   sampleValues: string[];
   suggestedTarget: string | null;
+  /** True for the synthetic "Grupp i filen" column (WP1): derived from the file's detected group-block
+   *  structure rather than read from an actual source column. */
+  synthetic?: boolean;
 }
 
 export interface ImportColumns {
