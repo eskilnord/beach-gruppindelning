@@ -276,7 +276,24 @@ export function OptimizePanel() {
                               {sv.hardOrSoft[constraint.hardOrSoft as keyof typeof sv.hardOrSoft] ?? constraint.hardOrSoft}
                             </Badge>
                           </Table.Td>
-                          <Table.Td>{constraint.enabled ? constraint.weight : "—"}</Table.Td>
+                          <Table.Td>
+                            {constraint.enabled ? (
+                              <>
+                                {constraint.direction === "REWARD" ? "+" : ""}
+                                {constraint.weight}
+                                {/* No unit suffix on HARD rows: HARD isn't scored per-occurrence the
+                                    way SOFT/MEDIUM weights are, so "/tillfälle" or "/enhet" would be
+                                    misleading here. */}
+                                {constraint.hardOrSoft !== "HARD" && (
+                                  <Text span size="xs" c="dimmed">
+                                    {sv.constraintWeights.unitSuffix[constraint.unit] ?? ""}
+                                  </Text>
+                                )}
+                              </>
+                            ) : (
+                              "—"
+                            )}
+                          </Table.Td>
                           <Table.Td>{constraint.enabled ? "✓" : "—"}</Table.Td>
                         </Table.Tr>
                       ))}

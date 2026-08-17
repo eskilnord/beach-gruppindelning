@@ -240,3 +240,88 @@ describe("OptimizePanel WI-C staleness/unchanged/cold-start", () => {
     expect(captured.body?.coldStart).toBe(false);
   });
 });
+
+/**
+ * WP4 adversarial-review fix: the read-only "Constraint-vikter" summary's unit suffix must not
+ * appear on HARD rows (HARD isn't scored per-occurrence the way SOFT/MEDIUM weights are), and a
+ * REWARD-direction weight gets a "+" prefix so it doesn't read as a penalty.
+ */
+describe("OptimizePanel constraint-weights summary unit suffix", () => {
+  it("shows a unit suffix for an enabled SOFT row but omits it for an enabled HARD row", async () => {
+    // Two SEPARATE server.use() calls (not one array): MSW's setupServer picks the FIRST matching
+    // handler, and server.use() prepends each call's handlers as a block ahead of earlier ones -
+    // so an override for the same URL must be registered in its OWN later call, not just placed
+    // later within the same array (see baseHandlers()'s own doc comment above).
+    server.use(...baseHandlers());
+    server.use(
+      http.get("/api/plans/plan-1/constraint-weights", () =>
+        HttpResponse.json([
+          {
+            key: "levelBalance",
+            label: "Nivåbalans",
+            description: "d",
+            constraintCategory: "LEVEL",
+            hardOrSoft: "SOFT",
+            weight: 100,
+            enabled: true,
+            overridden: false,
+            unit: "PER_POINT",
+            direction: "PENALIZE",
+          },
+          {
+            key: "playerNoOverlap",
+            label: "Spelare krockar inte",
+            description: "d",
+            constraintCategory: "TIME",
+            hardOrSoft: "HARD",
+            weight: 1,
+            enabled: true,
+            overridden: false,
+            unit: "PER_MATCH",
+            direction: "PENALIZE",
+          },
+        ]),
+      ),
+    );
+
+    renderOptimizePanel();
+    await screen.getByRole("button", { name: sv.optimize.weightsSummary.heading });
+    await userEvent.setup().click(screen.getByRole("button", { name: sv.optimize.weightsSummary.heading }));
+
+    const softRow = (await screen.findByText("Nivåbalans")).closest("tr")!;
+    expect(within(softRow).getByText("100")).toBeInTheDocument();
+    expect(within(softRow).getByText("/enhet")).toBeInTheDocument();
+
+    const hardRow = screen.getByText("Spelare krockar inte").closest("tr")!;
+    expect(within(hardRow).getByText("1")).toBeInTheDocument();
+    expect(within(hardRow).queryByText("/tillfälle")).not.toBeInTheDocument();
+  });
+
+  it("prefixes a REWARD-direction weight with a plus sign", async () => {
+    server.use(...baseHandlers());
+    server.use(
+      http.get("/api/plans/plan-1/constraint-weights", () =>
+        HttpResponse.json([
+          {
+            key: "coachPreferenceSoft",
+            label: "Tränarpreferens (mjuk)",
+            description: "d",
+            constraintCategory: "COACH",
+            hardOrSoft: "SOFT",
+            weight: 50,
+            enabled: true,
+            overridden: false,
+            unit: "PER_MATCH",
+            direction: "REWARD",
+          },
+        ]),
+      ),
+    );
+
+    renderOptimizePanel();
+    await userEvent.setup().click(screen.getByRole("button", { name: sv.optimize.weightsSummary.heading }));
+
+    const row = (await screen.findByText("Tränarpreferens (mjuk)")).closest("tr")!;
+    expect(within(row).getByText("+50")).toBeInTheDocument();
+  });
+});

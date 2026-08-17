@@ -128,8 +128,11 @@ public final class ConstraintMetadata {
                 Unit.PER_MATCH, Direction.PENALIZE);
 
         // --- MEDIUM: reserved waitlist penalty (ADR-006) ---
+        // unassignedPlayer(f) penalizes ofMedium(100) MULTIPLIED by PlayerAssignment::getPriority
+        // (GroupPlanConstraintProvider) - a magnitude-weighted match, i.e. PER_POINT, not a flat
+        // per-occurrence PER_MATCH cost (WP4 adversarial review finding).
         add(ConstraintKeys.UNASSIGNED_PLAYER, "Oplacerad spelare (kölista)",
-                "Minimera antal oplacerade spelare, viktat efter prioritet.", HardOrSoft.MEDIUM, Unit.PER_MATCH,
+                "Minimera antal oplacerade spelare, viktat efter prioritet.", HardOrSoft.MEDIUM, Unit.PER_POINT,
                 Direction.PENALIZE);
 
         // --- SOFT: implemented ---

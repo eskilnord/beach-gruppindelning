@@ -245,6 +245,63 @@ class ConstraintWeightControllerTest {
                 .andExpect(jsonPath("$[?(@.key=='sameGroupSoft')].overridden").value(false));
     }
 
+    /**
+     * WP4: every row must carry machine-readable unit/direction (looked up from {@code
+     * se.klubb.groupplanner.explain.ConstraintMetadata}) so the frontend can render a plain-language
+     * "what does this weight mean" sentence without hardcoding per-key logic.
+     */
+    @Test
+    void everyRowHasNonNullUnitAndDirection() throws Exception {
+        String planId = createPlan();
+
+        String response = mockMvc.perform(
+                        get("/api/plans/" + planId + "/constraint-weights").header("X-GP-Token", VALID_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.key=='sameGroupSoft')].unit").value("PER_MATCH"))
+                .andExpect(jsonPath("$[?(@.key=='sameGroupSoft')].direction").value("PENALIZE"))
+                .andExpect(jsonPath("$[?(@.key=='levelBalance')].unit").value("PER_POINT"))
+                .andExpect(jsonPath("$[?(@.key=='coachPreferenceSoft')].direction").value("REWARD"))
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode json = objectMapper.readTree(response);
+        for (JsonNode node : json) {
+            org.assertj.core.api.Assertions.assertThat(node.get("unit").isNull())
+                    .as("unit for %s", node.get("key").asText()).isFalse();
+            org.assertj.core.api.Assertions.assertThat(node.get("direction").isNull())
+                    .as("direction for %s", node.get("key").asText()).isFalse();
+        }
+    }
+
+    /**
+     * WP4: every seeded {@code constraint_definition.key} must be a REAL entry in {@link
+     * se.klubb.groupplanner.explain.ConstraintMetadata} (not the synthetic unknown-key fallback) -
+     * otherwise the weights UI's per-row meaning sentence would silently show "Okänd constraint" for
+     * a real, seeded constraint. {@code savedPlanResourceBlock} is a documented exception: per
+     * {@code ConstraintWeightService}'s {@code NEVER_DISABLEABLE_KEYS} javadoc, it is a still-seeded
+     * but unused placeholder superseded by the split savedPlanPersonBlocked/CoachBlocked/CourtBlocked
+     * rows (§10.24a/b/c) and was never given a ConstraintMetadata entry.
+     */
+    @Test
+    void everyConstraintDefinitionKeyIsKnownToConstraintMetadata() throws Exception {
+        String planId = createPlan();
+        String response = mockMvc.perform(
+                        get("/api/plans/" + planId + "/constraint-weights").header("X-GP-Token", VALID_TOKEN))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        java.util.Set<String> documentedUnknown = java.util.Set.of("savedPlanResourceBlock");
+        JsonNode json = objectMapper.readTree(response);
+        for (JsonNode node : json) {
+            String key = node.get("key").asText();
+            if (documentedUnknown.contains(key)) {
+                continue;
+            }
+            org.assertj.core.api.Assertions.assertThat(se.klubb.groupplanner.explain.ConstraintMetadata.isKnown(key))
+                    .as("ConstraintMetadata.isKnown(%s)", key)
+                    .isTrue();
+        }
+    }
+
     @Test
     void listForUnknownPlanReturns404() throws Exception {
         mockMvc.perform(get("/api/plans/does-not-exist/constraint-weights").header("X-GP-Token", VALID_TOKEN))

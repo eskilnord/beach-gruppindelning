@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import se.klubb.groupplanner.api.error.BadRequestException;
 import se.klubb.groupplanner.domain.ConstraintDefinition;
 import se.klubb.groupplanner.domain.ConstraintWeightConfig;
+import se.klubb.groupplanner.explain.ConstraintMetadata;
 import se.klubb.groupplanner.repo.ActivityPlanRepository;
 import se.klubb.groupplanner.repo.ConstraintDefinitionRepository;
 import se.klubb.groupplanner.repo.ConstraintWeightConfigRepository;
@@ -187,13 +188,16 @@ public class ConstraintWeightService {
     }
 
     private static ConstraintWeightView mergeView(ConstraintDefinition def, ConstraintWeightConfig override) {
+        ConstraintMetadata.Meta meta = ConstraintMetadata.of(def.key());
+        String unit = meta.unit().name();
+        String direction = meta.direction().name();
         if (override == null) {
             return new ConstraintWeightView(
                     def.key(), def.label(), def.description(), def.constraintCategory(),
-                    def.hardOrSoft(), def.defaultWeight(), def.enabled(), false);
+                    def.hardOrSoft(), def.defaultWeight(), def.enabled(), false, unit, direction);
         }
         return new ConstraintWeightView(
                 def.key(), def.label(), def.description(), def.constraintCategory(),
-                override.hardOrSoft(), override.weight(), override.enabled(), true);
+                override.hardOrSoft(), override.weight(), override.enabled(), true, unit, direction);
     }
 }

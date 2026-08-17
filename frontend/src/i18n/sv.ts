@@ -580,15 +580,73 @@ export const sv = {
   },
   constraintWeights: {
     heading: "Konfiguration",
-    subheading: "De 24 standardconstraints som styr optimeringen för den här planen.",
+    subheading: "Standardconstraints som styr optimeringen för den här planen.",
+    // Adversarial review (post-WP4): every sentence here must be checked against what the app
+    // ACTUALLY does before shipping - this tool has a strict never-lie-in-UI history.
+    //  - "bryts aldrig" was false: several HARD rows ARE disableable, HARD rows are penalties (not
+    //    guarantees) so an infeasible solve can still show hardViolations, and the three
+    //    savedPlan*Blocked HARD rows get downgraded to a soft(1) warning for one solve by
+    //    "Visa konflikter men tillåt ändå" (optimize.conflictsAsWarnings).
+    //  - "syns inte i förklaringarna" was false: a disabled row still appears with weight 0 in
+    //    Tillämpade vikter / PlanAnalysis - only its EFFECT on the result is what disappears.
+    //  - the relative-importance bar only compares enabled SOFT rows against each other (MEDIUM and
+    //    HARD aren't on the same scale, and PER_POINT vs PER_MATCH rows aren't directly comparable
+    //    even within SOFT) - this last sentence makes that scope explicit.
+    intro:
+      "Det är bara vikterna i förhållande till varandra som spelar roll – inte siffrorna i sig. Hård regel går alltid före mjuka regler; överträdelser visas som konflikter. En avstängd regel påverkar inte resultatet. Vikter går att jämföra mellan mjuka regler, men en regel som räknas per poäng (t.ex. nivåspridning) kan kosta mer vid samma vikt än en regel som räknas per tillfälle.",
     loadFailed: "Kunde inte hämta constraint-vikter",
     table: {
       label: "Constraint",
-      category: "Kategori",
       hardOrSoft: "Hård/Mjuk",
       weight: "Vikt",
       enabled: "Aktiverad",
     },
+    categories: {
+      CAPACITY: "Kapacitet",
+      LEVEL: "Nivå",
+      TIME: "Tid",
+      RELATION: "Relationer",
+      SCHEDULE: "Schema",
+      COACH: "Tränare",
+      LOCK: "Låsningar",
+      WAITLIST: "Kölista",
+    } as Record<string, string>,
+    importance: {
+      // The Select's own accessible name repeats each row's constraint label ("Betydelse – <label>")
+      // because ~13 rows on this tab would otherwise all share the plain name "Betydelse".
+      ariaLabel: (label: string) => `Betydelse – ${label}`,
+      lessImportant: (weight: number) => `Mindre viktig (${weight})`,
+      normal: (weight: number) => `Normal (${weight})`,
+      important: (weight: number) => `Viktigare (${weight})`,
+      muchMoreImportant: (weight: number) => `Mycket viktigare (${weight})`,
+      custom: "Egen…",
+    },
+    // Truthful HARD-row sentence (was "Bryts aldrig", which is false - see the intro's comment
+    // above). A disabled HARD row instead falls through to `disabledMeaning` like SOFT rows do.
+    hardMeaning: "Hård regel – går alltid före mjuka regler; överträdelser visas som konflikter.",
+    disabledMeaning: "Avstängd – påverkar inte planen",
+    unitSuffix: {
+      PER_MATCH: "/tillfälle",
+      PER_POINT: "/enhet",
+    } as Record<string, string>,
+    meaning: {
+      PER_MATCH_PENALIZE: (weight: number) => `${weight} poäng straff per brutet tillfälle`,
+      PER_POINT_PENALIZE: (weight: number) => `${weight} poäng straff per enhet avvikelse (t.ex. per nivåpoäng eller spelare)`,
+      PER_MATCH_REWARD: (weight: number) => `${weight} poäng belöning per uppfyllt tillfälle`,
+      PER_POINT_REWARD: (weight: number) => `${weight} poäng belöning per enhet`,
+      // MEDIUM (unassignedPlayer, the reserved waitlist penalty, ADR-006) always wins this dedicated
+      // sentence over the generic unit+direction templates above - it's the one row where "counts
+      // before every soft rule" is a fact worth stating, not just a ratio.
+      MEDIUM: (weight: number) => `${weight} poäng per prioritetspoäng för varje oplacerad spelare – räknas alltid före mjuka regler`,
+    },
+    // Per-key sentence overrides, checked BEFORE the unit/direction templates above. Only
+    // lateTimeForLowerGroups needs one so far: it fans out into two REAL constraints with opposite
+    // directions (lateTimeTopGroups penalizes, lateTimeBottomGroups rewards - see
+    // GroupPlanConstraintProvider), so no single unit+direction sentence could describe it truthfully.
+    meaningByKey: {
+      lateTimeForLowerGroups: (weight: number) =>
+        `${weight} poäng – belönar sen tid för lägre grupper och straffar sen tid för toppgrupper`,
+    } as Record<string, (weight: number) => string>,
     resetButton: "Återställ till standard",
     overriddenBadge: "Anpassad",
     updateFailed: "Kunde inte spara constraint-vikten",

@@ -1161,6 +1161,8 @@ export interface components {
             weight?: number;
             enabled?: boolean;
             overridden?: boolean;
+            unit?: string;
+            direction?: string;
         };
         AvailabilityEntry: {
             timeSlotId?: string;

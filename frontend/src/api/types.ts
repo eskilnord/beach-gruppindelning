@@ -68,7 +68,16 @@ export type ConstraintDefinition = WithRequired<
 >;
 export type ConstraintWeightView = WithRequired<
   components["schemas"]["ConstraintWeightView"],
-  "key" | "label" | "description" | "constraintCategory" | "hardOrSoft" | "weight" | "enabled" | "overridden"
+  | "key"
+  | "label"
+  | "description"
+  | "constraintCategory"
+  | "hardOrSoft"
+  | "weight"
+  | "enabled"
+  | "overridden"
+  | "unit"
+  | "direction"
 >;
 export type ConstraintWeightOverrideRequest = components["schemas"]["ConstraintWeightOverrideRequest"];
 
