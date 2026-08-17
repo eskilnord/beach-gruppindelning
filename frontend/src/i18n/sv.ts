@@ -1350,20 +1350,22 @@ export const sv = {
       },
       {
         title: "Importera anmälningar",
-        body: "Ladda upp anmälningsfilen (Excel eller CSV) i importguiden. Du väljer själv vilket blad och vilken rad som är rubrikrad, mappar varje kolumn till rätt fält, och får en tydlig sammanställning innan något sparas i planen.",
+        body: "Ladda upp anmälningsfilen (Excel eller CSV) i importguiden. Du väljer själv vilket blad och vilken rad som är rubrikrad, mappar varje kolumn till rätt fält, och får en tydlig sammanställning innan något sparas i planen. Är filen uppdelad i gruppblock – till exempel förra terminens gruppindelning – känner guiden igen strukturen och erbjuder en härledd kolumn \"Grupp i filen\", så att varje spelares senaste grupp följer med som Tidigare grupp automatiskt.",
         bullets: [
           "Gå till fliken Deltagare och klicka \"Importera\".",
           "Välj fil, granska bladet och mappa kolumnerna till rätt fält.",
+          "Har filen gruppblock? Mappa \"Grupp i filen\" till Tidigare grupp så vet optimeringen var alla spelade sist.",
           "Validera raderna – du ser exakt vad som blir OK, varning eller överhoppat innan du bekräftar.",
         ],
       },
       {
         title: "Strukturera fält",
-        body: "Kommentarer från anmälningsformuläret (t.ex. \"vill helst spela med Anna\") visas bara som text att läsa – de tolkas ALDRIG automatiskt av systemet. Din uppgift är att läsa kommentaren och själv fylla i motsvarande strukturerade fält, som kompisönskemål eller manuell nivåscore, så att optimeringen faktiskt kan ta hänsyn till det.",
+        body: "Kommentarer från anmälningsformuläret (t.ex. \"vill helst spela med Anna\") påverkar ALDRIG optimeringen av sig själva – bara strukturerade fält gör det. För att hjälpa dig visar appen Tolkningsförslag under kommentaren: enkla lokala regler (aldrig AI) känner igen vanliga fraser som kompisönskemål, tider och tränarönskemål, och du väljer själv om förslaget ska läggas till med ett klick. När du gått igenom en spelare eller tränare klickar du \"Spara och markera som färdig\" – då får raden en grön bock i listan så du ser hur långt du kommit.",
         bullets: [
-          "Öppna en deltagare i Deltagarvyn för att se kommentaren till vänster.",
-          "Fyll i strukturerade fält till höger utifrån vad kommentaren säger.",
+          "Öppna en deltagare i Deltagarvyn för att se kommentaren och eventuella Tolkningsförslag.",
+          "Klicka \"Lägg till\" på ett förslag du håller med om – eller fyll i fälten själv som vanligt.",
           "Bara det som står i ett strukturerat fält påverkar optimeringen – fri text gör det aldrig.",
+          "Klart med en spelare eller tränare? \"Spara och markera som färdig\" ger en grön bock i listan.",
         ],
       },
       {
@@ -1395,7 +1397,7 @@ export const sv = {
       },
       {
         title: "Optimera",
-        body: "Optimeringen fördelar deltagare, tider/banor och tränare enligt DINA regler – de hårda kraven (t.ex. maxstorlek) som aldrig får brytas, och de mjuka önskemålen (t.ex. jämn nivåspridning eller kompisönskemål) som vägs mot varandra utifrån de vikter du satt under Fält. Resultatet är helt enkelt det bästa systemet kunde hitta enligt de regler och vikter du själv har angett – inte någon extern \"rätt\" lösning.",
+        body: "Optimeringen fördelar deltagare, tider/banor och tränare enligt DINA regler – de hårda kraven (t.ex. maxstorlek) som prioriteras före allt annat, och de mjuka önskemålen (t.ex. jämn nivåspridning eller kompisönskemål) som vägs mot varandra utifrån de vikter du satt under Fält. Där behöver du inte tolka råa siffror: varje regel förklaras i klartext, och du justerar dess betydelse med enkla nivåer från Mindre viktig till Mycket viktigare. Resultatet är helt enkelt det bästa systemet kunde hitta enligt de regler och vikter du själv har angett – inte någon extern \"rätt\" lösning.",
         bullets: [
           "Välj en profil: Snabb för en första koll, Normal för de flesta gånger, Grundlig inför en slutgiltig plan.",
           "Kryssa i om du bara vill optimera spelare, tider/banor eller tränare den här gången.",
