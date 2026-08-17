@@ -17,5 +17,6 @@ public record CoachProfile(
         Integer maxGroupsPerDay,
         Integer maxGroupsPerWeek,
         boolean canAlsoTrainAsParticipant,
-        String notes) {
+        String notes,
+        boolean reviewedDone) {
 }

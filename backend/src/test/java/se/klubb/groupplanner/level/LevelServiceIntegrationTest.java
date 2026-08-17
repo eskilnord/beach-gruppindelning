@@ -63,7 +63,7 @@ class LevelServiceIntegrationTest {
                 Uuid7.generate(), "Kalle", "Karlsson", null, null, null, null, true, false, null, now, now));
         ParticipantProfile profile = participantProfileRepository.insert(new ParticipantProfile(
                 Uuid7.generate(), person.id(), plan.id(), 720.0, "seriespel",
-                null, null, null, null, null, null, null, false, false));
+                null, null, null, null, null, null, null, false, false, false));
 
         // First recompute: ranking source present -> level persisted.
         levelService.recomputeForPlan(plan.id());
@@ -80,7 +80,7 @@ class LevelServiceIntegrationTest {
                 current.previousGroupName(), current.previousGroupLevel(),
                 current.estimatedLevel(), current.levelConfidence(), current.manualLevelScore(),
                 current.importedComment(), current.internalNote(),
-                current.manualReviewFlag(), current.waitlisted()));
+                current.manualReviewFlag(), current.waitlisted(), current.reviewedDone()));
 
         // Second recompute: no source at all -> the stale persisted level must actually become
         // NULL in the database (not survive as a ghost of the removed ranking), confidence 0.0,

@@ -74,7 +74,10 @@ test("Resurser (tider+banor+block) → Tränare (tillgänglighet) → Kapacitet 
 
   // --- Resurser: two time slots, spec §12.1's own worked example ---
   await page.getByRole("tab", { name: sv.plan.tabs.resources }).click();
-  await expect(page.getByRole("heading", { name: sv.resources.heading })).toBeVisible();
+  // exact: true - otherwise this also substring-matches the plan's own title heading
+  // ("E2E-resurser-plan-<timestamp>" contains "resurser") - same Playwright substring-matching
+  // pitfall as the sv.capacity.heading assertion further down this file.
+  await expect(page.getByRole("heading", { name: sv.resources.heading, exact: true })).toBeVisible();
   await expect(page.getByText(sv.resources.empty)).toBeVisible();
 
   const createSlot = async (start: string, end: string) => {
@@ -148,7 +151,7 @@ test("Resurser (tider+banor+block) → Tränare (tillgänglighet) → Kapacitet 
   const slot1AvailabilityRow = coachDrawer.getByRole("group", { name: SLOT1_LABEL });
   await slot1AvailabilityRow.getByText(sv.coaches.availabilityKind.PREFERRED, { exact: true }).click();
   await expect(slot1AvailabilityRow.getByRole("radio", { name: sv.coaches.availabilityKind.PREFERRED })).toBeChecked();
-  await coachDrawer.getByRole("button", { name: sv.coaches.drawer.saveButton }).click();
+  await coachDrawer.getByRole("button", { name: sv.coaches.drawer.saveButton, exact: true }).click();
   await expect(page.getByText(sv.coaches.drawer.saveSuccess)).toBeVisible();
   await coachDrawer.getByRole("button", { name: sv.coaches.drawer.closeButton }).click();
   await expect(coachDrawer).toHaveCount(0);

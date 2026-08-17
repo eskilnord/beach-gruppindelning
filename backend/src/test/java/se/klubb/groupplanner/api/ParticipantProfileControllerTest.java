@@ -1,5 +1,6 @@
 package se.klubb.groupplanner.api;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -82,7 +83,7 @@ class ParticipantProfileControllerTest {
         String personId = createPerson();
 
         String createBody = objectMapper.writeValueAsString(new ParticipantProfileController.CreateParticipantProfileRequest(
-                personId, 550.0, "seriespel", null, null, null, null, null, "kommentar", null, null, null));
+                personId, 550.0, "seriespel", null, null, null, null, null, "kommentar", null, null, null, false));
 
         String response = mockMvc.perform(post("/api/plans/" + planId + "/participants")
                         .header("X-GP-Token", VALID_TOKEN)
@@ -136,7 +137,7 @@ class ParticipantProfileControllerTest {
         String planId = createPlan();
         String personId = createPerson();
         String createBody = objectMapper.writeValueAsString(new ParticipantProfileController.CreateParticipantProfileRequest(
-                personId, 550.0, "seriespel", "Grupp 3", 7.0, null, null, 600.0, "kommentar", "intern anteckning", null, null));
+                personId, 550.0, "seriespel", "Grupp 3", 7.0, null, null, 600.0, "kommentar", "intern anteckning", null, null, false));
         String response = mockMvc.perform(post("/api/plans/" + planId + "/participants")
                         .header("X-GP-Token", VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -181,7 +182,7 @@ class ParticipantProfileControllerTest {
         String planId = createPlan();
         String personId = createPerson();
         String createBody = objectMapper.writeValueAsString(new ParticipantProfileController.CreateParticipantProfileRequest(
-                personId, null, null, null, null, null, null, null, null, null, null, null));
+                personId, null, null, null, null, null, null, null, null, null, null, null, false));
         String response = mockMvc.perform(post("/api/plans/" + planId + "/participants")
                         .header("X-GP-Token", VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -199,6 +200,63 @@ class ParticipantProfileControllerTest {
     }
 
     /**
+     * WP3 ("Spara och markera som färdig"): {@code reviewedDone} round-trips true/false like the
+     * other required-boolean columns, rejects an explicit null (400), and - crucially - a PATCH that
+     * only flips it must NOT bump {@code plan_revision} (it is a council workflow marker with no
+     * effect on solver input or explanations), while a PATCH that combines it with another field
+     * bumps as usual.
+     */
+    @Test
+    void reviewedDonePatchRoundTripsAndSkipsRevisionBumpWhenItIsTheOnlyChange() throws Exception {
+        String planId = createPlan();
+        String personId = createPerson();
+        String createBody = objectMapper.writeValueAsString(new ParticipantProfileController.CreateParticipantProfileRequest(
+                personId, 550.0, "seriespel", null, null, null, null, null, "kommentar", null, null, null, false));
+        String response = mockMvc.perform(post("/api/plans/" + planId + "/participants")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.reviewedDone").value(false))
+                .andReturn().getResponse().getContentAsString();
+        String id = objectMapper.readTree(response).get("id").asText();
+
+        int revisionBeforeDoneOnlyPatch = activityPlanRepository.getPlanRevision(planId);
+        mockMvc.perform(patch("/api/participants/" + id)
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reviewedDone\": true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewedDone").value(true));
+        assertThat(activityPlanRepository.getPlanRevision(planId)).isEqualTo(revisionBeforeDoneOnlyPatch);
+
+        mockMvc.perform(patch("/api/participants/" + id)
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reviewedDone\": false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewedDone").value(false));
+        assertThat(activityPlanRepository.getPlanRevision(planId)).isEqualTo(revisionBeforeDoneOnlyPatch);
+
+        mockMvc.perform(patch("/api/participants/" + id)
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reviewedDone\": null}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").exists());
+
+        int revisionBeforeCombinedPatch = activityPlanRepository.getPlanRevision(planId);
+        mockMvc.perform(patch("/api/participants/" + id)
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reviewedDone\": true, \"internalNote\": \"granskad\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewedDone").value(true))
+                .andExpect(jsonPath("$.internalNote").value("granskad"));
+        assertThat(activityPlanRepository.getPlanRevision(planId)).isEqualTo(revisionBeforeCombinedPatch + 1);
+    }
+
+    /**
      * M4 review finding: silently ignoring unknown PATCH keys is a privacy foot-gun — a typo like
      * {@code "imortedComment": null} would return 200 while clearing nothing (the §21.2 comment the
      * user believed they deleted is still in the database). Unknown keys must be a 400.
@@ -208,7 +266,7 @@ class ParticipantProfileControllerTest {
         String planId = createPlan();
         String personId = createPerson();
         String createBody = objectMapper.writeValueAsString(new ParticipantProfileController.CreateParticipantProfileRequest(
-                personId, null, null, null, null, null, null, null, "känslig kommentar", null, null, null));
+                personId, null, null, null, null, null, null, null, "känslig kommentar", null, null, null, false));
         String response = mockMvc.perform(post("/api/plans/" + planId + "/participants")
                         .header("X-GP-Token", VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -247,7 +305,7 @@ class ParticipantProfileControllerTest {
         String planId = createPlan();
         String personId = createPerson();
         String createBody = objectMapper.writeValueAsString(new ParticipantProfileController.CreateParticipantProfileRequest(
-                personId, null, null, null, null, null, null, null, "original kommentar", null, null, null));
+                personId, null, null, null, null, null, null, null, "original kommentar", null, null, null, false));
         String response = mockMvc.perform(post("/api/plans/" + planId + "/participants")
                         .header("X-GP-Token", VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -288,7 +346,7 @@ class ParticipantProfileControllerTest {
         String planId = createPlan();
         String personId = createPerson();
         String createBody = objectMapper.writeValueAsString(new ParticipantProfileController.CreateParticipantProfileRequest(
-                personId, 720.0, "seriespel", null, null, null, null, null, null, null, null, null));
+                personId, 720.0, "seriespel", null, null, null, null, null, null, null, null, null, false));
         String response = mockMvc.perform(post("/api/plans/" + planId + "/participants")
                         .header("X-GP-Token", VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -313,7 +371,7 @@ class ParticipantProfileControllerTest {
         String planId = createPlan();
         String personId = createPerson();
         String createBody = objectMapper.writeValueAsString(new ParticipantProfileController.CreateParticipantProfileRequest(
-                personId, null, null, null, null, null, null, null, null, null, null, null));
+                personId, null, null, null, null, null, null, null, null, null, null, null, false));
 
         mockMvc.perform(post("/api/plans/" + planId + "/participants")
                         .header("X-GP-Token", VALID_TOKEN)
@@ -335,7 +393,7 @@ class ParticipantProfileControllerTest {
     void createUnderUnknownPlanReturns404() throws Exception {
         String personId = createPerson();
         String createBody = objectMapper.writeValueAsString(new ParticipantProfileController.CreateParticipantProfileRequest(
-                personId, null, null, null, null, null, null, null, null, null, null, null));
+                personId, null, null, null, null, null, null, null, null, null, null, null, false));
 
         mockMvc.perform(post("/api/plans/does-not-exist/participants")
                         .header("X-GP-Token", VALID_TOKEN)
@@ -349,7 +407,7 @@ class ParticipantProfileControllerTest {
     void createWithUnknownPersonReturns400() throws Exception {
         String planId = createPlan();
         String createBody = objectMapper.writeValueAsString(new ParticipantProfileController.CreateParticipantProfileRequest(
-                "does-not-exist", null, null, null, null, null, null, null, null, null, null, null));
+                "does-not-exist", null, null, null, null, null, null, null, null, null, null, null, false));
 
         mockMvc.perform(post("/api/plans/" + planId + "/participants")
                         .header("X-GP-Token", VALID_TOKEN)

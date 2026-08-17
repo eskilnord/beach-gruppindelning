@@ -130,7 +130,7 @@ class ConflictServiceTest {
         String kallePersonId = participantProfileRepository.findByActivityPlanId(herrPlanId).get(0).personId();
         ParticipantProfile kalleInDam = participantProfileRepository.insert(new ParticipantProfile(
                 Uuid7.generate(), kallePersonId, damPlanId, null, null, null, null, 500.0, 1.0, null, null, null,
-                false, false));
+                false, false, false));
         playerAssignmentRepository.lockToGroup(kalleInDam.id(), firstGroupId(damPlanId));
 
         List<SeasonConflict> conflicts = conflictService.findConflicts(seasonId);
@@ -173,7 +173,7 @@ class ConflictServiceTest {
 
         ParticipantProfile annaInDam = participantProfileRepository.insert(new ParticipantProfile(
                 Uuid7.generate(), annaInHerr.personId(), damPlanId, null, null, null, null, 500.0, 1.0, null, null,
-                null, false, false));
+                null, false, false, false));
         playerAssignmentRepository.lockToGroup(annaInDam.id(), firstGroupId(damPlanId));
 
         List<SeasonConflict> conflicts = conflictService.findConflicts(seasonId);
@@ -220,7 +220,7 @@ class ConflictServiceTest {
         String kallePersonId = participantProfileRepository.findByActivityPlanId(herrPlanId).get(0).personId();
         ParticipantProfile kalleElsewhere = participantProfileRepository.insert(new ParticipantProfile(
                 Uuid7.generate(), kallePersonId, otherSeasonPlanId, null, null, null, null, 500.0, 1.0, null, null,
-                null, false, false));
+                null, false, false, false));
         playerAssignmentRepository.lockToGroup(kalleElsewhere.id(), firstGroupId(otherSeasonPlanId));
 
         // Season A alone: only herrPlanId is in scope, so the "double booking" in season B is invisible.

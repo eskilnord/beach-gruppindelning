@@ -129,7 +129,7 @@ class ParticipantAssignmentRowRegressionTest {
                 java.time.Instant.now(), java.time.Instant.now()));
         ParticipantProfile rowless = participantProfileRepository.insert(new ParticipantProfile(
                 Uuid7.generate(), person.id(), planId, 500.0, "seriespel", null, null, 500.0, 1.0, null, null, null,
-                false, false));
+                false, false, false));
         assertThat(playerAssignmentRepository.findByParticipantProfileId(rowless.id())).isEmpty();
 
         // Synchronous GREEDY solve (places everyone, writes back through the SAME persistResult a

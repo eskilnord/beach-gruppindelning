@@ -154,7 +154,7 @@ class SavedPlanUsageAssemblyTest {
         String sharedPersonId = participantProfileRepository.findByActivityPlanId(fromPlanId).get(0).personId();
         participantProfileRepository.insert(new ParticipantProfile(
                 se.klubb.groupplanner.util.Uuid7.generate(), sharedPersonId, toPlanId,
-                null, null, null, null, 500.0, 1.0, null, null, null, false, false));
+                null, null, null, null, 500.0, 1.0, null, null, null, false, false, false));
     }
 
     @Test

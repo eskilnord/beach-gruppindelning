@@ -165,7 +165,7 @@ class SavedPlanCrossPlanBlockingE2ETest {
         // --- Anna also plays in the Dam plan (spec §13.2's exact shared-person shape) ---
         ParticipantProfile annaAsPlayer = participantProfileRepository.insert(new ParticipantProfile(
                 Uuid7.generate(), anna.personId(), damPlanId, 500.0, "seriespel", null, null, null, null, null,
-                null, null, false, false));
+                null, null, false, false, false));
         playerAssignmentRepository.insertImportedIfAbsent(annaAsPlayer.id());
 
         // --- Dam solve WITH coach blocking - the real async solve endpoint ---

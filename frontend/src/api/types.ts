@@ -52,7 +52,7 @@ export type Person = WithRequired<
 >;
 export type ParticipantProfile = WithRequired<
   components["schemas"]["ParticipantProfile"],
-  "id" | "personId" | "activityPlanId" | "manualReviewFlag" | "waitlisted"
+  "id" | "personId" | "activityPlanId" | "manualReviewFlag" | "waitlisted" | "reviewedDone"
 >;
 export type FieldDefinition = WithRequired<
   components["schemas"]["FieldDefinition"],
@@ -106,7 +106,7 @@ export interface SlotBlocksView {
 
 export type CoachProfile = WithRequired<
   components["schemas"]["CoachProfile"],
-  "id" | "personId" | "activityPlanId" | "canAlsoTrainAsParticipant"
+  "id" | "personId" | "activityPlanId" | "canAlsoTrainAsParticipant" | "reviewedDone"
 >;
 export type CreateCoachRequest = components["schemas"]["CreateCoachRequest"];
 

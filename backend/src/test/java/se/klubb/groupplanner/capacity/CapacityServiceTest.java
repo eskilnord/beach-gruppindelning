@@ -91,7 +91,7 @@ class CapacityServiceTest {
                     Uuid7.generate(), "Spelare", "Nr" + i, null, null, null, null, true, false, null, now, now));
             participantProfileRepository.insert(new ParticipantProfile(
                     Uuid7.generate(), person.id(), planId, 500.0, "test", null, null, null, null, null,
-                    null, null, false, false));
+                    null, null, false, false, false));
         }
     }
 
@@ -120,7 +120,7 @@ class CapacityServiceTest {
                 Uuid7.generate(), "Coach", Uuid7.generate().substring(0, 8), null, null, null, null, false, true, null, now, now));
         return coachProfileRepository.insert(new CoachProfile(
                 Uuid7.generate(), person.id(), planId, null, null, null,
-                maxGroupsPerDay, maxGroupsPerWeek, false, null));
+                maxGroupsPerDay, maxGroupsPerWeek, false, null, false));
     }
 
     private void markSlot(CoachProfile coach, TimeSlot slot, String kind) {
@@ -164,7 +164,7 @@ class CapacityServiceTest {
                 Uuid7.generate(), "Kö", "Person", null, null, null, null, true, false, null, now, now));
         participantProfileRepository.insert(new ParticipantProfile(
                 Uuid7.generate(), waitlistedPerson.id(), planId, null, null, null, null, null, null, null,
-                null, null, false, true));
+                null, null, false, true, false));
 
         CapacityResponse response = capacityService.compute(planId);
 

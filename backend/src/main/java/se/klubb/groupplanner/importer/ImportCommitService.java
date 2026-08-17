@@ -279,7 +279,7 @@ public class ImportCommitService {
                     manualLevelScore != null ? manualLevelScore : e.manualLevelScore(),
                     ExtractedRow.isNonBlank(row.comment()) ? row.comment() : e.importedComment(),
                     ExtractedRow.isNonBlank(row.internalNote()) ? row.internalNote() : e.internalNote(),
-                    e.manualReviewFlag(), e.waitlisted());
+                    e.manualReviewFlag(), e.waitlisted(), e.reviewedDone());
             return participantProfileRepository.update(updated);
         }
 
@@ -288,7 +288,7 @@ public class ImportCommitService {
                 rankingPoints, rankingPoints != null ? "imported" : null,
                 row.previousGroupName(), previousGroupLevel,
                 null, null, manualLevelScore,
-                row.comment(), row.internalNote(), false, false);
+                row.comment(), row.internalNote(), false, false, false);
         return participantProfileRepository.insert(created);
     }
 
@@ -297,7 +297,7 @@ public class ImportCommitService {
             return;
         }
         coachProfileRepository.insert(new CoachProfile(
-                Uuid7.generate(), personId, activityPlanId, null, null, null, null, null, false, null));
+                Uuid7.generate(), personId, activityPlanId, null, null, null, null, null, false, null, false));
     }
 
     private FieldDefinition ensureCoachWishField() {

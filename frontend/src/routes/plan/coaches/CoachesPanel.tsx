@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Alert, Badge, Button, Card, Group, Loader, Table, Text, Title } from "@mantine/core";
-import { IconUserStar } from "@tabler/icons-react";
+import { Alert, Badge, Button, Card, Group, Loader, Table, Text, Title, Tooltip } from "@mantine/core";
+import { IconCircleCheck, IconUserStar } from "@tabler/icons-react";
 import { useCoachAvailabilitySummaries, useCoaches } from "../../../api/coaches";
 import { usePersons } from "../../../api/persons";
 import { useParticipants } from "../../../api/participants";
@@ -86,7 +86,7 @@ export function CoachesPanel() {
       {isEmpty && <EmptyState icon={<IconUserStar size={22} stroke={1.75} />} message={sv.coaches.empty} />}
 
       {!isEmpty && (
-        <Table.ScrollContainer minWidth={860}>
+        <Table.ScrollContainer minWidth={920}>
           <Table verticalSpacing="xs" withTableBorder highlightOnHover striped>
             <Table.Thead>
               <Table.Tr>
@@ -97,6 +97,7 @@ export function CoachesPanel() {
                 <Table.Th>{sv.coaches.columns.maxGroupsPerWeek}</Table.Th>
                 <Table.Th>{sv.coaches.columns.alsoParticipant}</Table.Th>
                 <Table.Th>{sv.coaches.columns.availability}</Table.Th>
+                <Table.Th>{sv.coaches.columns.done}</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -120,6 +121,15 @@ export function CoachesPanel() {
                       <Text size="xs" c="dimmed">
                         {sv.coaches.availabilitySummary(summary.available, summary.preferred, summary.unavailable)}
                       </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      {row.reviewedDone && (
+                        <Tooltip label={sv.coaches.doneTooltip}>
+                          <span role="img" aria-label={sv.coaches.doneTooltip}>
+                            <IconCircleCheck size={18} color="var(--mantine-color-green-6)" />
+                          </span>
+                        </Tooltip>
+                      )}
                     </Table.Td>
                   </Table.Tr>
                 );

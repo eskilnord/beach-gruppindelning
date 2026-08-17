@@ -60,7 +60,25 @@ class FlywayMigrationTest {
         assertThat(descriptions).containsExactly(
                 "core", "seed constraints and standard fields", "import", "resources", "solver runs",
                 "soft constraints locks saved plan", "explainability", "activity plan level min default",
-                "explanation record indirect factors", "coach unknown time constraint");
+                "explanation record indirect factors", "coach unknown time constraint", "reviewed done");
+    }
+
+    /**
+     * WP3 ("Spara och markera som färdig"): reviewed_done is a pure workflow flag with no
+     * field_definition row (deliberately absent from Fältbyggaren/import/export) — this test is its
+     * only schema-level guardrail, checking the column exists on both tables V11 adds it to.
+     */
+    @Test
+    void reviewedDoneColumnExistsOnParticipantAndCoachProfile() {
+        List<String> participantProfileColumns = jdbcClient.sql("SELECT name FROM pragma_table_info('participant_profile')")
+                .query((rs, rowNum) -> rs.getString("name"))
+                .list();
+        assertThat(participantProfileColumns).contains("reviewed_done");
+
+        List<String> coachProfileColumns = jdbcClient.sql("SELECT name FROM pragma_table_info('coach_profile')")
+                .query((rs, rowNum) -> rs.getString("name"))
+                .list();
+        assertThat(coachProfileColumns).contains("reviewed_done");
     }
 
     @Test

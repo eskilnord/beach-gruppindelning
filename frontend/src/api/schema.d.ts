@@ -1447,6 +1447,7 @@ export interface components {
             internalNote?: string;
             manualReviewFlag?: boolean;
             waitlisted?: boolean;
+            reviewedDone?: boolean;
         };
         ParticipantProfile: {
             id?: string;
@@ -1468,6 +1469,7 @@ export interface components {
             internalNote?: string;
             manualReviewFlag?: boolean;
             waitlisted?: boolean;
+            reviewedDone?: boolean;
         };
         RecomputeLevelsResult: {
             /** Format: int32 */
@@ -1557,6 +1559,7 @@ export interface components {
             maxGroupsPerWeek?: number;
             canAlsoTrainAsParticipant?: boolean;
             notes?: string;
+            reviewedDone?: boolean;
         };
         CoachProfile: {
             id?: string;
@@ -1574,6 +1577,7 @@ export interface components {
             maxGroupsPerWeek?: number;
             canAlsoTrainAsParticipant?: boolean;
             notes?: string;
+            reviewedDone?: boolean;
         };
         ApplyMoveRequest: {
             groupId?: string;

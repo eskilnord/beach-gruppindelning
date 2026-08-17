@@ -90,7 +90,7 @@ class GroupSyncStatusIntegrationTest {
             Person person = personRepository.insert(new Person(
                     Uuid7.generate(), "P" + i, "Testsson", null, null, null, null, true, false, null, now, now));
             participantProfileRepository.insert(new ParticipantProfile(
-                    Uuid7.generate(), person.id(), planId, null, null, null, null, startLevel + i, 1.0, null, null, null, false, false));
+                    Uuid7.generate(), person.id(), planId, null, null, null, null, startLevel + i, 1.0, null, null, null, false, false, false));
         }
     }
 

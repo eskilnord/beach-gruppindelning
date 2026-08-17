@@ -86,7 +86,7 @@ class ParticipantFieldValueControllerTest {
         Person person = personRepository.insert(new Person(
                 Uuid7.generate(), firstName, "Testsson", null, null, null, null, true, false, null, now, now));
         ParticipantProfile profile = participantProfileRepository.insert(new ParticipantProfile(
-                Uuid7.generate(), person.id(), planId, null, null, null, null, null, null, null, null, null, false, false));
+                Uuid7.generate(), person.id(), planId, null, null, null, null, null, null, null, null, null, false, false, false));
         return profile.id();
     }
 

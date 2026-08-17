@@ -49,10 +49,12 @@ public class CoachProfileRepository {
         jdbcClient.sql("""
                         INSERT INTO coach_profile
                             (id, person_id, activity_plan_id, coach_level, can_coach_min_level, can_coach_max_level,
-                             max_groups_per_day, max_groups_per_week, can_also_train_as_participant, notes)
+                             max_groups_per_day, max_groups_per_week, can_also_train_as_participant, notes,
+                             reviewed_done)
                         VALUES
                             (:id, :personId, :activityPlanId, :coachLevel, :canCoachMinLevel, :canCoachMaxLevel,
-                             :maxGroupsPerDay, :maxGroupsPerWeek, :canAlsoTrainAsParticipant, :notes)
+                             :maxGroupsPerDay, :maxGroupsPerWeek, :canAlsoTrainAsParticipant, :notes,
+                             :reviewedDone)
                         """)
                 .param("id", profile.id())
                 .param("personId", profile.personId())
@@ -64,6 +66,7 @@ public class CoachProfileRepository {
                 .param("maxGroupsPerWeek", profile.maxGroupsPerWeek())
                 .param("canAlsoTrainAsParticipant", profile.canAlsoTrainAsParticipant() ? 1 : 0)
                 .param("notes", profile.notes())
+                .param("reviewedDone", profile.reviewedDone() ? 1 : 0)
                 .update();
         return profile;
     }
@@ -74,7 +77,8 @@ public class CoachProfileRepository {
                         SET coach_level = :coachLevel, can_coach_min_level = :canCoachMinLevel,
                             can_coach_max_level = :canCoachMaxLevel, max_groups_per_day = :maxGroupsPerDay,
                             max_groups_per_week = :maxGroupsPerWeek,
-                            can_also_train_as_participant = :canAlsoTrainAsParticipant, notes = :notes
+                            can_also_train_as_participant = :canAlsoTrainAsParticipant, notes = :notes,
+                            reviewed_done = :reviewedDone
                         WHERE id = :id
                         """)
                 .param("id", profile.id())
@@ -85,6 +89,7 @@ public class CoachProfileRepository {
                 .param("maxGroupsPerWeek", profile.maxGroupsPerWeek())
                 .param("canAlsoTrainAsParticipant", profile.canAlsoTrainAsParticipant() ? 1 : 0)
                 .param("notes", profile.notes())
+                .param("reviewedDone", profile.reviewedDone() ? 1 : 0)
                 .update();
         return profile;
     }
@@ -105,6 +110,7 @@ public class CoachProfileRepository {
                 NullableColumns.nullableInt(rs, "max_groups_per_day"),
                 NullableColumns.nullableInt(rs, "max_groups_per_week"),
                 rs.getInt("can_also_train_as_participant") != 0,
-                rs.getString("notes"));
+                rs.getString("notes"),
+                rs.getInt("reviewed_done") != 0);
     }
 }

@@ -22,5 +22,6 @@ public record ParticipantProfile(
         String importedComment,
         String internalNote,
         boolean manualReviewFlag,
-        boolean waitlisted) {
+        boolean waitlisted,
+        boolean reviewedDone) {
 }

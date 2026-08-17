@@ -140,7 +140,7 @@ public final class ExplanationTestFixture {
                 Uuid7.generate(), firstName, lastName, null, null, null, null, true, false, null, now, now));
         ParticipantProfile profile = participantProfileRepository.insert(new ParticipantProfile(
                 Uuid7.generate(), person.id(), planId, null, null, null, null, estimatedLevel, estimatedLevel != null ? 1.0 : null,
-                null, null, null, false, false));
+                null, null, null, false, false, false));
         playerAssignmentRepository.insertImportedIfAbsent(profile.id());
         if (priority != null) {
             String priorityFieldId = requireGlobalField("priority").id();
@@ -172,7 +172,7 @@ public final class ExplanationTestFixture {
         Person person = personRepository.insert(new Person(
                 Uuid7.generate(), firstName, lastName, null, null, null, null, true, false, null, now, now));
         CoachProfile profile = coachProfileRepository.insert(new CoachProfile(
-                Uuid7.generate(), person.id(), planId, null, null, null, null, null, false, null));
+                Uuid7.generate(), person.id(), planId, null, null, null, null, null, false, null, false));
         return profile.id();
     }
 

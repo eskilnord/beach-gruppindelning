@@ -17,6 +17,7 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
+import { IconCircleCheck } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { useFieldDefinitions } from "../../../api/fieldDefinitions";
 import { useParticipantFieldValues, useUpdateParticipantFieldValues } from "../../../api/fieldValues";
@@ -48,7 +49,27 @@ interface ParticipantDrawerProps {
  */
 export function ParticipantDrawer({ planId, participant, allParticipants, onClose }: ParticipantDrawerProps) {
   return (
-    <Drawer opened={participant !== null} onClose={onClose} position="right" size="xl" title={participant?.name ?? ""}>
+    <Drawer
+      opened={participant !== null}
+      onClose={onClose}
+      position="right"
+      size="xl"
+      title={
+        <Group gap="xs">
+          {/* Drawer.Title already renders an h2 internally - a nested <Title> here would be a
+              second heading for the same text. Text fw={600} at the h4 font size keeps the
+              pre-WP3 visual weight without the extra heading. */}
+          <Text fw={600} style={{ fontSize: "var(--mantine-h4-font-size)" }}>
+            {participant?.name ?? ""}
+          </Text>
+          {participant?.reviewedDone && (
+            <Badge color="green" variant="light" leftSection={<IconCircleCheck size={14} color="var(--mantine-color-green-6)" />}>
+              {sv.participants.drawer.doneIndicator}
+            </Badge>
+          )}
+        </Group>
+      }
+    >
       {participant && (
         <ParticipantDrawerBody
           key={participant.id}
@@ -141,7 +162,16 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
   const hasComment = Boolean(participant.importedComment && participant.importedComment.trim().length > 0);
   const hasInternalNoteOriginally = Boolean(participant.internalNote && participant.internalNote.trim().length > 0);
 
-  const handleSave = async () => {
+  /**
+   * WP3 ("Spara och markera som färdig"): `doneOverride` is applied AFTER the normal save chain
+   * (structured-field PATCH, then custom-field PUT) succeeds in full, as its OWN trailing PATCH
+   * containing only `{ reviewedDone }` - never folded into the first PATCH. This way a mid-chain
+   * failure (e.g. the field-values PUT rejecting a value) never leaves the row falsely
+   * "Klarmarkerad": the flag only flips once everything else the button also saved is confirmed
+   * persisted. That trailing PATCH is itself revision-bump-exempt (see ParticipantProfileController).
+   * Plain "Spara" (no override) never touches the flag - sticky done.
+   */
+  const handleSave = async (doneOverride?: boolean) => {
     setSaving(true);
     try {
       if (Object.keys(structuredChanges).length > 0) {
@@ -149,6 +179,9 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
       }
       if (Object.keys(customChanges).length > 0) {
         await updateFieldValues.mutateAsync(customChanges);
+      }
+      if (doneOverride !== undefined && doneOverride !== participant.reviewedDone) {
+        await updateParticipant.mutateAsync({ id: participant.id, body: { reviewedDone: doneOverride } });
       }
       setOriginalStructured(structuredDraft);
       setOriginalCustom(customDraft);
@@ -303,9 +336,18 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
         <Button variant="default" onClick={onClose}>
           {sv.participants.drawer.closeButton}
         </Button>
-        <Button onClick={handleSave} disabled={!isDirty} loading={saving}>
+        <Button onClick={() => handleSave()} disabled={!isDirty} loading={saving}>
           {sv.participants.drawer.saveButton}
         </Button>
+        {participant.reviewedDone ? (
+          <Button variant="subtle" onClick={() => handleSave(false)} loading={saving}>
+            {sv.participants.drawer.unmarkDoneButton}
+          </Button>
+        ) : (
+          <Button color="green" onClick={() => handleSave(true)} loading={saving}>
+            {sv.participants.drawer.saveAndMarkDoneButton}
+          </Button>
+        )}
       </Group>
 
       <DeleteConfirmModal

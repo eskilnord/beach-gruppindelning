@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Alert,
+  Badge,
   Button,
   Divider,
   Drawer,
@@ -15,6 +16,7 @@ import {
   Textarea,
   Title,
 } from "@mantine/core";
+import { IconCircleCheck } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { useFieldDefinitions } from "../../../api/fieldDefinitions";
 import { useCoachFieldValues, useUpdateCoachFieldValues } from "../../../api/coachFieldValues";
@@ -46,7 +48,27 @@ interface CoachDrawerProps {
  */
 export function CoachDrawer({ planId, coach, allParticipants, allCoaches, onClose }: CoachDrawerProps) {
   return (
-    <Drawer opened={coach !== null} onClose={onClose} position="right" size="xl" title={coach?.name ?? ""}>
+    <Drawer
+      opened={coach !== null}
+      onClose={onClose}
+      position="right"
+      size="xl"
+      title={
+        <Group gap="xs">
+          {/* Drawer.Title already renders an h2 internally - a nested <Title> here would be a
+              second heading for the same text. Text fw={600} at the h4 font size keeps the
+              pre-WP3 visual weight without the extra heading. */}
+          <Text fw={600} style={{ fontSize: "var(--mantine-h4-font-size)" }}>
+            {coach?.name ?? ""}
+          </Text>
+          {coach?.reviewedDone && (
+            <Badge color="green" variant="light" leftSection={<IconCircleCheck size={14} color="var(--mantine-color-green-6)" />}>
+              {sv.coaches.drawer.doneIndicator}
+            </Badge>
+          )}
+        </Group>
+      }
+    >
       {coach && (
         <CoachDrawerBody
           key={coach.id}
@@ -148,7 +170,16 @@ function CoachDrawerBody({ planId, coach, allParticipants, allCoaches, onClose }
   const isDirty = Object.keys(profileChanges).length > 0 || Object.keys(customChanges).length > 0 || availabilityChanged;
   const availabilityLoadFailed = timeSlots.isError || availability.isError;
 
-  const handleSave = async () => {
+  /**
+   * WP3 ("Spara och markera som färdig"): `doneOverride` is applied AFTER the normal save chain
+   * (profile PATCH -> availability PUT -> custom-field PUT) succeeds in full, as its OWN trailing
+   * PATCH containing only `{ reviewedDone }` - never folded into the first profile PATCH. This way
+   * a mid-chain failure (e.g. the availability PUT or field-values PUT rejecting a value) never
+   * leaves the row falsely "Klarmarkerad": the flag only flips once everything else the button also
+   * saved is confirmed persisted. That trailing PATCH is itself revision-bump-exempt (see
+   * CoachController). Plain "Spara" (no override) never touches the flag - sticky done.
+   */
+  const handleSave = async (doneOverride?: boolean) => {
     setSaving(true);
     try {
       if (Object.keys(profileChanges).length > 0) {
@@ -160,6 +191,9 @@ function CoachDrawerBody({ planId, coach, allParticipants, allCoaches, onClose }
       }
       if (Object.keys(customChanges).length > 0) {
         await updateFieldValues.mutateAsync(customChanges);
+      }
+      if (doneOverride !== undefined && doneOverride !== coach.reviewedDone) {
+        await updateCoach.mutateAsync({ id: coach.id, body: { reviewedDone: doneOverride } });
       }
       setOriginalProfile(profileDraft);
       setOriginalCustom(customDraft);
@@ -330,9 +364,18 @@ function CoachDrawerBody({ planId, coach, allParticipants, allCoaches, onClose }
           <Button variant="default" onClick={onClose}>
             {sv.coaches.drawer.closeButton}
           </Button>
-          <Button onClick={handleSave} disabled={!isDirty || availabilityLoadFailed} loading={saving}>
+          <Button onClick={() => handleSave()} disabled={!isDirty || availabilityLoadFailed} loading={saving}>
             {sv.coaches.drawer.saveButton}
           </Button>
+          {coach.reviewedDone ? (
+            <Button variant="subtle" onClick={() => handleSave(false)} disabled={availabilityLoadFailed} loading={saving}>
+              {sv.coaches.drawer.unmarkDoneButton}
+            </Button>
+          ) : (
+            <Button color="green" onClick={() => handleSave(true)} disabled={availabilityLoadFailed} loading={saving}>
+              {sv.coaches.drawer.saveAndMarkDoneButton}
+            </Button>
+          )}
         </Group>
       </Group>
 

@@ -75,7 +75,7 @@ class CommentPrivacyControllerTest {
         Person person = personRepository.insert(new Person(
                 Uuid7.generate(), "Kalle", "Karlsson", null, null, null, null, true, false, null, now, now));
         ParticipantProfile profile = participantProfileRepository.insert(new ParticipantProfile(
-                Uuid7.generate(), person.id(), planId, null, null, null, null, null, null, null, comment, note, false, false));
+                Uuid7.generate(), person.id(), planId, null, null, null, null, null, null, null, comment, note, false, false, false));
         return profile.id();
     }
 

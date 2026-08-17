@@ -54,11 +54,13 @@ public class ParticipantProfileRepository {
                         INSERT INTO participant_profile
                             (id, person_id, activity_plan_id, ranking_points, ranking_source,
                              previous_group_name, previous_group_level, estimated_level, level_confidence,
-                             manual_level_score, imported_comment, internal_note, manual_review_flag, waitlisted)
+                             manual_level_score, imported_comment, internal_note, manual_review_flag, waitlisted,
+                             reviewed_done)
                         VALUES
                             (:id, :personId, :activityPlanId, :rankingPoints, :rankingSource,
                              :previousGroupName, :previousGroupLevel, :estimatedLevel, :levelConfidence,
-                             :manualLevelScore, :importedComment, :internalNote, :manualReviewFlag, :waitlisted)
+                             :manualLevelScore, :importedComment, :internalNote, :manualReviewFlag, :waitlisted,
+                             :reviewedDone)
                         """)
                 .param("id", profile.id())
                 .param("personId", profile.personId())
@@ -74,6 +76,7 @@ public class ParticipantProfileRepository {
                 .param("internalNote", profile.internalNote())
                 .param("manualReviewFlag", profile.manualReviewFlag() ? 1 : 0)
                 .param("waitlisted", profile.waitlisted() ? 1 : 0)
+                .param("reviewedDone", profile.reviewedDone() ? 1 : 0)
                 .update();
         return profile;
     }
@@ -86,7 +89,7 @@ public class ParticipantProfileRepository {
                             estimated_level = :estimatedLevel, level_confidence = :levelConfidence,
                             manual_level_score = :manualLevelScore, imported_comment = :importedComment,
                             internal_note = :internalNote, manual_review_flag = :manualReviewFlag,
-                            waitlisted = :waitlisted
+                            waitlisted = :waitlisted, reviewed_done = :reviewedDone
                         WHERE id = :id
                         """)
                 .param("id", profile.id())
@@ -101,6 +104,7 @@ public class ParticipantProfileRepository {
                 .param("internalNote", profile.internalNote())
                 .param("manualReviewFlag", profile.manualReviewFlag() ? 1 : 0)
                 .param("waitlisted", profile.waitlisted() ? 1 : 0)
+                .param("reviewedDone", profile.reviewedDone() ? 1 : 0)
                 .update();
         return profile;
     }
@@ -175,6 +179,7 @@ public class ParticipantProfileRepository {
                 rs.getString("imported_comment"),
                 rs.getString("internal_note"),
                 rs.getInt("manual_review_flag") != 0,
-                rs.getInt("waitlisted") != 0);
+                rs.getInt("waitlisted") != 0,
+                rs.getInt("reviewed_done") != 0);
     }
 }

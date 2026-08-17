@@ -100,7 +100,7 @@ class SavedPlanSnapshotLeakTest {
                 someParticipant.rankingPoints(), someParticipant.rankingSource(), someParticipant.previousGroupName(),
                 someParticipant.previousGroupLevel(), someParticipant.estimatedLevel(), someParticipant.levelConfidence(),
                 someParticipant.manualLevelScore(), SENSITIVE_IMPORTED_COMMENT, SENSITIVE_INTERNAL_NOTE,
-                someParticipant.manualReviewFlag(), someParticipant.waitlisted());
+                someParticipant.manualReviewFlag(), someParticipant.waitlisted(), someParticipant.reviewedDone());
         participantProfileRepository.update(withComments);
 
         savedPlanService.materialize(planId, "Torsdag Nybörjare", SavedPlan.STATUS_SAVED);

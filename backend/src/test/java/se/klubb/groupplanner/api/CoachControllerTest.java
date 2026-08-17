@@ -83,7 +83,7 @@ class CoachControllerTest {
     void createFromNewPersonSetsCanBeCoachOnPerson() throws Exception {
         String planId = createPlan();
         String body = objectMapper.writeValueAsString(new CoachController.CreateCoachRequest(
-                null, "Anna", "Andersson", "anna@example.se", null, 650.0, 300.0, 900.0, 2, 4, false, "kommentar"));
+                null, "Anna", "Andersson", "anna@example.se", null, 650.0, 300.0, 900.0, 2, 4, false, "kommentar", false));
 
         String response = mockMvc.perform(post("/api/plans/" + planId + "/coaches")
                         .header("X-GP-Token", VALID_TOKEN)
@@ -109,7 +109,7 @@ class CoachControllerTest {
         org.assertj.core.api.Assertions.assertThat(existing.canBeCoach()).isFalse();
 
         String body = objectMapper.writeValueAsString(new CoachController.CreateCoachRequest(
-                existing.id(), null, null, null, null, 500.0, null, null, null, null, true, null));
+                existing.id(), null, null, null, null, 500.0, null, null, null, null, true, null, false));
         mockMvc.perform(post("/api/plans/" + planId + "/coaches")
                         .header("X-GP-Token", VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -127,7 +127,7 @@ class CoachControllerTest {
     void levelOutOfRangeIsRejected() throws Exception {
         String planId = createPlan();
         String body = objectMapper.writeValueAsString(new CoachController.CreateCoachRequest(
-                null, "Anna", "Andersson", null, null, 1500.0, null, null, null, null, false, null));
+                null, "Anna", "Andersson", null, null, 1500.0, null, null, null, null, false, null, false));
 
         mockMvc.perform(post("/api/plans/" + planId + "/coaches")
                         .header("X-GP-Token", VALID_TOKEN)
@@ -141,7 +141,7 @@ class CoachControllerTest {
     void minLevelAboveMaxLevelIsRejected() throws Exception {
         String planId = createPlan();
         String body = objectMapper.writeValueAsString(new CoachController.CreateCoachRequest(
-                null, "Anna", "Andersson", null, null, null, 800.0, 400.0, null, null, false, null));
+                null, "Anna", "Andersson", null, null, null, 800.0, 400.0, null, null, false, null, false));
 
         mockMvc.perform(post("/api/plans/" + planId + "/coaches")
                         .header("X-GP-Token", VALID_TOKEN)
@@ -156,7 +156,7 @@ class CoachControllerTest {
     void maxGroupsPerDayGreaterThanPerWeekIsRejected() throws Exception {
         String planId = createPlan();
         String body = objectMapper.writeValueAsString(new CoachController.CreateCoachRequest(
-                null, "Anna", "Andersson", null, null, null, null, null, 3, 2, false, null));
+                null, "Anna", "Andersson", null, null, null, null, null, 3, 2, false, null, false));
 
         mockMvc.perform(post("/api/plans/" + planId + "/coaches")
                         .header("X-GP-Token", VALID_TOKEN)
@@ -169,7 +169,7 @@ class CoachControllerTest {
         // Same rule against the MERGED values on PATCH: create a valid coach (day 2 / week 4),
         // then patch only maxGroupsPerWeek below the existing maxGroupsPerDay.
         String validBody = objectMapper.writeValueAsString(new CoachController.CreateCoachRequest(
-                null, "Anna", "Andersson", null, null, null, null, null, 2, 4, false, null));
+                null, "Anna", "Andersson", null, null, null, null, null, 2, 4, false, null, false));
         String response = mockMvc.perform(post("/api/plans/" + planId + "/coaches")
                         .header("X-GP-Token", VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -189,7 +189,7 @@ class CoachControllerTest {
     void patchUpdatesFieldsAndSupportsExplicitNullClearing() throws Exception {
         String planId = createPlan();
         String createBody = objectMapper.writeValueAsString(new CoachController.CreateCoachRequest(
-                null, "Anna", "Andersson", null, null, 500.0, 300.0, 700.0, 2, 4, false, "kommentar"));
+                null, "Anna", "Andersson", null, null, 500.0, 300.0, 700.0, 2, 4, false, "kommentar", false));
         String response = mockMvc.perform(post("/api/plans/" + planId + "/coaches")
                         .header("X-GP-Token", VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -213,11 +213,69 @@ class CoachControllerTest {
                 .andExpect(status().isNotFound());
     }
 
+    /**
+     * WP3 ("Spara och markera som färdig"): {@code reviewedDone} round-trips true/false, rejects an
+     * explicit null (400), and a PATCH that only flips it must NOT bump {@code plan_revision} - it
+     * is a council workflow marker with no effect on solver input or explanations - while a PATCH
+     * that combines it with another field bumps as usual.
+     */
+    @Test
+    void reviewedDonePatchRoundTripsAndSkipsRevisionBumpWhenItIsTheOnlyChange() throws Exception {
+        String planId = createPlan();
+        String createBody = objectMapper.writeValueAsString(new CoachController.CreateCoachRequest(
+                null, "Anna", "Andersson", null, null, 500.0, 300.0, 700.0, 2, 4, false, "kommentar", false));
+        String response = mockMvc.perform(post("/api/plans/" + planId + "/coaches")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.reviewedDone").value(false))
+                .andReturn().getResponse().getContentAsString();
+        String id = objectMapper.readTree(response).get("id").asText();
+
+        int revisionBeforeDoneOnlyPatch = activityPlanRepository.getPlanRevision(planId);
+        mockMvc.perform(patch("/api/coaches/" + id)
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reviewedDone\": true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewedDone").value(true));
+        org.assertj.core.api.Assertions.assertThat(activityPlanRepository.getPlanRevision(planId))
+                .isEqualTo(revisionBeforeDoneOnlyPatch);
+
+        mockMvc.perform(patch("/api/coaches/" + id)
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reviewedDone\": false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewedDone").value(false));
+        org.assertj.core.api.Assertions.assertThat(activityPlanRepository.getPlanRevision(planId))
+                .isEqualTo(revisionBeforeDoneOnlyPatch);
+
+        mockMvc.perform(patch("/api/coaches/" + id)
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reviewedDone\": null}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").exists());
+
+        int revisionBeforeCombinedPatch = activityPlanRepository.getPlanRevision(planId);
+        mockMvc.perform(patch("/api/coaches/" + id)
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reviewedDone\": true, \"notes\": \"granskad\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewedDone").value(true))
+                .andExpect(jsonPath("$.notes").value("granskad"));
+        org.assertj.core.api.Assertions.assertThat(activityPlanRepository.getPlanRevision(planId))
+                .isEqualTo(revisionBeforeCombinedPatch + 1);
+    }
+
     @Test
     void duplicateCoachForSamePersonAndPlanReturns409() throws Exception {
         String planId = createPlan();
         String body = objectMapper.writeValueAsString(new CoachController.CreateCoachRequest(
-                null, "Anna", "Andersson", null, null, null, null, null, null, null, false, null));
+                null, "Anna", "Andersson", null, null, null, null, null, null, null, false, null, false));
         String response = mockMvc.perform(post("/api/plans/" + planId + "/coaches")
                         .header("X-GP-Token", VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -227,7 +285,7 @@ class CoachControllerTest {
         String personId = objectMapper.readTree(response).get("personId").asText();
 
         String secondBody = objectMapper.writeValueAsString(new CoachController.CreateCoachRequest(
-                personId, null, null, null, null, null, null, null, null, null, false, null));
+                personId, null, null, null, null, null, null, null, null, null, false, null, false));
         mockMvc.perform(post("/api/plans/" + planId + "/coaches")
                         .header("X-GP-Token", VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -243,7 +301,7 @@ class CoachControllerTest {
         String slotC = createSlot(planId, "19:30", "21:00");
 
         String coachBody = objectMapper.writeValueAsString(new CoachController.CreateCoachRequest(
-                null, "Anna", "Andersson", null, null, null, null, null, null, null, false, null));
+                null, "Anna", "Andersson", null, null, null, null, null, null, null, false, null, false));
         String coachResponse = mockMvc.perform(post("/api/plans/" + planId + "/coaches")
                         .header("X-GP-Token", VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -298,7 +356,7 @@ class CoachControllerTest {
         String otherSlot = createSlot(otherPlanId, "18:00", "19:30");
 
         String coachBody = objectMapper.writeValueAsString(new CoachController.CreateCoachRequest(
-                null, "Anna", "Andersson", null, null, null, null, null, null, null, false, null));
+                null, "Anna", "Andersson", null, null, null, null, null, null, null, false, null, false));
         String coachResponse = mockMvc.perform(post("/api/plans/" + planId + "/coaches")
                         .header("X-GP-Token", VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)

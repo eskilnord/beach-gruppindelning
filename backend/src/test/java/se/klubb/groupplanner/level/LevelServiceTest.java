@@ -16,7 +16,7 @@ class LevelServiceTest {
     private static ParticipantProfile profile(Double manualLevelScore, Double rankingPoints, Double previousGroupLevel) {
         return new ParticipantProfile(
                 "p1", "person1", "plan1", rankingPoints, null, null, previousGroupLevel,
-                null, null, manualLevelScore, null, null, false, false);
+                null, null, manualLevelScore, null, null, false, false, false);
     }
 
     @Test

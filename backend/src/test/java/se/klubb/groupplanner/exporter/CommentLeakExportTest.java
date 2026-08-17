@@ -142,7 +142,7 @@ class CommentLeakExportTest {
             participantProfileRepository.update(new ParticipantProfile(
                     p.id(), p.personId(), p.activityPlanId(), p.rankingPoints(), p.rankingSource(),
                     p.previousGroupName(), p.previousGroupLevel(), p.estimatedLevel(), p.levelConfidence(),
-                    p.manualLevelScore(), SENSITIVE_COMMENT, SENSITIVE_NOTE, p.manualReviewFlag(), p.waitlisted()));
+                    p.manualLevelScore(), SENSITIVE_COMMENT, SENSITIVE_NOTE, p.manualReviewFlag(), p.waitlisted(), p.reviewedDone()));
             // Finding 4a: every PERSON gets phone + a personnummer-LIKE external id + notes. The
             // external id is built at RUNTIME from concatenated pieces - a committed
             // "DDMMYY-NNNN" literal would trip scripts/check-no-confidential.sh's personnummer

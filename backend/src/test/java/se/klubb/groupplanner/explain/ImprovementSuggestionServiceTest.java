@@ -116,12 +116,12 @@ class ImprovementSuggestionServiceTest {
 
     private void setCoachBand(String coachProfileId, double min, double max) {
         CoachProfile p = coachProfileRepository.findById(coachProfileId).orElseThrow();
-        coachProfileRepository.update(new CoachProfile(p.id(), p.personId(), p.activityPlanId(), null, min, max, null, null, false, null));
+        coachProfileRepository.update(new CoachProfile(p.id(), p.personId(), p.activityPlanId(), null, min, max, null, null, false, null, false));
     }
 
     private void setCoachMaxGroupsPerWeek(String coachProfileId, int max) {
         CoachProfile p = coachProfileRepository.findById(coachProfileId).orElseThrow();
-        coachProfileRepository.update(new CoachProfile(p.id(), p.personId(), p.activityPlanId(), null, null, null, null, max, false, null));
+        coachProfileRepository.update(new CoachProfile(p.id(), p.personId(), p.activityPlanId(), null, null, null, null, max, false, null, false));
     }
 
     private void markUnavailable(String coachProfileId, String timeSlotId) {
@@ -309,7 +309,7 @@ class ImprovementSuggestionServiceTest {
         fx.place(lisaParticipant, groupB);
         String lisaPersonId = participantProfileRepository.findById(lisaParticipant).orElseThrow().personId();
         String lisaCoach = coachProfileRepository.insert(new CoachProfile(
-                Uuid7.generate(), lisaPersonId, fx.planId, null, 500.0, 700.0, null, null, true, null)).id();
+                Uuid7.generate(), lisaPersonId, fx.planId, null, 500.0, 700.0, null, null, true, null, false)).id();
         markUnavailable(lisaCoach, timeSlotIdOfBlock(blocks.get(0)));
 
         String runId = fx.insertFinishedRun();

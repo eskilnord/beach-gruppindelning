@@ -278,7 +278,7 @@ public class DemoDataService {
                     Uuid7.generate(), firstName, lastName, null, null, null, null, false, true, null, now, now));
             CoachProfile coach = coachProfileRepository.insert(new CoachProfile(
                     Uuid7.generate(), person.id(), planId, spec.level(), spec.minLevel(), spec.maxLevel(),
-                    spec.maxGroupsPerDay(), spec.maxGroupsPerWeek(), false, null));
+                    spec.maxGroupsPerDay(), spec.maxGroupsPerWeek(), false, null, false));
             insertAvailability(coach.id(), slot1.id(), spec.unavailableSlotId());
             insertAvailability(coach.id(), slot2.id(), spec.unavailableSlotId());
             ids.add(coach.id());
@@ -320,7 +320,7 @@ public class DemoDataService {
                     Uuid7.generate(), firstName, lastName, null, null, null, null, true, false, null, now, now));
             ParticipantProfile profile = participantProfileRepository.insert(new ParticipantProfile(
                     Uuid7.generate(), person.id(), planId, rankingPoints, "seriespel", null, null, null, null, null,
-                    comment, null, false, false));
+                    comment, null, false, false, false));
             playerAssignmentRepository.insertImportedIfAbsent(profile.id());
             ids.add(profile.id());
         }

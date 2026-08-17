@@ -100,7 +100,8 @@ public class CoachController {
                 request.maxGroupsPerDay(),
                 request.maxGroupsPerWeek(),
                 request.canAlsoTrainAsParticipant() != null && request.canAlsoTrainAsParticipant(),
-                request.notes());
+                request.notes(),
+                request.reviewedDone() != null && request.reviewedDone());
         CoachProfile created = coachProfileRepository.insert(profile);
         activityPlanRepository.bumpRevision(planId); // M7 review fix M2: coaches feed CoachSlot/coach-wish probes.
         return created;
@@ -131,7 +132,7 @@ public class CoachController {
 
     private static final Set<String> PATCHABLE_FIELDS = Set.of(
             "coachLevel", "canCoachMinLevel", "canCoachMaxLevel", "maxGroupsPerDay", "maxGroupsPerWeek",
-            "canAlsoTrainAsParticipant", "notes");
+            "canAlsoTrainAsParticipant", "notes", "reviewedDone");
 
     @PatchMapping("/api/coaches/{id}")
     public CoachProfile update(@PathVariable String id, @RequestBody(required = false) Map<String, JsonNode> body) {
@@ -162,9 +163,24 @@ public class CoachController {
                 maxGroupsPerDay,
                 maxGroupsPerWeek,
                 requiredBoolean(body, "canAlsoTrainAsParticipant", existing.canAlsoTrainAsParticipant()),
-                nullableString(body, "notes", existing.notes()));
+                nullableString(body, "notes", existing.notes()),
+                requiredBoolean(body, "reviewedDone", existing.reviewedDone()));
         CoachProfile saved = coachProfileRepository.update(updated);
-        activityPlanRepository.bumpRevision(existing.activityPlanId()); // M7 review fix M2.
+        // WP3: reviewedDone is a council workflow marker with no effect on solver input or
+        // explanations, so bumping on a PATCH that only flips it (or that changes nothing at all -
+        // a full no-op PATCH also lands here, a deliberate improvement) must not invalidate cached
+        // explanations. The bump is SKIPPED whenever the PATCH produces no effective change other
+        // than reviewedDone, and happens as usual whenever any other field changed too (record
+        // equals lets us detect that cleanly by comparing against "existing with only reviewedDone
+        // substituted").
+        CoachProfile existingWithNewReviewedDone = new CoachProfile(
+                existing.id(), existing.personId(), existing.activityPlanId(), existing.coachLevel(),
+                existing.canCoachMinLevel(), existing.canCoachMaxLevel(), existing.maxGroupsPerDay(),
+                existing.maxGroupsPerWeek(), existing.canAlsoTrainAsParticipant(), existing.notes(),
+                updated.reviewedDone());
+        if (!updated.equals(existingWithNewReviewedDone)) {
+            activityPlanRepository.bumpRevision(existing.activityPlanId()); // M7 review fix M2.
+        }
         return saved;
     }
 
@@ -339,7 +355,8 @@ public class CoachController {
             Integer maxGroupsPerDay,
             Integer maxGroupsPerWeek,
             Boolean canAlsoTrainAsParticipant,
-            String notes) {
+            String notes,
+            Boolean reviewedDone) {
     }
 
     public record AvailabilityEntry(String timeSlotId, String kind) {

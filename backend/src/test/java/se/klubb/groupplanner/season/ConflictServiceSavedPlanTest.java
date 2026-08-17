@@ -134,7 +134,7 @@ class ConflictServiceSavedPlanTest {
         String kallePersonId = participantProfileRepository.findByActivityPlanId(herrPlanId).get(0).personId();
         ParticipantProfile kalleInDam = participantProfileRepository.insert(new ParticipantProfile(
                 Uuid7.generate(), kallePersonId, damPlanId, null, null, null, null, 500.0, 1.0, null, null, null,
-                false, false));
+                false, false, false));
         playerAssignmentRepository.lockToGroup(kalleInDam.id(), firstGroupId(damPlanId));
 
         // Lock Herr while Kalle is still on group 0 (overlaps Dam's group 0 - same round-robin
@@ -176,7 +176,7 @@ class ConflictServiceSavedPlanTest {
         String kallePersonId = participantProfileRepository.findByActivityPlanId(herrPlanId).get(0).personId();
         ParticipantProfile kalleInDam = participantProfileRepository.insert(new ParticipantProfile(
                 Uuid7.generate(), kallePersonId, damPlanId, null, null, null, null, 500.0, 1.0, null, null, null,
-                false, false));
+                false, false, false));
         playerAssignmentRepository.lockToGroup(kalleInDam.id(), firstGroupId(damPlanId));
 
         // Herr is saved (not locked) - still not diverged from its snapshot.
@@ -203,7 +203,7 @@ class ConflictServiceSavedPlanTest {
         String kallePersonId = participantProfileRepository.findByActivityPlanId(herrPlanId).get(0).personId();
         ParticipantProfile kalleInDam = participantProfileRepository.insert(new ParticipantProfile(
                 Uuid7.generate(), kallePersonId, damPlanId, null, null, null, null, 500.0, 1.0, null, null, null,
-                false, false));
+                false, false, false));
         playerAssignmentRepository.lockToGroup(kalleInDam.id(), firstGroupId(damPlanId));
 
         // Archive Herr while Kalle is still overlapping - this snapshot's usage would report a
@@ -241,7 +241,7 @@ class ConflictServiceSavedPlanTest {
         String kallePersonId = participantProfileRepository.findByActivityPlanId(herrPlanId).get(0).personId();
         ParticipantProfile kalleInDam = participantProfileRepository.insert(new ParticipantProfile(
                 Uuid7.generate(), kallePersonId, damPlanId, null, null, null, null, 500.0, 1.0, null, null, null,
-                false, false));
+                false, false, false));
         playerAssignmentRepository.lockToGroup(kalleInDam.id(), firstGroupId(damPlanId));
 
         // v1: LOCKED while Kalle still overlaps Dam's group 0.

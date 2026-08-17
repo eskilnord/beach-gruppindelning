@@ -93,7 +93,7 @@ class CoachAvailabilityAssemblyTest {
         Person person = personRepository.insert(new Person(
                 Uuid7.generate(), "Anna", "Coachsson", null, null, null, null, false, true, null, now, now));
         CoachProfile coachProfile = coachProfileRepository.insert(
-                new CoachProfile(Uuid7.generate(), person.id(), planId, 60.0, 0.0, 100.0, null, null, false, null));
+                new CoachProfile(Uuid7.generate(), person.id(), planId, 60.0, 0.0, 100.0, null, null, false, null, false));
 
         coachTimeSlotRepository.insert(new CoachTimeSlot(Uuid7.generate(), coachProfile.id(), available.id(), CoachTimeSlot.AVAILABLE));
         coachTimeSlotRepository.insert(new CoachTimeSlot(Uuid7.generate(), coachProfile.id(), preferred.id(), CoachTimeSlot.PREFERRED));

@@ -131,7 +131,7 @@ class CapacityIntegrationTest {
             participantProfileRepository.insert(new ParticipantProfile(
                     Uuid7.generate(), person.id(), planId,
                     rankingPoints.isBlank() ? null : Double.parseDouble(rankingPoints), "seriespel",
-                    null, null, null, null, null, null, null, false, false));
+                    null, null, null, null, null, null, null, false, false, false));
             count++;
         }
         return count;

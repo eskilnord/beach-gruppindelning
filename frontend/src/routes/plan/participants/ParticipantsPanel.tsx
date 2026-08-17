@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Alert, Badge, Button, Card, Group, Loader, Text, TextInput, Title, Tooltip } from "@mantine/core";
-import { IconUsers } from "@tabler/icons-react";
+import { IconCircleCheck, IconUsers } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { DataGrid } from "../../../components/DataGrid";
@@ -53,6 +53,21 @@ function ReviewCell(props: ICellRendererParams<ParticipantRow>) {
       <Badge color="red" variant="light">
         {sv.participants.columns.needsReview}
       </Badge>
+    </Tooltip>
+  );
+}
+
+function DoneCell(props: ICellRendererParams<ParticipantRow>) {
+  if (!props.data?.reviewedDone) {
+    return null;
+  }
+  return (
+    <Tooltip label={sv.participants.doneTooltip}>
+      <Group h="100%" align="center">
+        <span role="img" aria-label={sv.participants.doneTooltip}>
+          <IconCircleCheck size={18} color="var(--mantine-color-green-6)" />
+        </span>
+      </Group>
     </Tooltip>
   );
 }
@@ -143,6 +158,7 @@ export function ParticipantsPanel() {
         cellRenderer: ReviewCell,
       },
       { headerName: sv.participants.columns.comment, field: "importedComment", width: 120, cellRenderer: CommentCell },
+      { headerName: sv.participants.columns.done, field: "reviewedDone", width: 100, cellRenderer: DoneCell },
     ],
     [],
   );

@@ -37,8 +37,9 @@ import se.klubb.groupplanner.util.Uuid7;
  * so {@code body.containsKey(field)} is a reliable presence check and {@code body.get(field)
  * .isNull()} is a reliable explicit-null check. This matters most for {@code importedComment}/{@code
  * internalNote} (spec §21.2: comments must be clearable) and the other nullable columns below;
- * {@code manualReviewFlag}/{@code waitlisted} are {@code NOT NULL} columns, so an explicit
- * {@code null} for either is rejected with a 400 instead of silently coercing to {@code false}.
+ * {@code manualReviewFlag}/{@code waitlisted}/{@code reviewedDone} are {@code NOT NULL} columns, so
+ * an explicit {@code null} for any of them is rejected with a 400 instead of silently coercing to
+ * {@code false}.
  */
 @RestController
 public class ParticipantProfileController {
@@ -92,7 +93,8 @@ public class ParticipantProfileController {
                 request.importedComment(),
                 request.internalNote(),
                 request.manualReviewFlag() != null && request.manualReviewFlag(),
-                request.waitlisted() != null && request.waitlisted());
+                request.waitlisted() != null && request.waitlisted(),
+                request.reviewedDone() != null && request.reviewedDone());
         ParticipantProfile created = participantProfileRepository.insert(profile);
         // M8 (found by the M8 jar E2E): a participant without a player_assignment row is invisible
         // to GET .../assignments AND - much worse - to SolveCoordinator#persistResult's writeback
@@ -119,7 +121,7 @@ public class ParticipantProfileController {
     private static final java.util.Set<String> PATCHABLE_FIELDS = java.util.Set.of(
             "rankingPoints", "rankingSource", "previousGroupName", "previousGroupLevel",
             "estimatedLevel", "levelConfidence", "manualLevelScore", "importedComment",
-            "internalNote", "manualReviewFlag", "waitlisted");
+            "internalNote", "manualReviewFlag", "waitlisted", "reviewedDone");
 
     @PatchMapping("/api/participants/{id}")
     public ParticipantProfile update(@PathVariable String id, @RequestBody(required = false) Map<String, JsonNode> body) {
@@ -155,12 +157,28 @@ public class ParticipantProfileController {
                 nullableString(body, "importedComment", existing.importedComment()),
                 nullableString(body, "internalNote", existing.internalNote()),
                 requiredBoolean(body, "manualReviewFlag", existing.manualReviewFlag()),
-                requiredBoolean(body, "waitlisted", existing.waitlisted()));
+                requiredBoolean(body, "waitlisted", existing.waitlisted()),
+                requiredBoolean(body, "reviewedDone", existing.reviewedDone()));
         ParticipantProfile saved = participantProfileRepository.update(updated);
-        // M7 (docs/design/04-solver.md §11.6): a level/priority-affecting edit invalidates any
-        // already-computed explanation for this plan - see AssignmentController#move's javadoc for
-        // the full "invalidation surface" rationale shared by every bump call site.
-        activityPlanRepository.bumpRevision(existing.activityPlanId());
+        // WP3: reviewedDone is a council workflow marker with no effect on solver input or
+        // explanations, so bumping on a PATCH that only flips it (or that changes nothing at all -
+        // a full no-op PATCH also lands here, a deliberate improvement) must not invalidate cached
+        // explanations. The bump is SKIPPED whenever the PATCH produces no effective change other
+        // than reviewedDone, and happens as usual whenever any other field changed too (record
+        // equals lets us detect that cleanly by comparing against "existing with only reviewedDone
+        // substituted").
+        ParticipantProfile existingWithNewReviewedDone = new ParticipantProfile(
+                existing.id(), existing.personId(), existing.activityPlanId(), existing.rankingPoints(),
+                existing.rankingSource(), existing.previousGroupName(), existing.previousGroupLevel(),
+                existing.estimatedLevel(), existing.levelConfidence(), existing.manualLevelScore(),
+                existing.importedComment(), existing.internalNote(), existing.manualReviewFlag(),
+                existing.waitlisted(), updated.reviewedDone());
+        if (!updated.equals(existingWithNewReviewedDone)) {
+            // M7 (docs/design/04-solver.md §11.6): a level/priority-affecting edit invalidates any
+            // already-computed explanation for this plan - see AssignmentController#move's javadoc
+            // for the full "invalidation surface" rationale shared by every bump call site.
+            activityPlanRepository.bumpRevision(existing.activityPlanId());
+        }
         return saved;
     }
 
@@ -256,7 +274,8 @@ public class ParticipantProfileController {
             String importedComment,
             String internalNote,
             Boolean manualReviewFlag,
-            Boolean waitlisted) {
+            Boolean waitlisted,
+            Boolean reviewedDone) {
     }
 
     public record RecomputeLevelsResult(int recomputedCount) {

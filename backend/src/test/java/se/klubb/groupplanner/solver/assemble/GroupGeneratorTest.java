@@ -93,7 +93,7 @@ class GroupGeneratorTest {
                     Uuid7.generate(), "P" + i, "Testsson", null, null, null, null, true, false, null, now, now));
             double level = startLevel + i;
             participantProfileRepository.insert(new ParticipantProfile(
-                    Uuid7.generate(), person.id(), planId, null, null, null, null, level, 1.0, null, null, null, false, false));
+                    Uuid7.generate(), person.id(), planId, null, null, null, null, level, 1.0, null, null, null, false, false, false));
         }
     }
 

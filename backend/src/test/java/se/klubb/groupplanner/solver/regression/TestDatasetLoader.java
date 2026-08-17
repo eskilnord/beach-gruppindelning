@@ -169,7 +169,7 @@ public final class TestDatasetLoader {
                     Uuid7.generate(), person.id(), planId,
                     parseDouble(row.get("ranking_points")), blankToNull(row.get("ranking_points")) == null ? null : "seriespel",
                     blankToNull(row.get("previous_group_name")), parseDouble(row.get("previous_group_level")),
-                    null, null, parseDouble(row.get("manual_level_score")), null, null, needsReview, false));
+                    null, null, parseDouble(row.get("manual_level_score")), null, null, needsReview, false, false));
             participantIdByShortId.put(row.get("id"), profile.id());
             personIdByParticipantShortId.put(row.get("id"), person.id());
             playerAssignmentRepository.insertImportedIfAbsent(profile.id());
@@ -228,7 +228,7 @@ public final class TestDatasetLoader {
                     Uuid7.generate(), person.id(), planId,
                     parseDouble(row.get("coach_level")), parseDouble(row.get("can_coach_min")), parseDouble(row.get("can_coach_max")),
                     parseInt(row.get("max_groups_per_day")), parseInt(row.get("max_groups_per_week")),
-                    alsoPlaysParticipantShortId != null, null));
+                    alsoPlaysParticipantShortId != null, null, false));
             coachProfileIdByShortId.put(row.get("id"), coach.id());
 
             // A slot can legitimately appear in BOTH columns in these fixtures (e.g. large-120's c05:

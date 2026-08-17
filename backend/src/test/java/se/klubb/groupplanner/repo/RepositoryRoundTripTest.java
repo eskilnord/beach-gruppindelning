@@ -15,6 +15,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import se.klubb.groupplanner.domain.ActivityPlan;
+import se.klubb.groupplanner.domain.CoachProfile;
 import se.klubb.groupplanner.domain.ParticipantProfile;
 import se.klubb.groupplanner.domain.Person;
 import se.klubb.groupplanner.domain.SeasonPlan;
@@ -49,6 +50,9 @@ class RepositoryRoundTripTest {
     @Autowired
     private ParticipantProfileRepository participantProfileRepository;
 
+    @Autowired
+    private CoachProfileRepository coachProfileRepository;
+
     @Test
     void seasonThenPlanThenPersonThenParticipantRoundTrips() {
         Instant now = Instant.now();
@@ -69,7 +73,7 @@ class RepositoryRoundTripTest {
 
         ParticipantProfile profile = participantProfileRepository.insert(new ParticipantProfile(
                 Uuid7.generate(), person.id(), plan.id(), 550.0, "seriespel", "Grupp 3", 5.0, 5.2, 0.8, null,
-                "Fritext från anmälan", "Intern anteckning", false, false));
+                "Fritext från anmälan", "Intern anteckning", false, false, false));
         assertThat(participantProfileRepository.findById(profile.id())).contains(profile);
         assertThat(participantProfileRepository.findByActivityPlanId(plan.id())).containsExactly(profile);
 
@@ -78,16 +82,41 @@ class RepositoryRoundTripTest {
                 profile.id(), profile.personId(), profile.activityPlanId(), profile.rankingPoints(),
                 profile.rankingSource(), profile.previousGroupName(), profile.previousGroupLevel(),
                 profile.estimatedLevel(), profile.levelConfidence(), profile.manualLevelScore(),
-                profile.importedComment(), profile.internalNote(), true, true);
+                profile.importedComment(), profile.internalNote(), true, true, true);
         participantProfileRepository.update(updated);
         Optional<ParticipantProfile> reloaded = participantProfileRepository.findById(profile.id());
         assertThat(reloaded).isPresent();
         assertThat(reloaded.get().manualReviewFlag()).isTrue();
         assertThat(reloaded.get().waitlisted()).isTrue();
+        assertThat(reloaded.get().reviewedDone()).isTrue(); // WP3: reviewedDone round-trips through insert+update+reload.
 
         // Delete path.
         assertThat(participantProfileRepository.deleteById(profile.id())).isTrue();
         assertThat(participantProfileRepository.findById(profile.id())).isEmpty();
+    }
+
+    /** WP3 ("Spara och markera som färdig"): coach_profile's reviewedDone round-trips through
+     *  insert+update+reload the same way participant_profile's does above. */
+    @Test
+    void coachProfileReviewedDoneRoundTrips() {
+        Instant now = Instant.now();
+        SeasonPlan season = seasonPlanRepository.insert(new SeasonPlan(
+                Uuid7.generate(), "VT29", null, null, "active", now, now));
+        ActivityPlan plan = activityPlanRepository.insert(new ActivityPlan(
+                Uuid7.generate(), season.id(), "Herr", "beach", "draft", 10, 8, 12, null, now, now));
+        Person person = personRepository.insert(new Person(
+                Uuid7.generate(), "Björn", "Berg", null, null, null, null, false, true, null, now, now));
+
+        CoachProfile coach = coachProfileRepository.insert(new CoachProfile(
+                Uuid7.generate(), person.id(), plan.id(), 500.0, 200.0, 800.0, 2, 4, false, "kommentar", false));
+        assertThat(coachProfileRepository.findById(coach.id()).orElseThrow().reviewedDone()).isFalse();
+
+        CoachProfile updated = new CoachProfile(
+                coach.id(), coach.personId(), coach.activityPlanId(), coach.coachLevel(), coach.canCoachMinLevel(),
+                coach.canCoachMaxLevel(), coach.maxGroupsPerDay(), coach.maxGroupsPerWeek(),
+                coach.canAlsoTrainAsParticipant(), coach.notes(), true);
+        coachProfileRepository.update(updated);
+        assertThat(coachProfileRepository.findById(coach.id()).orElseThrow().reviewedDone()).isTrue();
     }
 
     @Test
@@ -102,11 +131,11 @@ class RepositoryRoundTripTest {
 
         participantProfileRepository.insert(new ParticipantProfile(
                 Uuid7.generate(), person.id(), plan.id(), null, null, null, null, null, null, null, null, null,
-                false, false));
+                false, false, false));
 
         assertThatThrownBy(() -> participantProfileRepository.insert(new ParticipantProfile(
                 Uuid7.generate(), person.id(), plan.id(), null, null, null, null, null, null, null, null, null,
-                false, false)))
+                false, false, false)))
                 .isInstanceOf(DataAccessException.class);
     }
 
