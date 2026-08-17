@@ -8,6 +8,7 @@ import { DataGrid } from "../../../components/DataGrid";
 import { useParticipants, useRecomputeLevels } from "../../../api/participants";
 import { usePersons } from "../../../api/persons";
 import { useAnonymizeAllComments } from "../../../api/comments";
+import { usePlanCommentSuggestions } from "../../../api/commentSuggestions";
 import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
 import { DeleteConfirmModal } from "../../../components/DeleteConfirmModal";
@@ -72,10 +73,27 @@ function DoneCell(props: ICellRendererParams<ParticipantRow>) {
   );
 }
 
-function CommentCell(props: ICellRendererParams<ParticipantRow>) {
+interface CommentCellParams {
+  /** participantId -> unapplied "Tolkningsförslag" count (WP2), from the plan-level suggestions
+   *  query - `undefined` while that query is still loading, in which case the cell falls back to
+   *  the plain dot badge rather than implying "no suggestions". */
+  suggestionCounts: Map<string, number> | undefined;
+}
+
+function CommentCell(props: ICellRendererParams<ParticipantRow> & CommentCellParams) {
   const hasComment = Boolean(props.data?.importedComment && props.data.importedComment.trim().length > 0);
   if (!hasComment) {
     return null;
+  }
+  const count = props.data ? props.suggestionCounts?.get(props.data.id) : undefined;
+  if (count && count > 0) {
+    return (
+      <Tooltip label={sv.participants.suggestionCountTooltip(count)}>
+        <Badge color="blue" variant="filled">
+          {count}
+        </Badge>
+      </Tooltip>
+    );
   }
   return (
     <Tooltip label={sv.participants.commentTooltip}>
@@ -98,6 +116,7 @@ export function ParticipantsPanel() {
   const persons = usePersons();
   const recomputeLevels = useRecomputeLevels(planId ?? "");
   const anonymizeAll = useAnonymizeAllComments(planId ?? "");
+  const planSuggestions = usePlanCommentSuggestions(planId);
 
   const [quickFilter, setQuickFilter] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -128,6 +147,19 @@ export function ParticipantsPanel() {
     }
   }, [searchParams, rows]);
 
+  // Review fix (MAJOR 6): the backend now returns counts-only entries (already filtered to
+  // unapplied > 0) - no client-side re-filtering of full suggestion detail needed anymore.
+  const suggestionCounts = useMemo(() => {
+    if (!planSuggestions.data) {
+      return undefined;
+    }
+    const counts = new Map<string, number>();
+    for (const entry of planSuggestions.data) {
+      counts.set(entry.participantId, entry.suggestionCount);
+    }
+    return counts;
+  }, [planSuggestions.data]);
+
   const columnDefs: ColDef<ParticipantRow>[] = useMemo(
     () => [
       { headerName: sv.participants.columns.name, field: "name", flex: 1.4, minWidth: 160 },
@@ -157,10 +189,16 @@ export function ParticipantsPanel() {
         width: 150,
         cellRenderer: ReviewCell,
       },
-      { headerName: sv.participants.columns.comment, field: "importedComment", width: 120, cellRenderer: CommentCell },
+      {
+        headerName: sv.participants.columns.comment,
+        field: "importedComment",
+        width: 120,
+        cellRenderer: CommentCell,
+        cellRendererParams: { suggestionCounts } satisfies CommentCellParams,
+      },
       { headerName: sv.participants.columns.done, field: "reviewedDone", width: 100, cellRenderer: DoneCell },
     ],
-    [],
+    [suggestionCounts],
   );
 
   if (participants.isLoading || persons.isLoading) {

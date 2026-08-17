@@ -30,6 +30,9 @@ import se.klubb.groupplanner.repo.TrainingGroupRepository;
 import se.klubb.groupplanner.solver.TestSolverFactory;
 import se.klubb.groupplanner.solver.assemble.SolverInputAssembler;
 import se.klubb.groupplanner.solver.domain.GroupPlanSolution;
+import se.klubb.groupplanner.suggest.CommentSuggestion;
+import se.klubb.groupplanner.suggest.CommentSuggestionService;
+import se.klubb.groupplanner.suggest.SuggestionKind;
 
 /**
  * WI-4 (v0.3.0 user feedback: "Ha demo-data för beachvolley så att man kan dema det utan att
@@ -69,6 +72,8 @@ class DemoDataServiceTest {
     private CustomFieldValueRepository customFieldValueRepository;
     @Autowired
     private SolverInputAssembler solverInputAssembler;
+    @Autowired
+    private CommentSuggestionService commentSuggestionService;
 
     @Test
     void createsExpectedCountsOfEverything() {
@@ -125,7 +130,8 @@ class DemoDataServiceTest {
         List<ParticipantProfile> participants = participantProfileRepository.findByActivityPlanId(result.planId());
 
         long withComment = participants.stream().filter(p -> p.importedComment() != null).count();
-        assertThat(withComment).isEqualTo(8);
+        // 8 original DEMO_COMMENTS (indices 52-59) + 5 WP2 DEMO_SUGGESTION_COMMENTS (indices 63-67).
+        assertThat(withComment).isEqualTo(13);
         assertThat(participants).allSatisfy(p -> assertThat(p.internalNote()).isNull());
     }
 
@@ -173,6 +179,77 @@ class DemoDataServiceTest {
         // from raw capacity pressure - 8 groups x max 12 = 96 seats for 100 players) end up on the
         // waitlist: this demonstrates the waitlist/explainability feature by construction.
         assertThat(score.mediumScore()).as("at least the always-unavailable participant must be waitlisted").isLessThan(0);
+    }
+
+    /** WP2 "Tolkningsförslag" over the 5 dedicated demo participants (indices 63-67, {@code
+     *  DemoDataService.DEMO_SUGGESTION_COMMENTS}) — every comment must resolve at HIGH confidence to
+     *  exactly the kind it was written to demonstrate, since the referenced names were picked to be
+     *  unique in the roster (see that field's javadoc). */
+    @Test
+    void demoSuggestionCommentsResolveToExpectedKinds() {
+        DemoDataService.DemoResult result = demoDataService.createDemoSeason();
+        List<ParticipantProfile> participants = participantProfileRepository.findByActivityPlanId(result.planId());
+
+        Map<String, ParticipantProfile> byComment = new HashMap<>();
+        for (ParticipantProfile p : participants) {
+            if (p.importedComment() != null) {
+                byComment.put(p.importedComment(), p);
+            }
+        }
+
+        assertExpectedKind(result.planId(), byComment, "Vill gärna spela med Cornelia Bäckman.", SuggestionKind.PLAY_WITH);
+        assertExpectedKind(result.planId(), byComment, "Helst inte samma grupp som Cornelia Söderlund.", SuggestionKind.AVOID_PLAY_WITH);
+        assertExpectedKind(result.planId(), byComment, "Kan inte torsdagar.", SuggestionKind.TIME_CANNOT);
+        assertExpectedKind(result.planId(), byComment, "Vill ha Vera Nilsson som tränare.", SuggestionKind.COACH_WISH);
+        assertExpectedKind(result.planId(), byComment, "Måste spela med Björn Wallin.", SuggestionKind.MUST_PLAY_WITH);
+    }
+
+    private void assertExpectedKind(
+            String planId, Map<String, ParticipantProfile> byComment, String comment, SuggestionKind expectedKind) {
+        ParticipantProfile participant = byComment.get(comment);
+        assertThat(participant).as("no demo participant carries comment: " + comment).isNotNull();
+        CommentSuggestion.ParticipantSuggestions result =
+                commentSuggestionService.suggestionsForParticipant(planId, participant.id());
+        assertThat(result.suggestions())
+                .as("comment: " + comment)
+                .anySatisfy(s -> {
+                    assertThat(s.kind()).isEqualTo(expectedKind);
+                    assertThat(s.confidence()).isEqualTo(CommentSuggestion.Confidence.HIGH);
+                });
+    }
+
+    /** Review fix (minor 7): guards the two comment index ranges (DEMO_COMMENTS at {@code
+     *  FIRST_COMMENT_INDEX}, DEMO_SUGGESTION_COMMENTS at {@code SUGGESTION_COMMENT_INDEX}) against
+     *  ever overlapping again as either array grows - a silent overlap would mean one participant's
+     *  index gets clobbered between the two comment sets ({@code commentForIndex} checks the legacy
+     *  range first). Reflection, not a hand-copied literal range, so this test can't drift stale. */
+    @Test
+    void demoCommentAndSuggestionCommentIndexRangesNeverOverlap() throws Exception {
+        int firstCommentIndex = readStaticInt("FIRST_COMMENT_INDEX");
+        int demoCommentsLength = readStaticStringArray("DEMO_COMMENTS").length;
+        int suggestionCommentIndex = readStaticInt("SUGGESTION_COMMENT_INDEX");
+        int suggestionCommentsLength = readStaticStringArray("DEMO_SUGGESTION_COMMENTS").length;
+
+        int commentsEnd = firstCommentIndex + demoCommentsLength; // exclusive
+        int suggestionsEnd = suggestionCommentIndex + suggestionCommentsLength; // exclusive
+
+        boolean overlap = firstCommentIndex < suggestionsEnd && suggestionCommentIndex < commentsEnd;
+        assertThat(overlap)
+                .as("DEMO_COMMENTS [%d,%d) must not overlap DEMO_SUGGESTION_COMMENTS [%d,%d)",
+                        firstCommentIndex, commentsEnd, suggestionCommentIndex, suggestionsEnd)
+                .isFalse();
+    }
+
+    private static int readStaticInt(String fieldName) throws Exception {
+        var field = DemoDataService.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return field.getInt(null);
+    }
+
+    private static String[] readStaticStringArray(String fieldName) throws Exception {
+        var field = DemoDataService.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return (String[]) field.get(null);
     }
 
     private Map<String, Integer> countCustomFieldValuesByKey(String planId, List<ParticipantProfile> participants) {

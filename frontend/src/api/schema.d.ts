@@ -868,6 +868,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans/{planId}/participants/{pid}/comment-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["forParticipant"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans/{planId}/import/sessions/{sid}/validate": {
         parameters: {
             query?: never;
@@ -972,6 +988,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["exportAnonymized"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/comment-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["forPlan"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1960,6 +1992,29 @@ export interface components {
             name?: string;
             messageSv?: string;
         };
+        CommentSuggestion: {
+            fingerprint?: string;
+            /** @enum {string} */
+            kind?: "PLAY_WITH" | "MUST_PLAY_WITH" | "AVOID_PLAY_WITH" | "COACH_WISH" | "COACH_AVOID" | "TIME_CANNOT" | "TIME_PREFER" | "NEW_TO_CLUB" | "LEVEL_CHANGE" | "INJURY_NOTE";
+            matchedText?: string;
+            fieldKey?: string;
+            targets?: components["schemas"]["TargetCandidate"][];
+            timeSlotIds?: string[];
+            /** @enum {string} */
+            confidence?: "HIGH" | "UNCERTAIN";
+            alreadyApplied?: boolean;
+        };
+        ParticipantSuggestions: {
+            participantId?: string;
+            suggestions?: components["schemas"]["CommentSuggestion"][];
+        };
+        TargetCandidate: {
+            id?: string;
+            displayName?: string;
+            /** Format: double */
+            score?: number;
+            applied?: boolean;
+        };
         PersonMatchProposal: {
             existingPersonId?: string;
             /** @enum {string} */
@@ -2011,6 +2066,11 @@ export interface components {
         SyncStatus: {
             stale?: boolean;
             reasons?: string[];
+        };
+        ParticipantSuggestionCount: {
+            participantId?: string;
+            /** Format: int32 */
+            suggestionCount?: number;
         };
         CapacityResponse: {
             /** Format: int32 */
@@ -4220,6 +4280,29 @@ export interface operations {
             };
         };
     };
+    forParticipant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ParticipantSuggestions"];
+                };
+            };
+        };
+    };
     validate: {
         parameters: {
             query?: never;
@@ -4383,6 +4466,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": string;
+                };
+            };
+        };
+    };
+    forPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ParticipantSuggestionCount"][];
                 };
             };
         };

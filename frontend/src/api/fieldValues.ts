@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
+import { commentSuggestionsKey, planCommentSuggestionsKey } from "./commentSuggestions";
 import type { FieldValueView } from "./types";
 
 const fieldValuesKey = (planId: string, participantId: string) =>
@@ -26,6 +27,10 @@ export function useUpdateParticipantFieldValues(planId: string, participantId: s
       api.put<FieldValueView[]>(`/api/plans/${planId}/participants/${participantId}/field-values`, values),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: fieldValuesKey(planId, participantId) });
+      // WP2: a field-value change can flip a comment suggestion's `alreadyApplied` (or newly satisfy
+      // one) - refresh both the per-participant and plan-wide "Tolkningsförslag" queries.
+      void queryClient.invalidateQueries({ queryKey: commentSuggestionsKey(planId, participantId) });
+      void queryClient.invalidateQueries({ queryKey: planCommentSuggestionsKey(planId) });
     },
   });
 }

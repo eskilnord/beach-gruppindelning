@@ -199,6 +199,9 @@ export const sv = {
     waitlistedBadge: "Kölista",
     needsReviewTooltip: "Behöver manuell granskning",
     commentTooltip: "Har kommentar från anmälan",
+    // WP2: shown on the CommentCell's count badge when the plan-level comment-suggestions query has
+    // found unapplied "Tolkningsförslag" for this participant.
+    suggestionCountTooltip: (n: number) => (n === 1 ? "1 tolkningsförslag" : `${n} tolkningsförslag`),
     doneTooltip: "Klarmarkerad – granskad och klar",
     levelConfidence: {
       high: "Hög",
@@ -249,6 +252,33 @@ export const sv = {
       saveSuccess: "Sparat.",
       saveFailed: "Kunde inte spara deltagaren",
       fieldValuesSaveFailed: "Kunde inte spara fältvärdena",
+    },
+    // WP2 "Tolkningsförslag": local, rule-based (NOT AI) proposals parsed from the imported comment
+    // - non-binding, always confirmed with one click. Rendered by CommentSuggestionList.tsx under
+    // the imported comment in the drawer, only when a comment exists.
+    suggestions: {
+      heading: "Tolkningsförslag",
+      helpTip: "Förslagen tolkas lokalt med enkla regler – aldrig AI, aldrig automatiskt. Du bekräftar alltid själv.",
+      uncertainBadge: "Osäker",
+      pickCandidatePlaceholder: "Välj person…",
+      applyButton: "Lägg till",
+      dismissButton: "Avfärda",
+      alreadyAppliedButton: "Redan tillagd",
+      applyFailed: "Kunde inte lägga till förslaget",
+      // Per-kind Swedish descriptions. Name-targeted kinds take the resolved display name; time
+      // kinds take the number of matched plan time slots; the two flag kinds have no target at all.
+      templates: {
+        PLAY_WITH: (name: string) => `Vill spela med → ${name}`,
+        MUST_PLAY_WITH: (name: string) => `Måste spela med → ${name}`,
+        AVOID_PLAY_WITH: (name: string) => `Vill inte spela med → ${name}`,
+        COACH_WISH: (name: string) => `Vill ha tränare → ${name}`,
+        COACH_AVOID: (name: string) => `Vill inte ha tränare → ${name}`,
+        TIME_CANNOT: (count: number) => (count === 1 ? "Kan inte en av planens tider" : `Kan inte ${count} av planens tider`),
+        TIME_PREFER: (count: number) => (count === 1 ? "Föredrar en av planens tider" : `Föredrar ${count} av planens tider`),
+        NEW_TO_CLUB: "Ny i klubben",
+        LEVEL_CHANGE: "Vill byta nivå – kräver manuell granskning",
+        INJURY_NOTE: "Nämner skada eller hälsa – kräver manuell granskning",
+      },
     },
   },
   importWizard: {

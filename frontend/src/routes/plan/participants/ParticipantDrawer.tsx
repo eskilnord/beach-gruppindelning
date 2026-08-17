@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Badge,
@@ -29,6 +29,7 @@ import { useTimeSlots } from "../../../api/timeSlots";
 import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
 import { DeleteConfirmModal } from "../../../components/DeleteConfirmModal";
+import { CommentSuggestionList, type SuggestionApplied } from "./CommentSuggestionList";
 import { CustomFieldEditor } from "./CustomFieldEditor";
 import type { ParticipantRow } from "./participantRow";
 
@@ -142,18 +143,50 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
   const [deleteCommentsOpen, setDeleteCommentsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Review fix (MAJOR 5): refs, not state, so the resync effect below can read the LATEST
+  // customDraft/originalCustom without depending on them (which would re-fire the effect on every
+  // keystroke) - kept in sync on every render, a standard "latest ref" pattern.
+  const customDraftRef = useRef(customDraft);
+  customDraftRef.current = customDraft;
+  const originalCustomRef = useRef(originalCustom);
+  originalCustomRef.current = originalCustom;
+
   useEffect(() => {
-    if (fieldValues.data) {
-      const values: Record<string, unknown> = {};
-      for (const fv of fieldValues.data) {
-        values[fv.key] = fv.value ?? null;
-      }
-      setCustomDraft(values);
-      setOriginalCustom(values);
+    if (!fieldValues.data) {
+      return;
     }
+    // Review fix (MAJOR 5): a field-values PUT triggered from CommentSuggestionList's "Lägg till"
+    // invalidates this same query, so this effect re-fires WHILE the user may have unrelated unsaved
+    // edits sitting in customDraft. Blindly overwriting both customDraft AND originalCustom here
+    // would silently discard those edits. When something is genuinely dirty, skip the resync
+    // entirely - CommentSuggestionList's `onApplied` callback (see handleSuggestionApplied below)
+    // is what keeps the specific applied field in sync instead, without touching anything else.
+    const isDirtyNow = Object.keys(diff(customDraftRef.current, originalCustomRef.current)).length > 0;
+    if (isDirtyNow) {
+      return;
+    }
+    const values: Record<string, unknown> = {};
+    for (const fv of fieldValues.data) {
+      values[fv.key] = fv.value ?? null;
+    }
+    setCustomDraft(values);
+    setOriginalCustom(values);
     // Only re-sync from the server on a genuinely new response for this participant.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fieldValues.data]);
+
+  /** Review fix (MAJOR 5): merges an applied "Tolkningsförslag" change into the SAME drafts the rest
+   *  of the drawer edits, so the field/Switch reflects it immediately without clobbering (or being
+   *  clobbered by) any other unsaved edit - see {@link SuggestionApplied}. */
+  const handleSuggestionApplied = (change: SuggestionApplied) => {
+    if (change.kind === "flag") {
+      setStructuredDraft((prev) => ({ ...prev, manualReviewFlag: true }));
+      setOriginalStructured((prev) => ({ ...prev, manualReviewFlag: true }));
+      return;
+    }
+    setCustomDraft((prev) => ({ ...prev, [change.fieldKey]: change.value }));
+    setOriginalCustom((prev) => ({ ...prev, [change.fieldKey]: change.value }));
+  };
 
   const structuredChanges = diff(structuredDraft, originalStructured);
   const customChanges = diff(customDraft, originalCustom);
@@ -254,6 +287,16 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
           >
             {sv.participants.drawer.deleteCommentsButton}
           </Button>
+
+          {hasComment && fieldValues.data && (
+            <CommentSuggestionList
+              planId={planId}
+              participantId={participant.id}
+              fieldValues={fieldValues.data}
+              fieldValuesFetching={fieldValues.isFetching}
+              onApplied={handleSuggestionApplied}
+            />
+          )}
         </Stack>
 
         {/* --- Right: structured fields --- */}

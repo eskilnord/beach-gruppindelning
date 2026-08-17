@@ -1,5 +1,6 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
+import { commentSuggestionsKey, planCommentSuggestionsKey } from "./commentSuggestions";
 import type { FieldValueView, ParticipantProfile, RecomputeLevelsResult } from "./types";
 
 export const participantsKey = (planId: string) => ["plans", planId, "participants"] as const;
@@ -24,8 +25,12 @@ export function useUpdateParticipant(planId: string) {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) =>
       api.patch<ParticipantProfile>(`/api/participants/${id}`, body),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: participantsKey(planId) });
+      // WP2: a manualReviewFlag PATCH (LEVEL_CHANGE/INJURY_NOTE suggestions) can flip
+      // `alreadyApplied` - refresh both the per-participant and plan-wide suggestion queries.
+      void queryClient.invalidateQueries({ queryKey: commentSuggestionsKey(planId, variables.id) });
+      void queryClient.invalidateQueries({ queryKey: planCommentSuggestionsKey(planId) });
     },
   });
 }

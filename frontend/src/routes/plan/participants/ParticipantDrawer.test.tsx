@@ -107,3 +107,75 @@ describe("ParticipantDrawer done workflow", () => {
     await waitFor(() => expect(patchBodies).toEqual([{ waitlisted: true }, { reviewedDone: false }]));
   });
 });
+
+/** Review fix MAJOR 5: applying a "Tolkningsförslag" must never silently discard an unrelated
+ *  unsaved edit sitting in the drawer's own draft state - the field-values PUT the apply triggers
+ *  invalidates the SAME query the drawer's resync effect listens to. */
+describe("ParticipantDrawer comment-suggestion apply (MAJOR 5)", () => {
+  const PARTICIPANT_WITH_COMMENT: ParticipantRow = {
+    ...PARTICIPANT,
+    importedComment: "Vill gärna spela med Target Person.",
+  };
+
+  function mockSuggestionEndpoints() {
+    server.use(
+      http.get("/api/plans/plan-1/participants/participant-1/field-values", () =>
+        HttpResponse.json([
+          { fieldDefinitionId: "fd-play", key: "playWith", label: "Vill spela med", fieldType: "personRelation", value: [] },
+          { fieldDefinitionId: "fd-note", key: "noteField", label: "Anteckning", fieldType: "text", value: "original" },
+        ]),
+      ),
+      http.get("/api/plans/plan-1/participants/participant-1/comment-suggestions", () =>
+        HttpResponse.json({
+          participantId: "participant-1",
+          suggestions: [
+            {
+              fingerprint: "fp-1",
+              kind: "PLAY_WITH",
+              matchedText: "spela med Target Person",
+              fieldKey: "playWith",
+              targets: [{ id: "target-1", displayName: "Target Person", score: 1.0, applied: false }],
+              timeSlotIds: [],
+              confidence: "HIGH",
+              alreadyApplied: false,
+            },
+          ],
+        }),
+      ),
+    );
+  }
+
+  it("a dirty unsaved field edit survives applying a suggestion, and the applied id lands in the merged field", async () => {
+    mockDrawerEndpoints();
+    mockSuggestionEndpoints();
+    let putBody: unknown;
+    server.use(
+      http.put("/api/plans/plan-1/participants/participant-1/field-values", async ({ request }) => {
+        putBody = await request.json();
+        return HttpResponse.json([]);
+      }),
+    );
+
+    renderWithProviders(
+      <ParticipantDrawer
+        planId="plan-1"
+        participant={PARTICIPANT_WITH_COMMENT}
+        allParticipants={[PARTICIPANT_WITH_COMMENT]}
+        onClose={() => {}}
+      />,
+    );
+
+    const user = userEvent.setup();
+    const noteInput = await screen.findByLabelText("Anteckning");
+    await user.type(noteInput, " extra");
+    await waitFor(() => expect(noteInput).toHaveValue("original extra"));
+
+    const applyButton = await screen.findByRole("button", { name: sv.participants.suggestions.applyButton });
+    await user.click(applyButton);
+
+    await waitFor(() => expect(putBody).toEqual({ playWith: ["target-1"] }));
+
+    // The unrelated dirty edit must still be showing - never reverted by the post-apply resync.
+    expect(screen.getByLabelText("Anteckning")).toHaveValue("original extra");
+  });
+});

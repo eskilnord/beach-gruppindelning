@@ -576,3 +576,57 @@ export interface ExportDownload {
   blob: Blob;
   filename: string;
 }
+
+// --- WP2: "Tolkningsförslag" (rule-based, non-AI suggestions parsed from imported comments) ---
+
+/** {@code kind} on a {@link CommentSuggestion} - named `CommentSuggestionKind` (not `SuggestionKind`)
+ *  to avoid colliding with the pre-existing WI-D {@link SuggestionKind} above, an unrelated concept
+ *  (post-solve data-change suggestions) that happens to share a backend enum name pattern. */
+export type CommentSuggestionKind =
+  | "PLAY_WITH"
+  | "MUST_PLAY_WITH"
+  | "AVOID_PLAY_WITH"
+  | "COACH_WISH"
+  | "COACH_AVOID"
+  | "TIME_CANNOT"
+  | "TIME_PREFER"
+  | "NEW_TO_CLUB"
+  | "LEVEL_CHANGE"
+  | "INJURY_NOTE";
+
+export type CommentSuggestionConfidence = "HIGH" | "UNCERTAIN";
+
+export type TargetCandidate = WithRequired<
+  components["schemas"]["TargetCandidate"],
+  "id" | "displayName" | "score" | "applied"
+>;
+
+/** One rule-based interpretation proposed from a participant's `importedComment` - see backend
+ *  `CommentSuggestionService`'s class javadoc for the full privacy contract (computed on demand,
+ *  never persisted). `fieldKey` is `undefined` for the two flag kinds (`LEVEL_CHANGE`/`INJURY_NOTE`),
+ *  which only ever raise `manualReviewFlag`. */
+export type CommentSuggestion = Omit<
+  WithRequired<
+    components["schemas"]["CommentSuggestion"],
+    "fingerprint" | "matchedText" | "targets" | "timeSlotIds" | "confidence" | "alreadyApplied"
+  >,
+  "kind" | "confidence" | "targets"
+> & {
+  kind: CommentSuggestionKind;
+  confidence: CommentSuggestionConfidence;
+  targets: TargetCandidate[];
+};
+
+export type ParticipantCommentSuggestions = Omit<
+  WithRequired<components["schemas"]["ParticipantSuggestions"], "participantId" | "suggestions">,
+  "suggestions"
+> & { suggestions: CommentSuggestion[] };
+
+/** `GET /api/plans/{planId}/comment-suggestions` (plan-wide) shape — review fix MAJOR 6 "comment
+ *  minimization": counts only, never `matchedText`/candidate names for the whole roster. Backs the
+ *  Deltagarvy grid's per-row badge; the per-participant endpoint (`ParticipantCommentSuggestions`
+ *  above) still returns full detail. */
+export type ParticipantSuggestionCount = WithRequired<
+  components["schemas"]["ParticipantSuggestionCount"],
+  "participantId" | "suggestionCount"
+>;

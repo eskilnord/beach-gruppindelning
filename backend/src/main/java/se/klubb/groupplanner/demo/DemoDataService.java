@@ -134,6 +134,17 @@ public class DemoDataService {
     // continuity-vs-level trade-off in "why here" explanations for these three, rather than every
     // participant's previous group trivially matching their current level band.
     private static final int[] OFF_BY_TWO_GROUP_INDICES = {60, 61, 62};
+    // WP2 "Tolkningsförslag": indices 63..67 each carry one of DEMO_SUGGESTION_COMMENTS below -
+    // deliberately AFTER OFF_BY_TWO_GROUP_INDICES (60-62) so a suggestion-bearing comment never
+    // lands on a participant that's already demoing a different, unrelated WP1 trade-off. Every
+    // name referenced inside these comments was computed from this class's OWN deterministic RNG
+    // sequence (see backend/docs — verified against a throwaway replica of createCoaches/
+    // createParticipants with RANDOM_SEED 42) and picked because it is the UNIQUE full name in the
+    // 100-participant/5-coach roster the rule-based parser's name resolver would otherwise need to
+    // disambiguate - so every one of these demo comments resolves at HIGH confidence, never
+    // UNCERTAIN, consuming no extra RNG draws (the comment text itself is index-derived, exactly
+    // like DEMO_COMMENTS above).
+    private static final int SUGGESTION_COMMENT_INDEX = 63;
 
     /** WP1: previous-group buckets (8, matching the demo plan's fixed 8-group layout - see the class
      *  javadoc's "coach-capacity math" section) derived purely from the already-drawn, already-clamped
@@ -151,6 +162,23 @@ public class DemoDataService {
         "Ny i klubben och känner ingen ännu.",
         "Kommer ofta några minuter sent till uppvärmningen.",
         "Frågade kansliet om att gå ner en nivå efter en skada i våras.",
+    };
+
+    /** WP2 demo roster: p[71]="Cornelia Bäckman" (unique full name — deliberately NOT p[7]="Wilma
+     *  Bäckman", who is {@link #IMPOSSIBLE_PAIR_HIGH} and already carries a mutual {@code playWith}
+     *  edge with {@link #IMPOSSIBLE_PAIR_LOW}; referencing her here would sit right next to that WP1
+     *  story even though applying THIS suggestion only ever writes to the comment's OWN participant's
+     *  field, review fix (minor 4) — a different name avoids the appearance of interference entirely),
+     *  p[89]="Cornelia Söderlund" (unique full name), coach[0]="Vera Nilsson" (unique among the 5 demo
+     *  coaches), p[83]="Björn Wallin" (unique full name) — see {@link #SUGGESTION_COMMENT_INDEX}'s
+     *  javadoc. Uniqueness re-verified at the RosterNameResolver 0.92 full-name threshold (review fix
+     *  minor 6), not just the original 0.85. */
+    private static final String[] DEMO_SUGGESTION_COMMENTS = {
+        "Vill gärna spela med Cornelia Bäckman.",
+        "Helst inte samma grupp som Cornelia Söderlund.",
+        "Kan inte torsdagar.",
+        "Vill ha Vera Nilsson som tränare.",
+        "Måste spela med Björn Wallin.",
     };
 
     private static final String[] FIRST_NAMES = {
@@ -344,10 +372,14 @@ public class DemoDataService {
 
     private static String commentForIndex(int index) {
         int commentIndex = index - FIRST_COMMENT_INDEX;
-        if (commentIndex < 0 || commentIndex >= DEMO_COMMENTS.length) {
-            return null;
+        if (commentIndex >= 0 && commentIndex < DEMO_COMMENTS.length) {
+            return DEMO_COMMENTS[commentIndex];
         }
-        return DEMO_COMMENTS[commentIndex];
+        int suggestionIndex = index - SUGGESTION_COMMENT_INDEX;
+        if (suggestionIndex >= 0 && suggestionIndex < DEMO_SUGGESTION_COMMENTS.length) {
+            return DEMO_SUGGESTION_COMMENTS[suggestionIndex];
+        }
+        return null;
     }
 
     /** WP1: {@code participant_profile.previous_group_name} for one participant - a pure function of
