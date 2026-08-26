@@ -91,8 +91,12 @@ public final class ExplanationDtos {
             String messageSv) {
     }
 
+    /** {@code timeLabelSv} (M-E2) is the group's scheduled time, Swedish-labelled ("torsdag 19.30")
+     * via the same {@code SolutionIndex.timeSlotLabel} lookup every other time-bearing sentence in
+     * this API already uses — {@code null} only when the group has no assigned training block. */
     public record SelectedGroupView(
-            String groupId, String name, int size, Integer targetSize, Integer maxSize, String levelMeanSv, Integer levelSpread) {
+            String groupId, String name, int size, Integer targetSize, Integer maxSize, String levelMeanSv,
+            Integer levelSpread, String timeLabelSv) {
     }
 
     public record WaitlistBlockerView(String groupId, String name, String blockerSv) {
@@ -105,6 +109,70 @@ public final class ExplanationDtos {
      * is set only in the "förbättring möjlig" branch (a feasible non-full candidate slipped through,
      * logged as a solver-quality warning, never presented as a priority explanation). */
     public record WaitlistView(String reasonSv, List<WaitlistBlockerView> perGroupBlockers, String qualityWarningSv) {
+    }
+
+    /**
+     * M-E2 sensitivity placeholder: for THIS milestone it is shipped as a fixed, honest "not yet
+     * computed" value — {@code available=false}, {@code unavailableReasonSv} explains why, and every
+     * OTHER field stays {@code null} (the null-safety contract {@code NoClaimWithoutProbeTest} pins:
+     * {@code available=false ⇒ every other field null}) — no priority-order re-solve is attempted or
+     * implied. E3 fills this in with the real computation.
+     */
+    public record PrioritySensitivityView(
+            boolean available, String unavailableReasonSv, String wouldChangeAtRankSv, Integer newRank) {
+
+        /** The single instance every M-E2 {@link UnmetWishView} carries (E3 replaces call sites, not
+         * this shape). */
+        static final PrioritySensitivityView NOT_YET_AVAILABLE =
+                new PrioritySensitivityView(false, "Beräknas i ett senare steg.", null, null);
+    }
+
+    /** One competing reason a {@link UnmetWishView}'s best candidate would cost (M-E2 {@code
+     * CausalNarrator}'s TRADE_OFF aggregation): {@code key}/{@code label} from {@link
+     * ConstraintMetadata}, {@code messageSv} a reused, already-rendered {@link
+     * se.klubb.groupplanner.explain.JustificationMessages} sentence (never invented text),
+     * {@code scoreImpact} the summed {@code |primary score component|} this key would cost (always
+     * &gt;= 0), {@code sharePercent} = {@code floor(100 * scoreImpact / totalNegative)} across every
+     * competing key for that same candidate. */
+    public record ConstraintReasonView(String key, String label, String messageSv, long scoreImpact, int sharePercent) {
+    }
+
+    /**
+     * M-E2 "därför-meningen": one wish {@code target} did NOT get, with a truthful, probe-derived
+     * causal narrative for why (docs/design/04-solver.md §17.4's "aldrig gissningar" rule — {@code
+     * CausalNarrator} enforces this in code, not just by convention).
+     *
+     * <p>{@code wishId} is {@code TIME|FRIEND:{id}|AVOID:{id}|PREVGROUP|COACH:{id}} ({@code {id}} the
+     * SOLVER-internal long id of the other participant/coach person, an opaque grouping key — never
+     * exposed as a DB id elsewhere in this API). {@code bucket} is {@link
+     * se.klubb.groupplanner.fields.PriorityOrder.Priority#name()} when {@code key} belongs to one of
+     * the four priority-order families, else {@code null}. {@code outcome} is one of {@code
+     * LOCKED|NO_CANDIDATE|BLOCKED_HARD|TRADE_OFF|EQUAL|SOLVER_MISS|INCONCLUSIVE} — the last a safety
+     * net for the (never-truthfully-claimable) case where the TRADE_OFF self-check invariant fails,
+     * logged as a WARN and surfaced with an honest "couldn't determine" {@code primaryReasonSv} rather
+     * than a fabricated causal claim (M-E2 review fix: {@code primaryReasonSv} is non-null for EVERY
+     * outcome, including {@code INCONCLUSIVE}, and — M-E2 review fix, staleness — is PREFIXED with a
+     * stale-run notice whenever the response's {@code stale} flag is true, for every outcome, not just
+     * {@code SOLVER_MISS}). {@code hedgeSv} (M-E2 review fix, scope honesty) is non-null on {@code
+     * LOCKED}/{@code NO_CANDIDATE}/{@code TRADE_OFF}/{@code EQUAL} and {@code null} on {@code
+     * BLOCKED_HARD}/{@code SOLVER_MISS}/{@code INCONCLUSIVE}. {@code bestCandidateGroupId}/{@code
+     * bestCandidateDelta} are non-null ONLY for {@code TRADE_OFF}/{@code EQUAL}/{@code SOLVER_MISS}
+     * (the three outcomes that name a specific "best candidate" at all) — {@code competingReasons} is
+     * non-empty ONLY for {@code TRADE_OFF}.
+     */
+    public record UnmetWishView(
+            String wishId,
+            String key,
+            String bucket,
+            String wishSv,
+            String outcome,
+            String primaryReasonSv,
+            String hedgeSv,
+            List<String> candidateGroupIds,
+            String bestCandidateGroupId,
+            ScoreDeltaView bestCandidateDelta,
+            List<ConstraintReasonView> competingReasons,
+            PrioritySensitivityView prioritySensitivity) {
     }
 
     public record PersonExplanationResponse(
@@ -121,7 +189,10 @@ public final class ExplanationDtos {
             List<AppliedWeightView> appliedWeights,
             List<AlternativeGroupView> alternatives,
             List<IndirectFactorView> indirectFactors,
-            WaitlistView waitlist) {
+            WaitlistView waitlist,
+            String placementSummarySv,
+            String lockedNoticeSv,
+            List<UnmetWishView> unmetWishes) {
     }
 
     // ─────────────────────────────────────────────────────────────────── group level

@@ -303,17 +303,60 @@ public class ExplanationService {
         brokenWishes.forEach(w -> weightKeys.add(w.key()));
         List<AppliedWeightView> appliedWeights = appliedWeightsFor(ctx, weightKeys);
 
-        List<AlternativeGroupView> alternatives = buildAlternatives(ctx, target, selectedGroup);
+        AlternativesResult alt = buildAlternatives(ctx, target, selectedGroup);
         List<IndirectFactorView> indirectFactors = buildIndirectFactors(ctx, target, selectedGroup);
 
+        String timeLabelSv = groupTimeLabelOrNull(ctx, selectedGroup);
         SelectedGroupView selectedGroupView = new SelectedGroupView(
                 groupDbId(ctx, selectedGroup), selectedGroup.name(), stats.size(), selectedGroup.targetSize(),
-                selectedGroup.maxSize(), meanLabel(stats), stats.spread());
+                selectedGroup.maxSize(), meanLabel(stats), stats.spread(), timeLabelSv);
+
+        // M-E2: derived purely from data (never from a probe - UnmetWishResolver's own contract), then
+        // narrated causally against the E1 probe map buildAlternatives already computed (ZERO extra
+        // analyze() calls).
+        List<UnmetWishResolver.UnmetWish> unmetWishFacts = UnmetWishResolver.resolve(ctx, target, selectedGroup);
+        List<ExplanationDtos.UnmetWishView> unmetWishes = new ArrayList<>();
+        for (UnmetWishResolver.UnmetWish fact : unmetWishFacts) {
+            unmetWishes.add(CausalNarrator.narrate(this, ctx, target, selectedGroup, fact, alt.probesByGroup(), solverQualityWarned));
+        }
+
+        String lockedNoticeSv = target.isPinned() ? CausalNarrator.lockedNoticeSv(ctx, target, selectedGroup, timeLabelSv) : null;
+        String placementSummarySv = placementSummarySv(target, selectedGroup, timeLabelSv, positive);
 
         return new PersonExplanationResponse(
                 ctx.run().id(), ctx.run().planRevision(), ctx.currentRevision(), ctx.stale(),
                 participantProfileId, target.getDisplayName(), selectedGroupView, positive, negative, brokenWishes,
-                appliedWeights, alternatives, indirectFactors, null);
+                appliedWeights, alt.views(), indirectFactors, null, placementSummarySv, lockedNoticeSv, unmetWishes);
+    }
+
+    /** M-E2: {@code placementSummarySv} — one plain sentence naming the player, group, time, and the
+     * single strongest positive factor (the FIRST positive factor collected for this player, in the
+     * same order the rest of the response already presents them — no separate "strength" ranking is
+     * computed or claimed, since {@code positive} carries no score to rank by; ordering is level-match
+     * first, capacity second, time third, then constraint matches, which is already "most informative
+     * fact first" by construction of {@link #buildPlacedExplanation}). */
+    private String placementSummarySv(PlayerAssignment target, Group selectedGroup, String timeLabelSv, List<FactorView> positive) {
+        String where = timeLabelSv == null
+                ? "%s är placerad i %s.".formatted(target.getDisplayName(), selectedGroup.name())
+                : "%s är placerad i %s (%s).".formatted(target.getDisplayName(), selectedGroup.name(), timeLabelSv);
+        if (positive.isEmpty()) {
+            return where;
+        }
+        return where + " " + positive.get(0).messageSv() + ".";
+    }
+
+    /** Shared by {@link #buildPlacedExplanation}/{@code CausalNarrator}: the group's scheduled time,
+     * Swedish-labelled via the SAME {@link SolutionIndex#timeSlotLabel} lookup {@link #addTimeFactor}
+     * already uses — {@code null} only when the group has no assigned {@code TrainingBlock} yet. */
+    String groupTimeLabelOrNull(RunContext ctx, Group group) {
+        GroupSchedule schedule = ctx.solution().getGroupSchedules().stream()
+                .filter(gs -> gs.getGroup() == group)
+                .findFirst()
+                .orElse(null);
+        if (schedule == null || schedule.getTrainingBlock() == null) {
+            return null;
+        }
+        return ctx.index().timeSlotLabel(schedule.getTrainingBlock().timeSlotId());
     }
 
     /** Level-vs-band factor (kravspec §17.2's "Kalles nivåscore 640 matchade Grupp Y:s nivåspann
@@ -560,11 +603,20 @@ public class ExplanationService {
         return must != null ? must : want;
     }
 
+    /** M-E1: {@link #buildAlternatives}'s two outputs — the rendered alternatives list (unchanged
+     * shape/content from before E1) PLUS the full {@code Map<Group, MoveProbe.Result>} it probed
+     * (every OTHER group, not just the origin-tagged subset that ends up in {@code views}) — so E2's
+     * {@code CausalNarrator} can build its causal narrative from the SAME probes, at ZERO additional
+     * {@code analyze()} calls (see {@code ExplanationProbeCountTest}, which pins the total probe count
+     * against exactly this reuse). */
+    private record AlternativesResult(List<AlternativeGroupView> views, Map<Group, MoveProbe.Result> probesByGroup) {
+    }
+
     /** The ONE-PASS candidate-group probe (docs/design/04-solver.md §11.3, verifier-corrected: "12
      * probes computed in one pass, rules 1-4 derived as ordering/labelling over that result set").
      * For a placed player, candidates are every OTHER group (the union rule's origin tags are then
      * applied over that already-computed result set, never re-probed). */
-    private List<AlternativeGroupView> buildAlternatives(RunContext ctx, PlayerAssignment target, Group selectedGroup) {
+    private AlternativesResult buildAlternatives(RunContext ctx, PlayerAssignment target, Group selectedGroup) {
         List<Group> sortedGroups = ctx.solution().getGroups().stream()
                 .filter(g -> g != selectedGroup)
                 .sorted(java.util.Comparator.comparingInt(Group::groupOrder))
@@ -581,7 +633,7 @@ public class ExplanationService {
         for (Map.Entry<Group, Set<String>> e : origins.entrySet()) {
             alternatives.add(toAlternativeView(ctx, e.getKey(), results.get(e.getKey()), e.getValue()));
         }
-        return alternatives;
+        return new AlternativesResult(alternatives, results);
     }
 
     /** Rules 1-4 of design §11.3, as pure labelling over the already-computed {@code results} map (no
@@ -750,7 +802,7 @@ public class ExplanationService {
         return new PersonExplanationResponse(
                 ctx.run().id(), ctx.run().planRevision(), ctx.currentRevision(), ctx.stale(),
                 participantProfileId, target.getDisplayName(), null, List.of(), negative, brokenWishes, appliedWeights,
-                List.of(), List.of(), waitlistView);
+                List.of(), List.of(), waitlistView, null, null, List.of());
     }
 
     /** Amendment (a): the concrete hard blocker per group, plus (for a full group specifically) the

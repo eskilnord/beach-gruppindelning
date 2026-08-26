@@ -125,8 +125,14 @@ class ExplanationRecordLeakTest {
                 .param("planId", planId).query(String.class).single();
 
         for (ParticipantProfile p : participantProfileRepository.findByActivityPlanId(planId)) {
-            mockMvc.perform(get("/api/plans/" + planId + "/runs/" + runId + "/explanations/players/" + p.id())
-                    .header("X-GP-Token", VALID_TOKEN));
+            // M-E2: the LIVE response now also carries unmetWishes/placementSummarySv/lockedNoticeSv,
+            // built server-side (CausalNarrator/UnmetWishResolver) from the SAME comment-free
+            // solver-domain facts as everything else in this response - captured and asserted against
+            // the same two sensitive strings, not just the persisted audit row below.
+            String playerJson = mockMvc.perform(get("/api/plans/" + planId + "/runs/" + runId + "/explanations/players/" + p.id())
+                            .header("X-GP-Token", VALID_TOKEN))
+                    .andReturn().getResponse().getContentAsString();
+            assertThat(playerJson).doesNotContain(SENSITIVE_IMPORTED_COMMENT).doesNotContain(SENSITIVE_INTERNAL_NOTE);
         }
         for (var group : jdbcClient.sql("SELECT id FROM training_group WHERE activity_plan_id = :planId")
                 .param("planId", planId).query((rs, n) -> rs.getString("id")).list()) {

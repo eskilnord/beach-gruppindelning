@@ -14,7 +14,8 @@ class ExplanationCacheTest {
     private static PersonExplanationResponse dummy(String runId, int revision) {
         return new PersonExplanationResponse(
                 runId, revision, revision, false, "p1", "Test Person", null, java.util.List.of(), java.util.List.of(),
-                java.util.List.of(), java.util.List.of(), java.util.List.of(), java.util.List.of(), null);
+                java.util.List.of(), java.util.List.of(), java.util.List.of(), java.util.List.of(), null, null, null,
+                java.util.List.of());
     }
 
     @Test

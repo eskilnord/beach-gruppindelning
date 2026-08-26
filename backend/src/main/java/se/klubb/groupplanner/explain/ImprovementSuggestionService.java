@@ -198,7 +198,14 @@ public class ImprovementSuggestionService {
         }
     }
 
-    private static boolean isBetterCandidate(MoveProbe.Result r, Group g, MoveProbe.Result best, Group bestGroup) {
+    /** This class's OWN "least-bad candidate" ordering for its own suggestions — |hard| asc, then
+     * score delta desc, then group order asc. M-E2 review fix (BLOCKER): {@code CausalNarrator} used
+     * to reuse this EXACT method for picking a TRADE_OFF/EQUAL/SOLVER_MISS outcome's best candidate,
+     * but |hard|-ascending ranks a candidate that BREAKS a hard constraint above one that doesn't
+     * whenever its |hard| delta happens to be small, discarding hard-REPAIRING candidates — wrong for
+     * the narrator's "is this move even feasible" question. {@code CausalNarrator} now has its own,
+     * separate "no new hard breaks first" comparator; this method is UNCHANGED and used only here. */
+    static boolean isBetterCandidate(MoveProbe.Result r, Group g, MoveProbe.Result best, Group bestGroup) {
         long rAbsHard = Math.abs(r.scoreDelta().hardScore());
         long bestAbsHard = Math.abs(best.scoreDelta().hardScore());
         if (rAbsHard != bestAbsHard) {

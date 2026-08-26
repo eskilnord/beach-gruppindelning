@@ -153,6 +153,13 @@ public final class ExplanationTestFixture {
         playerAssignmentRepository.updateGroupAndSource(participantProfileId, groupIdOrNull, PlayerAssignment.SOURCE_SOLVER);
     }
 
+    /** M-E2 {@code PinnedPlacementTest}: locks a participant to a group (spec §15.1 "Lås spelare") so
+     * {@code SolverInputAssembler} folds {@code pinned=true} into the resulting {@code
+     * PlayerAssignment} — the exact fact {@code CausalNarrator}'s LOCKED outcome checks. */
+    public void lockToGroup(String participantProfileId, String groupId) {
+        playerAssignmentRepository.lockToGroup(participantProfileId, groupId);
+    }
+
     /** Adds a directed personRelation wish (e.g. {@code fieldKey = "playWith"}) from {@code
      * fromParticipantId} to {@code toParticipantId}, accumulating multiple targets for the same
      * (participant, field) pair into one JSON array — mirroring how the real field-value API stores
