@@ -28,7 +28,12 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
     {
-      command: "./mvnw spring-boot:run -Dspring-boot.run.profiles=dev",
+      // busy-timeout raised for the same reason the backend test suite raises it (see
+      // DataSourceConfig's javadoc): slow CI runners stretch a solve-writeback's "brief" write
+      // lock past production's 5 s alarm, and the e2e suite genuinely runs concurrent writers
+      // (a background solve + UI mutations). Production keeps 5 s.
+      command:
+        "./mvnw spring-boot:run -Dspring-boot.run.profiles=dev -Dspring-boot.run.arguments=--app.sqlite.busy-timeout-ms=30000",
       cwd: path.resolve(__dirname, "../backend"),
       url: "http://127.0.0.1:4517/v3/api-docs",
       // /v3/api-docs is the token-exempt (dev-profile-only) readiness probe: /api/health always
