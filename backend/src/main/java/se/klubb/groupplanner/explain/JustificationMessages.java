@@ -1,6 +1,7 @@
 package se.klubb.groupplanner.explain;
 
 import ai.timefold.solver.core.api.score.stream.ConstraintJustification;
+import se.klubb.groupplanner.solver.constraints.ConstraintKeys;
 import se.klubb.groupplanner.solver.constraints.Justifications;
 import se.klubb.groupplanner.solver.domain.Group;
 
@@ -120,9 +121,9 @@ final class JustificationMessages {
 
             case Justifications.PairWishSoftJustification j -> pairWishMessage(j.aParticipantId(), j.bParticipantId(), j.type(), false, idx);
 
-            case Justifications.CoachLevelMismatchJustification j -> "%s:s nivåspann (%s-%s) passar inte %s:s nivåsnitt %s"
-                    .formatted(idx.personName(j.coachPersonId()), formatLevel(j.canMinScaled()), formatLevel(j.canMaxScaled()),
-                            idx.groupName(j.groupId()), formatLevel(j.groupMeanScaled()));
+            case Justifications.CoachLevelMismatchJustification j -> "%s nivåspann (%s-%s) passar inte %s nivåsnitt %s"
+                    .formatted(genitive(idx.personName(j.coachPersonId())), formatLevel(j.canMinScaled()), formatLevel(j.canMaxScaled()),
+                            genitive(idx.groupName(j.groupId())), formatLevel(j.groupMeanScaled()));
 
             case Justifications.LateTimeJustification j -> "TOP_LATE_PENALIZED".equals(j.direction())
                     ? "%s hamnade på en sen tid (%s)".formatted(idx.groupName(j.groupId()), j.timeLabel())
@@ -177,5 +178,49 @@ final class JustificationMessages {
     /** Group fact convenience used by {@link ExplanationService} for "full" narratives. */
     static boolean isFull(Group group, int currentSize) {
         return currentSize >= group.maxSize();
+    }
+
+    /** C14 (audit-fix batch C, v0.6.0): the Swedish genitive of a display name/proper noun, WITHOUT
+     * the colon-before-"s" this codebase used to write everywhere (e.g. {@code "Kalle Karlsson:s"} —
+     * not valid Swedish orthography; the correct form is plainly {@code "Kalle Karlssons"}). A name
+     * that already ends in "s" (or an s-sound, e.g. "Anders", "Lukas") takes NO extra "s" in the
+     * genitive ("Anders önskemål", never "Anderss önskemål" or "Anders:s önskemål"). Shared by every
+     * {@code "%s:s ..."}-style construction in {@link ExplanationService}/{@link CausalNarrator}/
+     * {@link PrioritySensitivityCalculator} (and this class' own {@code CoachLevelMismatchJustification}
+     * case above) — callers build the genitive form via this method FIRST, then interpolate it plain
+     * (no ":s" baked into the format string). */
+    static String genitive(String name) {
+        return name.endsWith("s") ? name : name + "s";
+    }
+
+    /** C11(a)/(b)/(c) (audit-fix batch C, v0.6.0): lay-friendly narrative labels for a constraint key,
+     * used ONLY at the point {@link CausalNarrator}/{@link PrioritySensitivityCalculator} render a
+     * human-facing constraint NAME inside a causal/sensitivity sentence (their {@code
+     * ConstraintMetadata.of(key).label()} call sites) — {@link ConstraintMetadata} itself is left
+     * untouched (still the correct registry for the constraint-weights UI and the plan-level
+     * constraint-summary table, which are already advanced-only/technical surfaces).
+     *
+     * <p>Two rules, in this order: (1) ANY coach-family key (constraint key strings all share the
+     * lowerCamel "coach..." prefix, see {@link ConstraintKeys}) is ALWAYS reduced to a role-only
+     * label, "hanteras i avancerat läge" — never the coach's name, never even the specific coach
+     * constraint's own jargon label, since a general/lay-facing sentence must never surface
+     * coach-management detail (project's confidentiality rule; see {@code
+     * CausalNarrativeTruthfulnessTest}'s banned-lexicon sweep, which this label feeds). (2) the five
+     * COMMON keys named by this milestone's brief get a specific plain-Swedish phrasing instead of the
+     * registry's own jargon label (e.g. "Målstorlek grupp" -&gt; "gruppens storlek"). Every other key
+     * falls back to {@link ConstraintMetadata}'s registry label unchanged. */
+    static String narrativeLabelSv(String key) {
+        if (key != null && key.startsWith("coach")) {
+            return "ett tränarvillkor (avancerat läge)";
+        }
+        return switch (key) {
+            case ConstraintKeys.LEVEL_BALANCE -> "nivåbalansen i gruppen";
+            case ConstraintKeys.GROUP_ORDER_BY_LEVEL -> "gruppernas nivåordning";
+            case ConstraintKeys.TIME_PREFERENCE_SOFT -> "tidsönskemål";
+            case ConstraintKeys.PREVIOUS_GROUP_CONTINUITY -> "önskan att fortsätta i sin tidigare grupp";
+            case ConstraintKeys.GROUP_SIZE_TARGET, ConstraintKeys.GROUP_SIZE_TARGET_EMPTY, ConstraintKeys.GROUP_MIN_SIZE_SOFT,
+                    ConstraintKeys.GROUP_MIN_SIZE_EMPTY, ConstraintKeys.GROUP_MAX_SIZE_HARD -> "gruppens storlek";
+            default -> ConstraintMetadata.of(key).label();
+        };
     }
 }

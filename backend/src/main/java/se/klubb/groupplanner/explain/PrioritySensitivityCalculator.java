@@ -200,13 +200,18 @@ final class PrioritySensitivityCalculator {
             // FIX 5 (M-E3 review): the "lägsta prioritet" sentence names the PRIORITY family the user
             // would rank (e.g. "Träna tillsammans"), never the underlying constraint's own label (e.g.
             // "Samma grupp (mjuk)") - PriorityOrder.labelSv(bucketOf(key)) for a bucket blocker,
-            // ConstraintMetadata's constraint label only for the (non-bucket) "outside the four
-            // priorities" phrasing.
+            // JustificationMessages.narrativeLabelSv for the (non-bucket) "outside the four priorities"
+            // phrasing. C11(b)/(c) (audit-fix batch C, v0.6.0): narrativeLabelSv both reduces a
+            // coach-family blocker key to a role-only "ett tränarvillkor (avancerat läge)" label (never
+            // naming/detailing the coach constraint) and swaps registry jargon (e.g. "Målstorlek
+            // grupp") for plain Swedish (e.g. "gruppens storlek") for the other COMMON keys - see that
+            // method's own javadoc; ConstraintMetadata itself is untouched (still correct for the
+            // weights UI/constraint-summary table).
             String blockerLabel = blockerKey == null
                     ? "de samlade kostnaderna"
                     : blockerIsBucket
                             ? PriorityOrder.labelSv(PriorityOrder.bucketOf(blockerKey).orElseThrow())
-                            : ConstraintMetadata.of(blockerKey).label();
+                            : JustificationMessages.narrativeLabelSv(blockerKey);
             boolean alreadyTop = wishBucket.isPresent() && currentOrder.get(0) == wishBucket.get();
             String verdict = alreadyTop ? "ALREADY_TOP" : "NO_ORDER_HELPS";
             String summary = blockerIsBucket

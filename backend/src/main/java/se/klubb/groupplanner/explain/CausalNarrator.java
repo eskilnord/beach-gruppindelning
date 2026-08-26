@@ -105,11 +105,16 @@ final class CausalNarrator {
     private CausalNarrator() {
     }
 
+    /** C13 (audit-fix batch C, v0.6.0): dropped the trailing "...så alternativen nedan visar bara vad
+     * ett byte SKULLE innebära – inte vad optimeringen övervägde" clause — simple mode HIDES the
+     * alternatives list entirely, so "alternativen nedan" is a dangling reference there; also fixed
+     * the stray all-caps "SKULLE" typo. Replaced with a plain SCOPE sentence that reads correctly with
+     * or without an alternatives list nearby. */
     static String lockedNoticeSv(RunContext ctx, PlayerAssignment target, Group selectedGroup, String timeLabelSv) {
         String where = timeLabelSv == null ? selectedGroup.name() : "%s (%s)".formatted(selectedGroup.name(), timeLabelSv);
-        return "%s är låst till %s. Optimeringen fick inte flytta %s till någon annan grupp, så alternativen nedan visar "
-                .formatted(target.getDisplayName(), where, target.getDisplayName())
-                + "bara vad ett byte SKULLE innebära – inte vad optimeringen övervägde.";
+        return "%s är låst till %s. Optimeringen fick inte flytta %s till någon annan grupp. Så länge %s är låst visar "
+                .formatted(target.getDisplayName(), where, target.getDisplayName(), target.getDisplayName())
+                + "förklaringen bara vad ett byte skulle innebära.";
     }
 
     static UnmetWishView narrate(
@@ -130,14 +135,14 @@ final class CausalNarrator {
                     .formatted(target.getDisplayName(), selectedGroup.name(), timeLabel(svc, ctx, selectedGroup), target.getDisplayName())
                     + "Lås upp placeringen och kör om optimeringen om du vill att det ska testas.";
             return finish(
-                    ctx, wishId, wish.key(), bucket, wishSv, "LOCKED", reason, hedgeSv(target), candidateGroupIds, null, null, List.of(),
+                    ctx, wishId, wish.key(), bucket, wishSv, "LOCKED", reason, scopeSv(), candidateGroupIds, null, null, List.of(),
                     SENSITIVITY_LOCKED);
         }
 
         if (wish.candidateGroups().isEmpty()) {
             String reason = noCandidateReason(ctx, target, wish);
             return finish(
-                    ctx, wishId, wish.key(), bucket, wishSv, "NO_CANDIDATE", reason, hedgeSv(target), candidateGroupIds, null, null, List.of(),
+                    ctx, wishId, wish.key(), bucket, wishSv, "NO_CANDIDATE", reason, scopeSv(), candidateGroupIds, null, null, List.of(),
                     SENSITIVITY_NO_CANDIDATE);
         }
 
@@ -223,7 +228,7 @@ final class CausalNarrator {
         List<ConstraintReasonView> competingReasons = new ArrayList<>();
         for (Map.Entry<String, Long> e : ranked) {
             List<MoveProbe.ScoredMatch> group = brokenByKey.get(e.getKey());
-            String label = ConstraintMetadata.of(e.getKey()).label();
+            String label = JustificationMessages.narrativeLabelSv(e.getKey());
             String messageSv = messageForGroup(ctx, e.getKey(), group, target.getId());
             int sharePercent = totalNegative <= 0 ? 0 : (int) Math.floorDiv(100L * e.getValue(), totalNegative);
             competingReasons.add(new ConstraintReasonView(e.getKey(), label, messageSv, e.getValue(), sharePercent));
@@ -295,8 +300,13 @@ final class CausalNarrator {
             }
             case "PREVGROUP" -> "Den tidigare gruppen finns inte längre i planen, så önskemålet om samma grupp som förra terminen "
                     + "kunde inte prövas.";
-            case "COACH" -> ("Ingen grupp har tränaren %s i den nuvarande tränarfördelningen, så tränarönskemålet kunde inte uppfyllas "
-                    + "utan att tränarfördelningen görs om.").formatted(ctx.index().personName(wish.coachPersonSolverId()));
+            // C11(a) (audit-fix batch C, v0.6.0): this used to name the wished-for coach directly
+            // ("Ingen grupp har tränaren «Namn» i den nuvarande tränarfördelningen, ...") - CausalNarrator
+            // produces exactly ONE primaryReasonSv string per outcome, consumed by BOTH the simple and
+            // advanced surfaces (no backend-level split), so per this finding's own decision rule this
+            // must be genericized UNIVERSALLY rather than only for a "general" surface: role-only, no
+            // coach identity, routes the reader to advanced mode for the full story.
+            case "COACH" -> "Ett tränarvillkor blockerar flytten – hanteras i avancerat läge.";
             case "AVOID" -> "Det finns ingen annan grupp att flytta till, så önskemålet kunde inte uppfyllas.";
             default -> "Önskemålet kunde inte uppfyllas.";
         };
@@ -365,7 +375,20 @@ final class CausalNarrator {
         if (coachBlocked) {
             return new HardBlocker(HardBlockerFamily.COACH, "en flytt dit skulle bryta ett tränarkrav");
         }
-        String fallback = r.newlyBroken().isEmpty() ? "gruppen går inte att flytta till just nu" : r.newlyBroken().get(0).messageSv();
+        String fallback;
+        if (r.newlyBroken().isEmpty()) {
+            fallback = "gruppen går inte att flytta till just nu";
+        } else {
+            ExplanationDtos.ConstraintMessageView top = r.newlyBroken().get(0);
+            // C11(a) (audit-fix batch C, v0.6.0, defensive): this OTHER-family fallback renders the
+            // raw justification message verbatim - every coach-family key ABOVE this point is already
+            // caught by the coachBlocked branch and kept role-only, but if a probe ever surfaces a
+            // DIFFERENT coach-scheduling hard constraint here (none of today's COACH_NO_OVERLAP/
+            // COACH_AVAILABILITY_HARD/etc. can actually fire from a single-player move probe, but
+            // "never say never" per this milestone's brief), it must never fall through to a raw
+            // messageSv naming a coach in general/lay-facing text either.
+            fallback = top.key().startsWith("coach") ? "ett tränarvillkor blockerar flytten" : top.messageSv();
+        }
         return new HardBlocker(HardBlockerFamily.OTHER, fallback);
     }
 
@@ -466,13 +489,14 @@ final class CausalNarrator {
     /** MINOR review fix ("narrative-form reason labels instead of registry jargon"): a short, natural
      * Swedish phrase for ONE broken match ("kompisönskemålet med Lisa Larsson" rather than the
      * registry's "Samma grupp (mjuk)") when the match's justification names exactly one other
-     * participant; falls back to {@link ConstraintMetadata}'s registry label for every key this
-     * helper doesn't know a narrative form for (unknown/non-pair keys), per the brief's own fallback
-     * rule. */
+     * participant; falls back to {@link JustificationMessages#narrativeLabelSv} (itself falling back
+     * to {@link ConstraintMetadata}'s registry label) for every key this helper doesn't know a
+     * narrative form for (unknown/non-pair keys), per the brief's own fallback rule — see C11(a)/(c)
+     * (audit-fix batch C, v0.6.0) for why the registry label is no longer used directly here. */
     private static String phraseFor(RunContext ctx, String key, List<MoveProbe.ScoredMatch> group, long targetId) {
         List<Long> others = distinctOtherParticipantIds(group, targetId);
         if (others.isEmpty()) {
-            return ConstraintMetadata.of(key).label();
+            return JustificationMessages.narrativeLabelSv(key);
         }
         if (others.size() == 1) {
             String otherName = ctx.index().participantName(others.get(0));
@@ -482,7 +506,7 @@ final class CausalNarrator {
             if (isDifferentGroupFamily(key)) {
                 return "önskemålet om att undvika " + otherName;
             }
-            return ConstraintMetadata.of(key).label();
+            return JustificationMessages.narrativeLabelSv(key);
         }
         return multiPairPhrase(ctx, key, others);
     }
@@ -495,7 +519,7 @@ final class CausalNarrator {
         List<String> names = others.stream().map(id -> ctx.index().participantName(id)).toList();
         String familyPlural = isSameGroupFamily(key)
                 ? "kompisönskemål"
-                : isDifferentGroupFamily(key) ? "önskemål om olika grupper" : ConstraintMetadata.of(key).label();
+                : isDifferentGroupFamily(key) ? "önskemål om olika grupper" : JustificationMessages.narrativeLabelSv(key);
         return "%d %s (med %s)".formatted(others.size(), familyPlural, joinSv(names));
     }
 
@@ -534,9 +558,12 @@ final class CausalNarrator {
         return " Samma sak gäller %s.".formatted(joinSv(items));
     }
 
-    /** MINOR review fix ("Swedish list comma before final 'och'"): 1 item as-is; 2 items joined with
-     * a plain " och "; 3+ items comma-joined with an EXTRA comma before the final "och" (e.g. "A, B,
-     * och C") — the exact convention this milestone's brief asks for. */
+    /** C14 (audit-fix batch C, v0.6.0): 1 item as-is; 2 items joined with a plain " och "; 3+ items
+     * comma-joined with NO comma before the final "och" (e.g. "A, B och C", never "A, B, och C") —
+     * standard Swedish list punctuation (no serial/Oxford comma), matching {@link
+     * PrioritySensitivityCalculator}'s own (private) {@code joinSv} and {@code
+     * PriorityOrderSuggestionBuilder}'s, which already used this exact convention; this method was the
+     * odd one out with an extra comma before "och". */
     private static String joinSv(List<String> items) {
         if (items.isEmpty()) {
             return "";
@@ -547,11 +574,21 @@ final class CausalNarrator {
         if (items.size() == 2) {
             return items.get(0) + " och " + items.get(1);
         }
-        return String.join(", ", items.subList(0, items.size() - 1)) + ", och " + items.get(items.size() - 1);
+        return String.join(", ", items.subList(0, items.size() - 1)) + " och " + items.get(items.size() - 1);
     }
 
     private static String hedgeSv(PlayerAssignment target) {
         return "Jämförelsen gäller att flytta %s ensam, med planen i övrigt oförändrad.".formatted(target.getDisplayName());
+    }
+
+    /** C13 (audit-fix batch C, v0.6.0): LOCKED/NO_CANDIDATE never actually compare against a
+     * hypothetical move — LOCKED never even tries one (the solver wasn't allowed to), and
+     * NO_CANDIDATE's own candidate set is empty (nothing was probed) — so {@link #hedgeSv}'s
+     * "Jämförelsen gäller att flytta ... ensam..." framing would falsely imply a move comparison
+     * happened for these two outcomes. Used ONLY by those two branches instead: a plain SCOPE
+     * statement, no "jämförelse" wording at all. */
+    private static String scopeSv() {
+        return "Bedömningen gäller den nuvarande planen.";
     }
 
     // ─────────────────────────────────────────────────────────────────────── wish text

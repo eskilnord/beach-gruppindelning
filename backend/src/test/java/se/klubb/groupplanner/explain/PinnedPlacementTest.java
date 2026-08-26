@@ -115,10 +115,9 @@ class PinnedPlacementTest {
             assertThat(wish.bestCandidateGroupId()).isNull();
             assertThat(wish.bestCandidateDelta()).isNull();
             assertThat(wish.competingReasons()).isEmpty();
-            // M-E2 review fix (MAJOR, "scope honesty"): LOCKED now also carries the standard hedge
-            // sentence (non-null) - it never names a candidate, but the hedge documents the scope of
-            // the comparison the alternatives list below it still shows.
-            assertThat(wish.hedgeSv()).isEqualTo("Jämförelsen gäller att flytta Kalle Karlsson ensam, med planen i övrigt oförändrad.");
+            // C13 (audit-fix batch C): LOCKED now carries a SCOPE sentence (non-null), not the
+            // move-comparison hedge - a LOCKED player never has a real move comparison to reference.
+            assertThat(wish.hedgeSv()).isEqualTo("Bedömningen gäller den nuvarande planen.");
         }
         assertThat(response.unmetWishes()).anyMatch(w -> w.wishId().startsWith("FRIEND:"));
         assertThat(response.unmetWishes()).anyMatch(w -> w.wishId().equals("PREVGROUP"));

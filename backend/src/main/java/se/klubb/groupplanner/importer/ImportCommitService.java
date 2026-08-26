@@ -67,15 +67,17 @@ public class ImportCommitService {
      * where to actually enter it instead.
      */
     static final String TIME_RELATION_IMPORT_WARNING =
-            "Tidsönskemål kan inte importeras från Excel – ange dem i spelarvyn efter importen.";
+            "Tidsönskemål kan inte importeras från Excel – ange dem under Deltagare efter importen.";
 
     /** MINOR 10 (B5 review): matches {@code PreviousGroupNormalizer#parseWarningSv}'s exact row-level
      *  message so its rows can be pulled out of the WARN-reason stream and re-aggregated when there
      *  are more than {@link #CANNOT_PARSE_AGGREGATE_THRESHOLD} of them - group 1 captures the quoted
      *  original cell text (MINOR 9: the raw pre-normalization value, not any collapsed/normalized
-     *  form) for the aggregate's "t.ex. ..." examples. */
+     *  form) for the aggregate's "t.ex. ..." examples. v0.6.0 audit-fix B8: updated to match
+     *  parseWarningSv's current wording ("kunde inte tolkas som en grupp" rather than "...till en
+     *  gruppnivå") - the em dash after the quoted value is where the per-row explanation now starts. */
     private static final java.util.regex.Pattern PREVIOUS_GROUP_CANNOT_PARSE_REASON = java.util.regex.Pattern.compile(
-            "^Tidigare grupp \"(.*)\" kunde inte tolkas till en gruppnivå.*$");
+            "^Tidigare grupp \"(.*)\" kunde inte tolkas som en grupp.*$");
 
     /** More than this many rows sharing the cannot-parse condition collapse into one summary warning
      *  instead of one line per row (MINOR 10). */
@@ -171,14 +173,18 @@ public class ImportCommitService {
             decisionsAudit.put(result.rowIndex(), decision);
 
             if (result.status() == RowStatus.WARN) {
+                // v0.6.0 audit-fix B2: result.rowIndex() is the 0-based raw sheet-row index (see
+                // ImportValidationService) - +1 shows the row number the admin actually sees when they
+                // open the file in Excel (row 1 = the very first row), never the raw array index.
+                int displayRowNumber = result.rowIndex() + 1;
                 for (String reason : result.reasons()) {
                     java.util.regex.Matcher cannotParseMatch = PREVIOUS_GROUP_CANNOT_PARSE_REASON.matcher(reason);
                     if (cannotParseMatch.matches()) {
-                        cannotParseRowLines.add("Rad " + result.rowIndex() + ": " + reason);
+                        cannotParseRowLines.add("Rad " + displayRowNumber + ": " + reason);
                         cannotParseExamples.add(cannotParseMatch.group(1));
                         continue;
                     }
-                    warnings.add("Rad " + result.rowIndex() + ": " + reason);
+                    warnings.add("Rad " + displayRowNumber + ": " + reason);
                 }
             }
 
@@ -226,15 +232,16 @@ public class ImportCommitService {
 
         if (!timeRelationRows.isEmpty()) {
             String prefix;
+            // v0.6.0 audit-fix B2: same 0-based -> 1-based (Excel row number) conversion as above.
             if (timeRelationRows.size() == 1) {
-                prefix = "Rad " + timeRelationRows.getFirst();
+                prefix = "Rad " + (timeRelationRows.getFirst() + 1);
             } else if (timeRelationRows.size() <= 10) {
                 StringBuilder rows = new StringBuilder("Rader ");
                 for (int i = 0; i < timeRelationRows.size(); i++) {
                     if (i > 0) {
                         rows.append(", ");
                     }
-                    rows.append(timeRelationRows.get(i));
+                    rows.append(timeRelationRows.get(i) + 1);
                 }
                 prefix = rows.toString();
             } else {

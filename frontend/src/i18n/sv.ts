@@ -28,6 +28,11 @@ export const sv = {
     category: "Kategori",
     nameRequired: "Namn krävs",
     unknownError: "Ett okänt fel inträffade",
+    // v0.6.0 audit-fix A4: pairs with lib/errorText.ts's userErrorText/technicalErrorDetail -
+    // a small dimmed line under a Swedish fallback error message, showing the raw backend/network
+    // text for anyone who needs to report the issue.
+    technicalInfo: (detail: string) => `Teknisk information: ${detail}`,
+    retryButton: "Försök igen",
   },
   start: {
     heading: "Gruppindelning",
@@ -43,7 +48,9 @@ export const sv = {
     demoDataButton: "Prova med demodata",
     demoDataEmptyStateBody:
       "Vill du se hur appen fungerar direkt? Skapa en demosäsong med hundra påhittade spelare, tränare och önskemål – utan att importera något.",
-    demoDataSuccess: "Demodata skapad! Här är en färdig säsong att utforska.",
+    // v0.6.0 audit-fix A5: names what actually gets created (100 fictional players), not the vaguer
+    // "en färdig säsong".
+    demoDataSuccess: "Demodata skapad! Här är en färdig plan med 100 påhittade spelare att utforska.",
     demoDataFailed: "Kunde inte skapa demodata",
   },
   createSeasonModal: {
@@ -67,10 +74,17 @@ export const sv = {
       `Är du säker på att du vill ta bort säsongen "${name}"? Detta går inte att ångra.`,
     confirm: "Ta bort säsong",
     deleteFailed: "Kunde inte ta bort säsongen",
+    // v0.6.0 audit-fix A11: per-plan participant counts across a whole season aren't cheaply
+    // available here (unlike PlanLayout's own delete-plan modal, which already has its plan's own
+    // counts warm in cache) - this static line still names the cargo, just at season granularity.
+    detailsAllPlans: "Alla planer i säsongen tas bort.",
   },
   season: {
     notFound: "Säsongen kunde inte hittas.",
     plansHeading: "Aktivitetsplaner",
+    // v0.6.0 audit-fix A5: one-line plain-language definition shown under the heading in SIMPLE mode.
+    plansHeadingDefinitionSimple:
+      "En aktivitetsplan är en grupp av tränande som planeras ihop – t.ex. Herr, Dam eller Ungdom.",
     createPlanButton: "Skapa aktivitetsplan",
     editSeasonButton: "Redigera säsong",
     deleteSeasonButton: "Ta bort säsong",
@@ -90,13 +104,28 @@ export const sv = {
       empty: "Inga konflikter.",
       loadFailed: "Kunde inte hämta konflikter",
     },
+    // v0.6.0 audit-fix A5: SIMPLE collapses the separate Redigera/Ta bort buttons into one Menu
+    // behind an IconDots ActionIcon - mirrors plan.menu's exact pattern below.
+    menu: {
+      ariaLabel: "Fler alternativ",
+      edit: "Redigera säsong…",
+      delete: "Ta bort säsong",
+    },
   },
   createPlanModal: {
     title: "Skapa aktivitetsplan",
     nameLabel: "Namn",
     namePlaceholder: "t.ex. Herr",
+    // v0.6.0 audit-fix A10: SIMPLE-mode-specific name placeholder - a fuller worked example than
+    // ADVANCED's bare "t.ex. Herr" (which just repeats what most admins already type as the name).
+    namePlaceholderSimple: "t.ex. Herrar torsdagar",
     categoryLabel: "Kategori",
     categoryPlaceholder: "t.ex. Herr, Dam, Ungdom",
+    // v0.6.0 audit-fix A10: SIMPLE calls the same field "Grupptyp" (plainer than "Kategori") with a
+    // narrower placeholder and a persistent visible description (not just the HelpTip explanation).
+    categoryLabelSimple: "Grupptyp",
+    categoryPlaceholderSimple: "t.ex. Herr",
+    categoryDescriptionSimple: "Används som namn på grupperna: Herr 1, Herr 2 …",
     submit: "Skapa",
     createFailed: "Kunde inte skapa aktivitetsplanen",
   },
@@ -165,6 +194,10 @@ export const sv = {
       `Är du säker på att du vill ta bort aktivitetsplanen "${name}"? Detta går inte att ångra.`,
     confirm: "Ta bort plan",
     deleteFailed: "Kunde inte ta bort aktivitetsplanen",
+    // v0.6.0 audit-fix A11: names the cargo - PlanLayout.tsx joins whichever of deltagare/grupper/
+    // sparade versioner are already loaded (e.g. "12 deltagare, 3 grupper och 2 sparade versioner
+    // tas bort."), omitting segments whose count isn't cached yet rather than showing "0".
+    detailsSuffix: (joined: string) => `${joined} tas bort.`,
   },
   backendStatus: {
     up: "Motorn är igång ✓",
@@ -181,7 +214,11 @@ export const sv = {
     planPlaceholder: "Välj aktivitetsplan",
     createPlanButton: "Skapa ny aktivitetsplan",
     continueButton: "Fortsätt",
-    noSeasons: "Inga säsonger ännu. Skapa en säsong först.",
+    // v0.6.0 audit-fix A3: zero seasons used to be a dead end (just this line of text, no way
+    // forward). Paired with createSeasonButton below - opens CreateSeasonModal inline, same
+    // pattern as createPlanButton already does for the plan branch.
+    noSeasons: "Du behöver först en säsong att importera till.",
+    createSeasonButton: "Skapa ny säsong",
     noPlans: "Inga aktivitetsplaner i den här säsongen ännu.",
   },
   participants: {
@@ -242,18 +279,28 @@ export const sv = {
         confirm: "Radera kommentarer",
         failed: "Kunde inte radera kommentarerna",
       },
-      structuredHeading: "Strukturerade fält",
+      structuredHeading: "Uppgifter",
       manualLevelScoreLabel: "Manuell nivåscore",
+      // B18.5 (v0.6.0 audit-fix batch B): shown as the NumberInput's description.
+      manualLevelScoreDescription: "0–1000. Fyll i om du vet spelarens nivå – ersätter den beräknade nivån.",
       previousGroupNameLabel: "Tidigare grupp",
       // v0.6.0 F4 (M-S4): the solver's own trailing-integer parse of previousGroupName ("Herr 3" ->
       // 3, SolverInputAssembler#previousGroupOrderOf) - shown under the input so it's clear what the
       // continuity constraint will actually use. previousGroupParseWarning (when present) is the
       // backend's own Swedish text, rendered verbatim - see api/types.ts's ParticipantProfile doc.
       previousGroupOrderParsed: (n: number) => `Tolkas som grupp ${n}`,
+      // B18.8 (v0.6.0 audit-fix batch B): appended to previousGroupOrderParsed's hint, ONLY while
+      // previousGroupName has an unsaved (dirty) edit - the parse above is always computed from the
+      // SAVED value, which can silently diverge from what's currently typed in the field.
+      previousGroupSavedValueNote: "(gäller det sparade värdet)",
       previousGroupLevelLabel: "Tidigare gruppnivå",
       waitlistedLabel: "Kölista",
+      // B18.6 (v0.6.0 audit-fix batch B): shown as the Switch's description.
+      waitlistedDescription: "Spelaren placeras inte i någon grupp.",
       manualReviewFlagLabel: "Behöver granskning",
-      customFieldsHeading: "Anpassade fält",
+      // B18.7 (v0.6.0 audit-fix batch B): shown as the Switch's description.
+      manualReviewFlagDescription: "Markerar raden så att du hittar den senare.",
+      customFieldsHeading: "Egna fält",
       timeRelationHint: "Välj tider ur planens schema",
       timeRelationPlaceholder: "Välj tider…",
       timeRelationInvalidValuesNote: "Ogiltiga värden från import ignoreras",
@@ -274,6 +321,16 @@ export const sv = {
       saveSuccess: "Sparat.",
       saveFailed: "Kunde inte spara deltagaren",
       fieldValuesSaveFailed: "Kunde inte spara fältvärdena",
+      // B17 (v0.6.0 audit-fix batch B): shown instead of closing immediately when the drawer has
+      // unsaved field edits and the user tries to close it - via the "Stäng" button, an overlay
+      // click, or Escape (all three funnel through the same guard, see ParticipantDrawer.tsx).
+      unsavedChangesModal: {
+        title: "Osparade ändringar",
+        message: "Du har osparade ändringar. Vill du spara dem?",
+        save: "Spara",
+        discard: "Släng ändringar",
+        continueEditing: "Fortsätt redigera",
+      },
     },
     // WP2 "Tolkningsförslag": local, rule-based (NOT AI) proposals parsed from the imported comment
     // - non-binding, always confirmed with one click. Rendered by CommentSuggestionList.tsx under
@@ -287,6 +344,8 @@ export const sv = {
       dismissButton: "Avfärda",
       alreadyAppliedButton: "Redan tillagd",
       applyFailed: "Kunde inte lägga till förslaget",
+      // B18.2 (v0.6.0 audit-fix batch B): success toast shown after a suggestion is applied.
+      applySuccess: "Tillagd ✓",
       // Per-kind Swedish descriptions. Name-targeted kinds take the resolved display name; time
       // kinds take the number of matched plan time slots; the two flag kinds have no target at all.
       templates: {
@@ -307,7 +366,18 @@ export const sv = {
     title: "Importera deltagare",
     cancelButton: "Avbryt import",
     cancelConfirmTitle: "Avbryt import?",
-    cancelConfirmMessage: "Den påbörjade importen kastas. Inget har sparats än.",
+    // v0.6.0 audit-fix B7: whether custom fields were created during THIS import session decides
+    // the second sentence - a created field definition survives cancelling the import (it's its own
+    // durable write, not part of the session), so a blanket "Inget har sparats än." would be untrue.
+    cancelConfirmMessage: (hasCreatedCustomFields: boolean) =>
+      hasCreatedCustomFields
+        ? "Den påbörjade importen kastas. Fälten du skapade finns kvar."
+        : "Den påbörjade importen kastas. Inget har sparats än.",
+    cancelConfirmContinueLabel: "Fortsätt importen",
+    cancelConfirmDiscardLabel: "Kasta importen",
+    retryButton: "Försök igen",
+    genericError: "Något gick fel. Försök igen.",
+    networkError: "Appen kunde inte nå programmet på datorn. Prova igen om en stund.",
     steps: {
       file: "Välj fil",
       review: "Granska",
@@ -320,27 +390,51 @@ export const sv = {
       heading: "Granska och importera",
       intro:
         "Appen har valt blad, mappat kolumner och räknat rader automatiskt. Kontrollera sammanfattningen och importera med ett klick — eller justera manuellt.",
+      // v0.6.0 audit-fix B4: SIMPLE mode never shows the "Justera" escape hatch (see AdvancedOnly
+      // below in ReviewStep.tsx), so promising "eller justera manuellt" there would be a dead-end
+      // promise - this variant drops that clause entirely rather than describing an action unavailable.
+      introSimple:
+        "Appen har valt blad, mappat kolumner och räknat rader automatiskt. Kontrollera sammanfattningen och importera med ett klick.",
       templateBannerTitle: "Samma filformat som senast",
       templateBanner: (name: string) => `Mallen "${name}" används för kolumnmappningen.`,
       sheetCardLabel: "Blad",
       mappingCardLabel: "Kolumner",
       mappingSummary: (mapped: number, ignored: number) =>
         `${mapped} mappade, ${ignored} ignoreras`,
+      // v0.6.0 audit-fix B4: SIMPLE mode's decisions table hides coach-target columns (COACH_TARGETS
+      // filtering below), so the "Kolumner" count shown must match what's actually visible - this
+      // footer note explains the gap instead of leaving an unexplained mismatch between the card's
+      // number and the row count in the table.
+      hiddenColumnNote: (count: number) =>
+        count === 1 ? "+1 kolumn hanteras i avancerat läge" : `+${count} kolumner hanteras i avancerat läge`,
       rowsCardLabel: "Rader",
       rowsSummary: (players: number, warnings: number, skipped: number) =>
-        `${players} spelare (${warnings} med varning), ${skipped} hoppas över`,
+        `${players} deltagare (${warnings} med varning), ${skipped} hoppas över`,
       warningsHeading: "Varningar",
       reasonHeader: "Varför",
       importButton: "Importera",
       adjustButton: "Justera",
+      // v0.6.0 audit-fix B4: restarts the wizard at step 1 - the honest alternative to "Justera" when
+      // the uploaded file is simply the wrong one, always available regardless of ui-mode.
+      chooseAnotherFileButton: "Välj en annan fil",
       // v0.6.0 F4 review fix (minor): SIMPLE mode hides "Justera" entirely (the escape hatch into the
       // step-by-step wizard is ADVANCED-only, see ReviewStep.tsx) - this dimmed hint tells a SIMPLE
       // admin who spots a mapping mistake in the table how to actually fix it.
       simpleAdjustHint: "Fel i tabellen? Byt till avancerat läge för att justera.",
+      // v0.6.0 audit-fix B4: badge/hint for the synthetic "Tidigare grupp" column in THIS table
+      // specifically - deliberately different wording from mapping.derivedBadge/derivedHint (the same
+      // synthetic-column concept, but MappingStep's copy talks about "gruppblocken i filen" which
+      // assumes familiarity with the mapping step's own vocabulary; this one is written for someone
+      // who may never see MappingStep at all on the one-click path).
+      derivedBadge: "Skapad av appen",
+      derivedHint:
+        "Kolumnen finns inte i din fil – appen har läst gruppnamnen ur filens rubriker och satt dem som Tidigare grupp.",
     },
     sessionExpired: {
       title: "Sessionen har gått ut",
-      message: "Importsessionen har gått ut eller hittas inte längre. Börja om från början.",
+      // v0.6.0 audit-fix B7: explains WHY (open too long), confirms nothing was saved, and tells the
+      // admin exactly what to do next - replaces the previous generic "börja om från början."
+      message: "Importen avbröts eftersom den låg öppen för länge. Ingenting har sparats. Välj filen igen så börjar vi om.",
       restartButton: "Börja om",
     },
     file: {
@@ -350,11 +444,17 @@ export const sv = {
       invalidType: "Endast .xlsx- och .csv-filer stöds.",
       uploadFailed: "Kunde inte läsa in filen",
       uploading: "Läser in fil…",
+      // v0.6.0 audit-fix B5: a rejected .xls (legacy Excel) file gets its OWN persistent (non-toast)
+      // message naming the actual file the user dropped, plus the concrete fix - unlike the generic
+      // `invalidType` toast (still used for genuinely unsupported types), this stays visible near the
+      // drop zone until the user acts.
+      legacyXlsTitle: (fileName: string) => `"${fileName}" är en äldre Excel-fil (.xls)`,
+      legacyXlsMessage: "Öppna filen i Excel och välj Arkiv → Spara som → Excel-arbetsbok (.xlsx).",
     },
     sheet: {
       heading: "Välj blad och granska rader",
-      headerRowLabel: "Header-rad",
-      headerRowHint: "Raden som innehåller kolumnrubriker (0 = första raden).",
+      headerRowLabel: "Rubrikrad",
+      headerRowHint: "Raden med kolumnrubrikerna — samma radnummer som i Excel.",
       restoreFailedTitle: "Bladlistan kunde inte återställas",
       restoreFailedMessage:
         "Det gick inte att återställa bladlistan efter sidladdningen. Ladda upp filen igen.",
@@ -362,6 +462,11 @@ export const sv = {
         `Kolumnmappningen är förifylld från den sparade mallen "${name}".`,
       loadFailed: "Kunde inte hämta förhandsgranskningen",
       nextButton: "Nästa: Mappa kolumner",
+      // v0.6.0 audit-fix B3: shown once, at the top, ONLY when the wizard landed here because
+      // one-click auto-analysis was not confident (ImportWizardPage.handleUploaded) - never when the
+      // user arrived via "Justera" from the confident one-click review card.
+      analysisFailedNotice:
+        "Vi kunde inte läsa filen automatiskt — vi går igenom den tillsammans i några korta steg. Inget sparas förrän du klickar Importera i sista steget.",
     },
     mapping: {
       heading: "Mappa kolumner",
@@ -409,9 +514,16 @@ export const sv = {
       createFailed: "Kunde inte skapa fältet",
     },
     validate: {
-      heading: "Validera importerade rader",
+      heading: "Kontrollera raderna innan import",
+      // v0.6.0 audit-fix B6: reassures the admin that the defaults are already the safe choice
+      // (mirrors ImportCommitService's own commit-time defaulting) - they only need to act on a row
+      // when they know better than the app.
+      reassurance:
+        "Vi har redan valt det säkra alternativet för varje rad. Ändra bara om du vet att någon redan finns sedan tidigare.",
       summary: (ok: number, warn: number, skip: number) =>
         `${ok} OK, ${warn} med varning, ${skip} hoppas över`,
+      showAllButton: (total: number) => `Visa alla ${total} rader`,
+      showFilteredButton: "Visa bara rader att granska",
       rowColumn: "Rad",
       statusColumn: "Status",
       reasonsColumn: "Anledning",
@@ -598,8 +710,11 @@ export const sv = {
       // Review fix (v0.3.0 WI-3): category is NOT purely cosmetic - GroupGenerator uses it as the
       // name prefix for generated groups ("Herr 1", "Herr 2" ...) - so the text must say so. It
       // still has no effect on how the solver scores a solution.
+      // v0.6.0 audit-fix A10: dropped the solver-jargon "poängsätter lösningen" ending - the plainer
+      // claim ("doesn't affect how participants are distributed") says the same thing without
+      // requiring the reader to already know what a "solution score" is.
       category:
-        "En egen etikett för planen, t.ex. \"Herr\", \"Dam\" eller \"Ungdom\". Används också som namnprefix när du genererar grupper (\"Herr 1\", \"Herr 2\" …). Påverkar inte hur optimeringen poängsätter lösningen.",
+        "En egen etikett för planen, t.ex. \"Herr\", \"Dam\" eller \"Ungdom\". Används också som namnprefix när du genererar grupper (\"Herr 1\", \"Herr 2\" …). Påverkar inte hur deltagarna fördelas.",
     },
     results: {
       softScore:
@@ -765,10 +880,17 @@ export const sv = {
     blockActiveUpdateFailed: "Kunde inte ändra banans status",
     exceptionHint:
       'Att inaktivera en bana är ett manuellt undantag (spec §12.3) – t.ex. att "Bana 4 är inte tillgänglig 21.00–22.30". Undantaget gäller bara den här banan vid den här tiden.',
+    // v0.6.0 audit-fix B9 ("Gunilla" persona): an inline, always-visible (never collapsible/
+    // dismissable) warning on any time slot whose ACTIVE court count is 0 - such a slot can never
+    // seat a single group. Reused verbatim by SimpleCapacitySummary.tsx (B13) for the plan-wide
+    // short-circuit when the whole plan has zero active courts, so the two warnings never disagree.
+    zeroCourtsWarning: "Ingen bana angiven – inga grupper får plats på den här tiden.",
     deleteModal: {
       title: "Ta bort träningstid",
-      message: (label: string) =>
-        `Är du säker på att du vill ta bort träningstiden "${label}"? Detta går inte att ångra.`,
+      // v0.6.0 audit-fix B14 ("Gunilla" persona): now names what actually disappears (the N active
+      // banor tied to this time) instead of only referencing the time's own label - a club admin
+      // deleting a time doesn't necessarily connect "ta bort tiden" with "the courts go too".
+      message: (activeCourts: number) => `Tiden och dess ${activeCourts} banor tas bort. Detta går inte att ångra.`,
       confirm: "Ta bort tid",
       failed: "Kunde inte ta bort träningstiden",
     },
@@ -780,8 +902,20 @@ export const sv = {
       dayRequired: "Dag krävs",
       startTimeLabel: "Starttid",
       endTimeLabel: "Sluttid",
-      labelLabel: "Label",
+      startTimeRequired: "Starttid krävs",
+      endTimeRequired: "Sluttid krävs",
+      startBeforeEndError: "Starttiden måste vara före sluttiden",
+      // v0.6.0 audit-fix B12 ("Gunilla" persona): "Label" was raw English jargon leaking into the
+      // Swedish UI - now names the field AND signals it's optional (a name is auto-generated
+      // server-side when left blank, TimeSlotLabelFormatter).
+      labelLabel: "Etikett (valfritt)",
       labelPlaceholder: "Genereras automatiskt om tomt",
+      // v0.6.0 audit-fix B12: an optional "Antal banor" NumberInput on the CREATE path only, sent
+      // as a second sequential useSetCourts call right after the slot itself is created - see
+      // TimeSlotModal.tsx's doc comment.
+      courtsLabel: "Antal banor",
+      courtsPlaceholder: "0",
+      courtsAfterCreateFailed: "Träningstiden skapades, men antal banor kunde inte sparas. Ange antalet igen på raden.",
       submit: "Spara",
       createFailed: "Kunde inte skapa träningstiden",
       updateFailed: "Kunde inte spara träningstiden",
@@ -1207,6 +1341,12 @@ export const sv = {
       waitlist: {
         blockersHeading: "Per grupp",
         qualityWarningTitle: "Förbättring möjlig",
+        // v0.6.0 audit-fix batch C (C7, P2): the waitlist narrative's own heading, shared by
+        // ExplainDrawerBody (ADVANCED) and SimpleExplainBody (SIMPLE) via WaitlistNarrative.tsx -
+        // previously the static "Oplacerad / Kölista" card title (sv.results.waitlist.heading, still
+        // used verbatim by WaitlistCard.tsx's own card header), which read as a category label rather
+        // than an answer to "why did my kid end up there?" (persona audit finding).
+        headline: (name: string) => `${name} fick ingen plats den här gången`,
       },
       // v0.6.0 F5 (M-S5): the simplified explain drawer body (SimpleExplainBody.tsx) - a plain-
       // language "why here"/"what's unmet" narrative instead of ADVANCED's full weights/alternatives/
@@ -1227,6 +1367,10 @@ export const sv = {
         // is empty/absent (a backend classification the frontend can't further explain) previously
         // rendered a blank accordion panel - looked broken, not "nothing to say here".
         sensitivityUnknown: "Det gick inte att räkna fram ett svar här.",
+        // v0.6.0 audit-fix batch C (C12, P1): SimpleExplainBody's defensive text-sniff backstop over
+        // an unmet wish's primaryReasonSv (see its own doc comment) - an honest, still-true
+        // substitute for a sentence that would otherwise mention coach detail SIMPLE never surfaces.
+        trainerReasonSubstitute: "Ett villkor kopplat till tränare påverkar den här flytten – detaljer visas i avancerat läge.",
       },
     },
     whatIf: {
@@ -1258,6 +1402,16 @@ export const sv = {
         groupName != null ? `${name} flyttades till ${groupName}.` : `${name} flyttades till kölistan.`,
       lockAndResolveSuccess: (name: string) =>
         `${name} flyttades och låstes. Kör om optimeringen för att uppdatera resten av planen.`,
+      // v0.6.0 audit-fix batch C (C12, P1): the SIMPLE-mode variant of the "Testa flytt" consequence
+      // dialog - raw score/spread numbers and coach specifics are hidden (see WhatIfDialog.tsx's own
+      // `isSimple` branches), so "Nya brott"/"Löser" get plain-language equivalents and any coach-
+      // family newlyBroken/newlyFixed rows collapse into one line instead of naming a coach. ADVANCED
+      // keeps the original `explain.newlyBrokenHeading`/`newlyFixedHeading` strings, byte-identical.
+      simple: {
+        newlyBrokenHeading: "Det här skulle brytas",
+        newlyFixedHeading: "Det här skulle uppfyllas",
+        coachRowsCollapsed: (n: number) => `+ ${n} tränarvillkor (avancerat läge)`,
+      },
     },
     groupExplain: {
       title: (name: string) => `Förklaring: ${name}`,
@@ -1291,6 +1445,12 @@ export const sv = {
       // "punkt", not "förslag" - the backend cap is applied before the frontend splits suggestions
       // from limitations, so the omitted items can be either.
       omittedCount: (n: number) => (n === 1 ? "1 ytterligare punkt visas inte." : `${n} ytterligare punkter visas inte.`),
+      // v0.6.0 audit-fix batch C (C8, P2, persona audit "Gunilla"): SIMPLE's own copy for the same
+      // fact - "N ytterligare punkter visas inte" names a raw backend cap count that means nothing to
+      // a non-technical council member and gives no next step. This points at the one thing they CAN
+      // do about it (switch to ADVANCED) instead. Deliberately ignores `n` - the count itself isn't
+      // the useful part of this message in SIMPLE.
+      omittedCountSimple: "Fler förslag finns i avancerat läge.",
       showButton: "Visa förslag",
       hideButton: "Dölj förslag",
       // User feedback v0.4.1: GROUP_MAX/GROUP_MAX_WISH describe a fixed limit (court capacity/plan
@@ -1305,9 +1465,19 @@ export const sv = {
     quality: {
       regionLabel: "Kvalitetsöversikt",
       noSignals: "Inga anmärkningar.",
+      // v0.6.0 audit-fix batch C (C8, P2, persona audit "Gunilla"): "hårda brott" is solver jargon -
+      // reworded around the plain-language "måste-krav" ("must" requirements) vocabulary already used
+      // elsewhere in the app, so a non-technical council member reads this as "N requirements are
+      // being broken" rather than a cryptic constraint-engine term.
       hardViolations: {
-        ok: "Inga hårda brott",
-        bad: (n: number) => pluralize(n, "hårt brott", "hårda brott"),
+        ok: "Alla måste-krav uppfyllda",
+        bad: (n: number) => `${n} måste-krav bryts`,
+        // v0.6.0 audit-fix batch C (C8, P2): the pre-explanation-load fallback state - shown only
+        // while the TRUE per-violation count (the plan explanation's own `hardViolations.length`)
+        // hasn't resolved yet, see ResultsSummary.tsx. Deliberately shows no number: the only other
+        // value on hand at that point (`runSummary.hard`) is a WEIGHTED SCORE, not a violation count,
+        // and displaying it as "N måste-krav bryts" would fabricate a count truthfulness forbids.
+        checking: "Kontrollerar hårda krav…",
       },
       waitlist: {
         ok: "Alla placerade",
@@ -1328,7 +1498,10 @@ export const sv = {
         levelOutsideBand: (mean: number, min: string, max: string) =>
           `Nivåsnittet (${mean}) ligger utanför gruppens band (${min}–${max})`,
         levelInsideBand: "Nivåsnitt inom bandet",
-        topPenalty: "Störst poängavdrag i planen",
+        // v0.6.0 audit-fix batch C (C6, P2, persona audit "Gunilla"): "poängavdrag" (score deduction)
+        // is solver-scoring jargon - reworded to plainly say what it means for the group without
+        // naming the underlying score mechanism at all.
+        topPenalty: "Störst kompromisser i planen",
       },
       chips: {
         coachLabel: (coachCount: number, requiredCoachCount: number | null) =>
@@ -1336,6 +1509,11 @@ export const sv = {
             ? `${coachCount} av ${requiredCoachCount} tränare`
             : `${coachCount} tränare`,
         levelLabel: (mean: number, spread: number) => `Nivå ${mean} (±${spread})`,
+        // v0.6.0 audit-fix batch C (C6, P2): SIMPLE's own level chip wording - the ADVANCED "Nivå X
+        // (±Y)" chip above names the spread stat ("±Y"), a solver-facing precision that reads as
+        // exact when it's really an aggregate deviation - "≈" makes plain this is an approximate
+        // group level, not a promise.
+        levelLabelSimple: (mean: number) => `Nivå ≈ ${mean}`,
         bandSuffix: (min: string, max: string) => `band ${min}–${max}`,
       },
     },
@@ -1404,7 +1582,19 @@ export const sv = {
     includeCommentsWarning: "Kommentarer är känsliga — dela inte filen vidare.",
     exportButton: "Exportera",
     exportFailed: "Kunde inte exportera planen",
+    // v0.6.0 audit batch D (D7): the old unconditional "Exporten laddades ner." was only true in a
+    // plain browser tab - in the Tauri desktop shell, platform.ts's `saveFile` writes the file
+    // straight to disk via a native "Spara som"-dialog, nothing is "downloaded". These three replace
+    // that single string; which one shows is decided by `saveFile`'s own `SaveFileResult`
+    // (isTauriSave/filename), via exportForm.ts's `describeExportResult` - shared by ExportPanel.tsx's
+    // two export buttons and SimpleSaveExportCard.tsx's one.
     exportSuccess: "Exporten laddades ner.",
+    exportSavedToDisk: (filename: string) => `Filen sparades: ${filename}`,
+    exportSaved: "Filen sparades.",
+    // A cancelled Tauri save dialog used to be silent (saveFile just returned false, no notification
+    // at all) - now surfaced explicitly so the admin isn't left wondering whether the export actually
+    // happened.
+    exportCancelled: "Exporten avbröts.",
     anonymized: {
       heading: "Anonymiserat testdata",
       description:
@@ -1412,6 +1602,8 @@ export const sv = {
       exportButton: "Exportera anonymiserat",
       exportFailed: "Kunde inte exportera anonymiserat testdata",
       exportSuccess: "Det anonymiserade testdatat laddades ner.",
+      exportSavedToDisk: (filename: string) => `Den anonymiserade filen sparades: ${filename}`,
+      exportSaved: "Den anonymiserade filen sparades.",
     },
   },
   tutorial: {
@@ -1522,25 +1714,19 @@ export const sv = {
         ],
       },
     ],
-    // v0.6.0 F6 (M-S6): the SIMPLE-mode kom-igång-guiden - six steps mirroring
-    // PlanSimpleStepper.tsx's six-step IA (planSimpleSteps.ts's SIMPLE_STEPS) exactly, instead of
-    // the 10-step ADVANCED walkthrough above (which names tabs - Fält, Tränare, Kapacitet, Planer,
-    // Export - that don't exist in SIMPLE's navigation at all). Icon + "Ta mig dit" target live in
-    // tutorialSteps.ts's parallel TUTORIAL_STEP_CONFIG_SIMPLE array, same split as `steps` above.
+    // v0.6.0 audit batch D (D10): the SIMPLE-mode kom-igång-guiden - six steps mirroring
+    // PlanSimpleStepper.tsx's six-step IA (planSimpleSteps.ts's SIMPLE_STEPS) 1:1, titles matching
+    // sv.simple.steps' own labels EXACTLY (Deltagare/Tider/Prioriteringar/Optimera/Resultat/"Spara &
+    // exportera") - the F6-era version had a 7th-step-shaped opener ("Säsong & plan") that didn't
+    // correspond to any stepper step at all; season/plan creation is now folded into step 1's body
+    // instead. Icon + "Ta mig dit" target live in tutorialSteps.ts's parallel
+    // TUTORIAL_STEP_CONFIG_SIMPLE array, same split as `steps` above.
     simpleSteps: [
       {
-        title: "Säsong & plan",
-        body: "Allt börjar med en säsong – till exempel \"VT27\" – och en aktivitetsplan i den. Aktivitetsplanen är arbetsytan där du importerar deltagare, kontrollerar tider, ordnar prioriteringar och skapar grupperna – sex steg, ett i taget.",
+        title: "Deltagare",
+        body: "Innan du börjar: skapa en säsong och en aktivitetsplan från startsidan. Sedan laddar du upp anmälningsfilen (Excel eller CSV) på steget Deltagare. Appen läser filen automatiskt och visar en tydlig sammanställning innan något sparas i planen. Kommentarer från anmälningsformuläret påverkar ALDRIG optimeringen av sig själva – bara det du fyller i strukturerade fält gör det.",
         bullets: [
-          "Klicka på \"Skapa ny säsong\" på Startsidan.",
-          "Öppna säsongen och skapa en aktivitetsplan.",
-          "Du hittar alltid tillbaka via brödsmulorna högst upp på sidan.",
-        ],
-      },
-      {
-        title: "Importera",
-        body: "Ladda upp anmälningsfilen (Excel eller CSV) på steget Deltagare. Appen läser filen automatiskt och visar en tydlig sammanställning innan något sparas i planen. Kommentarer från anmälningsformuläret påverkar ALDRIG optimeringen av sig själva – bara det du fyller i strukturerade fält gör det.",
-        bullets: [
+          "Innan du börjar: skapa en säsong och en aktivitetsplan från Startsidan.",
           "Gå till steget Deltagare och klicka \"Importera\".",
           "Granska sammanställningen och bekräfta importen.",
           "Kommentarer påverkar aldrig optimeringen – bara strukturerade fält gör det.",
@@ -1548,10 +1734,13 @@ export const sv = {
       },
       {
         title: "Tider",
-        body: "På steget Tider kontrollerar du träningstiderna. Appen har redan lagt in klubbens vanliga tider – ändra dem om det behövs, eller lägg till fler. Under listan ser du en kapacitetskoll: hur många deltagare det finns plats för jämfört med hur många som är anmälda.",
+        // v0.6.0 audit batch D (D10): "Appen har redan lagt in klubbens vanliga tider" was false for
+        // any plan whose slots were edited, imported, or never touched the seeded defaults at all -
+        // same honesty fix ResourcesPanel.tsx's own sv.simple.resources.subheading already got.
+        body: "På steget Tider kontrollerar du träningstiderna. Nya planer får tre torsdagstider som förslag – kontrollera dem och ange antal banor, eller lägg till fler tider. Under listan ser du en kapacitetskoll: hur många deltagare det finns plats för jämfört med hur många som är anmälda.",
         bullets: [
           "Kontrollera att dag, starttid och sluttid stämmer.",
-          "Ändra antal banor om det behövs.",
+          "Ange antal banor för varje tid.",
           "Se kapacitetskollen längst ner för att fånga en risk för kölista i tid.",
         ],
       },
@@ -1564,23 +1753,29 @@ export const sv = {
         ],
       },
       {
-        title: "Skapa grupper",
-        body: "När allt är klart klickar du \"Skapa grupper\" på steget Skapa grupper. Optimeringen fördelar deltagarna enligt dina prioriteringar, och du ser resultatet så fort det är klart.",
+        title: "Optimera",
+        body: "När allt är klart klickar du \"Skapa grupper\" på steget Optimera. Optimeringen fördelar deltagarna enligt dina prioriteringar, och du ser resultatet så fort det är klart.",
         bullets: [
           "Kontrollera att checklistan är grön innan du klickar.",
           "Klicka \"Skapa grupper\" och vänta på resultatet.",
         ],
       },
       {
-        title: "Resultat & export",
-        body: "På steget Resultat ser du grupperna. Gå sedan vidare till steget Spara & exportera för att spara en version av planen och exportera resultatet till Excel.",
+        title: "Resultat",
+        body: "På steget Resultat ser du varje grupp med spelare och tider. Är du nöjd går du vidare till steget Spara & exportera.",
         bullets: [
           "Granska grupperna under Resultat.",
-          // v0.6.0 F6 review fix (FIX 5, MINOR): this step's "Ta mig dit" target is Resultat (its
-          // primary surface, TUTORIAL_STEP_CONFIG_SIMPLE's own doc comment) - the bullet now names the
-          // "Spara & exportera" step explicitly rather than just describing the action, so a reader
-          // knows to move on to the next step in the stepper for it.
-          "Gå vidare till steget Spara & exportera för att spara en version och exportera till Excel.",
+          "Gå vidare till steget Spara & exportera när du är klar.",
+        ],
+      },
+      {
+        title: "Spara & exportera",
+        // v0.6.0 audit batch D (D10): reconciles autosave (every earlier step) with what's actually
+        // NEW about this last step - a named copy + an Excel export, not "saving" in general.
+        body: "Det mesta sparas automatiskt. På sista steget kan du dessutom spara en namngiven kopia och exportera till Excel.",
+        bullets: [
+          "Namnge och spara en kopia av planen om du vill kunna gå tillbaka till den senare.",
+          "Klicka \"Exportera till Excel\" för att ladda ner resultatet.",
           "Behöver du fler inställningar finns Avancerat läge längst ner till vänster.",
         ],
       },
@@ -1637,30 +1832,68 @@ export const sv = {
     // frontend copy, keyed by PriorityKey.
     priorities: {
       heading: "Vad är viktigast?",
-      intro: "Dra eller använd pilarna för att ordna. Det som står högst upp får störst betydelse när grupperna sätts.",
+      // v0.6.0 audit batch D (D4): three sentences - mechanism (drag/pilar), effect (högst upp väger
+      // tyngst - suppressed below when customWeightsActive, see `introReduced`), persistence
+      // (autosave). `intro` is the FULL, unconditional string (shown whenever the order genuinely
+      // drives optimization); `introReduced` drops the middle sentence, since it would otherwise
+      // contradict the overrides alert right below it (the order ISN'T what's driving optimization
+      // right now).
+      intro:
+        "Dra eller använd pilarna för att ordna. Det som står högst upp får störst betydelse när grupperna sätts. Ändringar sparas automatiskt.",
+      introReduced: "Dra eller använd pilarna för att ordna. Ändringar sparas automatiskt.",
       explanations: {
+        // v0.6.0 audit batch D (D3): the avoid-clause is now its OWN sentence rather than folded into
+        // the same one via a dash - "gäller även önskemål att inte spela ihop" read as a footnote to
+        // the main claim; spelling it out as a full sentence gives it equal weight.
         TRAIN_TOGETHER:
-          "Spelare som önskat varandra hamnar i samma grupp – gäller även önskemål att inte spela ihop.",
-        PREVIOUS_GROUP: "Spelare får fortsätta i den grupp de tränade i förra terminen.",
+          "Spelare som önskat varandra hamnar i samma grupp. Vi tar också hänsyn till önskemål om att inte hamna i samma grupp.",
+        // v0.6.0 audit batch D (D3): dropped the "förra terminen" claim - the backend has no notion of
+        // terms/semesters, only "the group a participant was previously recorded in" (whatever import
+        // produced that), so naming a specific timeframe overclaimed something this screen can't
+        // actually verify.
+        PREVIOUS_GROUP: "Spelare får fortsätta i sin tidigare grupp.",
         PREFERRED_TIME: "Spelare får den träningstid de önskat.",
-        LEVEL: "Grupperna hålls jämna i nivå.",
+        // v0.6.0 audit batch D (D3): names the LEVEL priority's second effect (group ORDERING by
+        // level, not just even spread) - both are real, backend-driven consequences of this bucket
+        // (see PriorityOrderService.ORDERED_CONSTRAINT_KEYS: levelBalance + groupOrderByLevel).
+        LEVEL: "Grupperna hålls jämna i nivå och sorteras från högst till lägst.",
       },
+      // v0.6.0 audit batch D (D3): static, per-POSITION sentences (index 0 = rank 1, the top row) -
+      // these describe what a given RANK means, not what a specific priority does, so PriorityRankList
+      // .tsx renders `rankMeaning[index]` (the row's current position), not anything keyed by the
+      // priority itself - honest by construction, since they move WITH the row across a reorder.
+      rankMeaning: [
+        "Väger tyngst av allt.",
+        "Uppfylls när det går.",
+        "Uppfylls när det inte krockar med viktigare önskemål.",
+        "Vägs in sist.",
+      ] as readonly string[],
       moveUpAriaLabel: (labelSv: string) => `Flytta ${labelSv} uppåt`,
       moveDownAriaLabel: (labelSv: string) => `Flytta ${labelSv} nedåt`,
       saving: "Sparar…",
       saved: "Sparat ✓",
-      saveFailed: "Det gick inte att spara ordningen.",
+      // v0.6.0 audit batch D (D4): states plainly what actually happened on a failed autosave - the
+      // optimistic edit was already reverted (PrioritiesPanel.tsx's onError, unchanged), this just says
+      // so instead of leaving the admin to guess whether the on-screen order is still what they set.
+      saveFailed: "Det gick inte att spara ordningen. Ordningen har återställts till den senast sparade.",
       retryButton: "Försök igen",
       loadFailed: "Det gick inte att läsa in prioriteringarna.",
-      interpretationHeading: "Så här tolkas ordningen",
+      // v0.6.0 audit batch D (D3): demoted from the primary "here's what this order means" surface (now
+      // the per-row `rankMeaning` sentences) to a collapsed, secondary "more detail" panel - "Så här
+      // tolkas ordningen" implied it was the only place to find that meaning, which duplicated the
+      // per-row sentences once those were added.
+      interpretationHeading: "Detaljer",
+      // v0.6.0 audit batch D (D4): rendered as its own inline line directly above the dimmed rank list
+      // (PrioritiesPanel.tsx) - a proximate reminder right at the point the admin's eye lands, distinct
+      // from the overrides alert further up which explains WHY, not just that the list is locked.
+      lockedNote: "Ordningen är låst så länge anpassade vikter används.",
       staleAlert: {
-        // v0.6.0 F3 review fix (FIX 7, MAJOR, honest stale-callout copy): the backend's
-        // `staleSinceLastRun` flag bumps on ANY plan change (participants, tider, fält, prioriteringar
-        // - all of it), not specifically the priority order. The old copy ("Prioriteringarna har
-        // ändrats...") claimed a cause this screen can't actually verify - reworded to the true,
-        // narrower claim.
-        message:
-          "Planen har ändrats efter den senaste optimeringen. Kör optimeringen igen så att resultatet stämmer med dagens inställningar.",
+        // v0.6.0 audit batch D (D4): reworded forward-looking ("when you're done here, re-run") rather
+        // than backward-looking ("the plan changed") - the admin doesn't need the diagnosis, just the
+        // action, and this framing reads naturally regardless of WHICH plan change triggered the flag
+        // (see PriorityOrderService#isStaleSinceLastRun's own honesty note - it isn't priority-order
+        // specific).
+        message: "När du är klar här: kör optimeringen igen så att grupperna följer dagens inställningar.",
         button: "Gå till Optimera",
       },
       overridesAlert: {
@@ -1679,17 +1912,31 @@ export const sv = {
       // there.
       disabledRuleNote:
         "En regel i den här prioriteringen är avstängd i avancerat läge – den påverkar inte optimeringen just nu.",
+      // v0.6.0 audit batch D (D1): rewritten for a lay reader - names the CONCRETE, about-to-apply
+      // order (PrioritiesPanel.tsx renders `orderedPriorities` as an actual list between `introText`
+      // and `trailingText`, not folded into one paragraph) instead of the old "vikterna som ordningen
+      // ger" abstraction, and states plainly this can't be undone.
       resetConfirm: {
-        title: "Återställ till prioriteringsordning",
-        // v0.6.0 F3 review fix (FIX 6, MAJOR): states plainly that the reset PUTs the order AS SHOWN
-        // on screen (PrioritiesPanel.tsx's handleResetConfirm sends `displayOrder`, not the raw
-        // `data.order` - FIX 3) - so an admin who has an unsaved local reorder pending sees exactly
-        // what they're about to confirm, not a silent surprise.
-        message:
-          "Detta återställer de sex prioriteringsreglerna till vikterna som ordningen nedan ger. Ordningen som visas blir då den som gäller, och de anpassade vikterna ersätts. Andra inställningar i avancerat läge påverkas inte.",
-        confirmLabel: "Återställ",
+        title: "Ersätt de anpassade inställningarna?",
+        introText:
+          "Ordningen nedan är appens tolkning av de anpassade vikterna – ingen har bekräftat den. Om du fortsätter blir den ordningen den som gäller:",
+        trailingText:
+          "Inställningarna som gjorts i avancerat läge för de här fyra prioriteringarna ersätts. Det går inte att ångra.",
+        confirmLabel: "Ersätt och använd ordningen",
       },
       resetFailed: "Det gick inte att återställa prioriteringsordningen.",
+      // v0.6.0 audit batch D (D4): a second, distinct reset action - restores PriorityOrderView's own
+      // `defaultOrder` (TRAIN_TOGETHER/PREVIOUS_GROUP/PREFERRED_TIME/LEVEL), independent of whatever
+      // custom weights may or may not be active. Only ever shown when the displayed order has actually
+      // drifted from that default AND there's no customWeightsActive override already governing the
+      // list (that case has its own, different reset - `resetConfirm` above).
+      resetToDefaultButton: "Återställ till standardordning",
+      resetToDefaultConfirm: {
+        title: "Återställ till standardordning?",
+        introText: "Ordningen ändras till appens standardordning:",
+        confirmLabel: "Återställ",
+      },
+      resetToDefaultFailed: "Det gick inte att återställa standardordningen.",
     },
     // v0.6.0 F4 (M-S4): OptimizePanelSimple.tsx - the reduced "Skapa grupper" primary flow that
     // replaces OptimizePanel's full advanced surface in SIMPLE mode.
@@ -1704,24 +1951,74 @@ export const sv = {
       // v0.6.0 F4 review fix (minor): a separate actionable CTA for the not-ready state of each
       // readiness row, instead of reusing the descriptive "0 deltagare"/"0 tider, 0 banor" text as
       // the clickable link label - those read like a stat, not an instruction.
+      //
+      // v0.6.0 audit fix C4: `resources` split into the two distinct not-ready causes (see
+      // OptimizePanelSimple's slotsCount/courtsCount readiness computation) - zero training slots at
+      // all needs a different fix ("lägg till tider") than slots existing but zero ACTIVE courts
+      // within them ("ange banor") - the old single generic CTA always pointed at "Lägg till
+      // träningstider" even when slots already existed and only the court count was the problem.
       missingLabel: {
         participants: "Lägg till deltagare",
-        resources: "Lägg till träningstider",
+        resourcesNoSlots: "Lägg till träningstider",
+        resourcesNoCourts: "Ange antal banor",
       },
       notReadyTooltip: "Lägg till det som saknas i listan ovan innan grupperna kan skapas.",
+      // v0.6.0 audit fix C4: shown instead of notReadyTooltip while participants/blocksByPlan are
+      // still loading (`anyLoading`) - the old tooltip always claimed something was "missing" even
+      // before those queries had a chance to resolve.
+      notReadyTooltipLoading: "Läser in…",
       createButton: "Skapa grupper",
-      durationEstimate: (n: number) => `Tar ungefär ${n} sekunder.`,
+      // v0.6.0 audit fix C2: the button's label once a previous run already exists and nothing is
+      // running (`latestRun && !running`) - re-running reads very differently from the first
+      // "Skapa grupper" click, and matters for the confirm-before-rerun flow below.
+      rerunButton: "Kör igen",
+      // v0.6.0 audit fix C2: shown before a "Kör igen" click actually re-runs, ONLY when there's a
+      // previous run AND the groups are stale (`syncStatus.data?.stale`) - re-running then can
+      // discard manual placements, which a first-time "Skapa grupper" click never risks.
+      confirmRerun: {
+        message: "Grupperna skapas om från nuvarande läge. Flyttar du gjort för hand kan ersättas. Fortsätt?",
+        confirmLabel: "Fortsätt",
+      },
+      // v0.6.0 audit fix C3: durations >= 120 s are phrased in whole minutes (rounded, minimum 1)
+      // instead of raw seconds - "Tar ungefär 3 minuter." reads calmer than "Tar ungefär 180
+      // sekunder." for a THOROUGH-length CUSTOM solve. Below 120 s, unchanged seconds phrasing.
+      durationEstimate: (n: number) =>
+        n >= 120 ? `Tar ungefär ${pluralize(Math.max(1, Math.round(n / 60)), "minut", "minuter")}.` : `Tar ungefär ${n} sekunder.`,
       durationCalculating: "Beräknar…",
       // Calm replacement for the advanced progress card's jargon-heavy score line (hårda brott/
       // kölista/mjukt) while a solve is running - see LiveSolveView.tsx's own score line, which is
       // wrapped <AdvancedOnly> for the same reason.
       working: "Optimeringen arbetar för att hitta de bästa grupperna…",
+      // v0.6.0 audit fix C3: SIMPLE-scoped override of sv.optimize.progress.heading ("Optimering
+      // pågår…") for the solve-progress Card's heading - the shared advanced string is left
+      // untouched (OptimizePanel.tsx still renders sv.optimize.progress.heading verbatim).
+      progressHeading: "Skapar grupper…",
+      // v0.6.0 audit fix C3: a small dimmed note near the cancel button, simple mode only - makes
+      // explicit that cancelling doesn't throw away work already done.
+      cancelHint: "Avbryter du sparas det som hunnit bli klart.",
       // v0.6.0 F4 review fix (FIX 1, BLOCKER): honest terminal-state copy - see OptimizePanelSimple's
-      // outcome switch. successAlert is the ONLY one of these that gets to say "Klart!".
-      successAlert: (n: number) => (n === 1 ? "Klart! 1 grupp skapad." : `Klart! ${n} grupper skapade.`),
+      // outcome switch. successAlert/waitlistAlert are the only two of these allowed to say "Klart".
+      //
+      // v0.6.0 audit fix C1 (BLOCKER, "the green lie about waitlisted kids"): successAlert is now
+      // reached ONLY when every participant actually got placed (unassignedCount === 0) - a feasible,
+      // zero-hard-violation run that still left participants unassigned now falls into the new
+      // waitlistAlert warning below instead of this green state. `n` is the number of participants
+      // who actually got a group (participantsCount minus any waitlisted - see OptimizePanelSimple).
+      successAlert: (n: number) => `Klart! Alla ${n} deltagare fick en grupp.`,
+      // v0.6.0 audit fix C1: new WARNING outcome for a feasible, non-infeasible run that still left
+      // `n` participants unassigned - previously this case was indistinguishable from full success
+      // (both rendered the same green "Klart!" alert), which is exactly the "why did my kid end up
+      // on the waitlist and nobody told me" gap the Gunilla persona audit flagged.
+      waitlistAlert: (n: number) =>
+        `Klart, men ${n} deltagare fick ingen plats – de står på kölistan. Öppna Resultat för att se varför.`,
       failedAlert: "Optimeringen misslyckades. Försök igen.",
       cancelledAlert: "Optimeringen avbröts. Grupperna som hann bli klara är sparade.",
       infeasibleAlert: "Grupperna är skapade, men de har regelbrott – öppna Resultat för detaljer.",
+      // v0.6.0 audit fix C4: passive, informational banner (distinct from the C2 confirmRerun modal,
+      // which is an ACTIVE confirmation gated on the "Kör igen" click) - shown whenever there's a
+      // previous run and the plan has changed since (`syncStatus.data?.stale`), visible on load
+      // without any extra clicks.
+      staleBanner: "Planen har ändrats sedan grupperna skapades – kör igen för att uppdatera.",
       viewGroupsButton: "Visa grupperna →",
       customWeightsHint: "Anpassade vikter används – se Prioriteringar",
       lastRunWhen: (text: string) => `Senast körd: ${text}`,
@@ -1732,28 +2029,62 @@ export const sv = {
       // implies "0 deltagare" for a plan that failed to load rather than one that's genuinely empty.
       loadFailed: "Det gick inte att läsa in det som behövs för att skapa grupper.",
       retryButton: "Försök igen",
+      // v0.6.0 audit fix C3: static (non-fluctuating) heading for LiveSolveView's waitlist box when
+      // rendered in simple mode (`simple` prop) - replaces the count-bearing sv.optimize.live.
+      // waitlistLabel(n), which visibly ticks up/down mid-solve (exactly the kind of alarming-looking
+      // number this persona audit flagged, alongside "Förbättring #N").
+      liveWaitlistHeading: "Kölista",
     },
     // v0.6.0 F4 (M-S4): ResourcesPanel's simple-mode heading/subheading + the per-slot "N (av M)
     // banor" summary replacing the advanced per-court Switch chips.
     resources: {
       heading: "Kontrollera träningstiderna",
-      // v0.6.0 F4 review fix (FIX 4, MAJOR): was "Vi har lagt in klubbens vanliga torsdagstider..." -
-      // false for a plan whose slots were edited, imported from a template, or never touched the
-      // seeded Thursday defaults at all. Honest framing: an instruction, not a claim about origin.
-      subheading: "Kontrollera att tiderna stämmer. Ändra om det behövs.",
+      // v0.6.0 audit-fix B9 ("Gunilla" persona): now also names the actual task on this screen
+      // (filling in the court count per time) instead of only "check that it's right" - the old
+      // copy never told a first-time admin WHAT to fill in.
+      subheading: "Kontrollera att tiderna stämmer och fyll i hur många banor ni har bokat per tid.",
+      // v0.6.0 audit-fix B11 ("Gunilla" persona, "block" jargon): SIMPLE-mode replacement for the
+      // ADVANCED-only "N block (M totalt)" line (still literally `resources.blocksCount` +
+      // ResourcesPanel.tsx's inline " (M totalt)" suffix, unchanged) - "block" is backend/solver
+      // jargon a club admin never needs. The parenthetical is omitted entirely when every court is
+      // active (active === total), matching the "() only when total > active" rule.
+      courtsSummary: (active: number, total: number) =>
+        `${pluralize(active, "bana aktiv", "banor aktiva")}${total > active ? ` (${total} totalt)` : ""}`,
     },
     // v0.6.0 F4 (M-S4): SimpleCapacitySummary.tsx, rendered under ResourcesPanel's slot list.
+    //
+    // v0.6.0 audit-fix B13 ("Gunilla" persona): the plan's target/max group size are OPTIONAL
+    // (M2 scope) - `summary` below is for when the admin HAS set a real target; `summaryDefault`
+    // is the honest, still-numeric alternative for when they haven't, reusing the exact same
+    // fallback GroupGenerator itself would use (planDefaults.ts's FALLBACK_GROUP_TARGET_SIZE) rather
+    // than the old dead-end "kapaciteten kan inte beräknas" placeholder sentence. Both read "i upp
+    // till Y grupper" (a ceiling, never a promise - the old "i Y grupper" wording implied an exact,
+    // guaranteed number). `waitlisted` is appended as "(varav N på kölista)" only when > 0.
     capacity: {
-      summary: (capacity: number, groups: number, registered: number) =>
-        `Plats för ungefär ${capacity} deltagare i ${pluralize(groups, "grupp", "grupper")}. Ni har ${registered} anmälda.`,
-      summaryUnknown: (registered: number) =>
-        `Standardstorlekar för grupper är inte satta ännu, så kapaciteten kan inte beräknas. Ni har ${registered} anmälda.`,
+      summary: (capacity: number, groups: number, registered: number, waitlisted: number) =>
+        `Plats för ungefär ${capacity} deltagare i upp till ${pluralize(groups, "grupp", "grupper")}. Ni har ${registered} anmälda${
+          waitlisted > 0 ? ` (varav ${waitlisted} på kölista)` : ""
+        }.`,
+      summaryDefault: (defaultSize: number, capacity: number, groups: number, registered: number, waitlisted: number) =>
+        `Med standardgruppstorlek ${defaultSize}: plats för ungefär ${capacity} deltagare i upp till ${pluralize(groups, "grupp", "grupper")}. Ni har ${registered} anmälda${
+          waitlisted > 0 ? ` (varav ${waitlisted} på kölista)` : ""
+        }.`,
+      // Frontend-COMPUTED guard (registered > capacity), independent of the backend's waitlistRisk
+      // enum (which stays as-is for ADVANCED's more nuanced messaging) - see SimpleCapacitySummary's
+      // doc comment for why this can't just reuse describeWaitlistRisk here.
+      overCapacityWarning: "Fler anmälda än det finns plats för. Höj Antal banor eller lägg till en träningstid.",
     },
     // v0.6.0 F4 (M-S4): the summary strip above ParticipantsPanel's grid in SIMPLE mode.
+    // B16 (v0.6.0 audit-fix batch B) adds the step-framing heading/body above it (stepHeading/
+    // stepBody) and the "K av N klarmarkerade" reviewed-count segment (summary.reviewed).
     participants: {
+      stepHeading: "Gå igenom deltagarna",
+      stepBody:
+        "Öppna en rad för att läsa kommentarer och lägga till önskemål. Markera som färdig när du gått igenom en deltagare — det är valfritt men hjälper dig hålla koll.",
       summary: {
         total: (n: number) => pluralize(n, "deltagare", "deltagare"),
         withoutLevel: (n: number) => `${n} utan nivå`,
+        reviewed: (reviewed: number, total: number) => `${reviewed} av ${total} klarmarkerade`,
       },
     },
     // v0.6.0 F6 (M-S6): SimpleSaveExportCard.tsx - the reduced "Spara & exportera" step 6 surface
@@ -1763,30 +2094,79 @@ export const sv = {
     // path - see SimpleSaveExportCard.test.tsx's own pinned request-body test - v0.6.0 F6 review fix
     // (FIX 6, MINOR): this comment used to point at exportForm.test.ts, which doesn't have that test).
     saveExport: {
-      nameLabel: "Namn på den sparade versionen",
+      // v0.6.0 audit batch D (D6): the card used to just show a name field with no explanation of what
+      // "Spara plan" even does or how it relates to the autosave every other step already has -
+      // rendered above the name field (SimpleSaveExportCard.tsx).
+      intro:
+        "Dina ändringar sparas hela tiden automatiskt. Här sparar du en kopia av grupperna som de ser ut just nu, så att ni kan gå tillbaka till den senare.",
+      nameLabel: "Namn på kopian",
       saveButton: "Spara plan",
       saving: "Sparar…",
       savedSuccess: (time: string) => `Sparad ✓ ${time}`,
       saveFailed: "Det gick inte att spara planen.",
+      // v0.6.0 audit batch D (D6): double-save guard - shown when the trimmed name already matches an
+      // existing saved version's name (useSavedPlans, already cached) instead of silently creating a
+      // second copy with an identical name.
+      duplicateNameConfirm: {
+        title: "Kopia med samma namn finns redan",
+        message: "En kopia med samma namn finns redan. Spara ändå?",
+        confirmLabel: "Spara ändå",
+      },
+      // v0.6.0 audit batch D (D6): the compact, read-only list of this plan's saved versions rendered
+      // below the save button (name + timestamp, newest first) - SimpleSaveExportCard.tsx, from the
+      // same `useSavedPlans` query the advanced Planer tab uses.
+      savedVersionsHeading: "Sparade kopior",
+      savedVersionsEmpty: "Inga sparade kopior ännu.",
+      // v0.6.0 audit batch D (D8): replaces the borrowed advanced string (sv.export.emptyNoRun, which
+      // names "fliken Optimering" - a tab that doesn't exist in SIMPLE's navigation) with SIMPLE's own
+      // step-based framing plus a working "Gå till Optimera" button (SimpleSaveExportCard.tsx navigates
+      // straight to the plan's optimering route).
+      noRun: {
+        message: "Skapa grupperna först – gå till steget Optimera.",
+        button: "Gå till Optimera",
+      },
+      // v0.6.0 audit batch D (D8): distinct from `noRun` above - a FAILED runs query (network/backend
+      // error) is not evidence that zero runs exist, so it must never show the "no run yet" claim.
+      loadRunsFailed: "Det gick inte att läsa in. Försök igen.",
+      retryButton: "Försök igen",
       exportButton: "Exportera till Excel",
-      advancedHint: "Fler format och exportval finns i avancerat läge.",
+      // v0.6.0 audit batch D (D7): rendered under the export button - what the file actually contains,
+      // and the comments-never-leak guarantee this simplified path already enforces server-side
+      // (handleExport's pinned `includeComments:false`).
+      exportExplanation:
+        "Filen innehåller en flik per grupp, klar att skriva ut eller mejla. Kommentarer följer aldrig med.",
+      // v0.6.0 audit batch D (D9): shortened, and kept as the LAST line of the card (after the export
+      // explanation above it) - "och exportval" was redundant once `exportExplanation` already
+      // describes what this simplified export produces.
+      advancedHint: "Fler format finns i avancerat läge.",
     },
   },
   uiMode: {
     navLabel: "Avancerat läge",
     switchAriaLabel: "Växla avancerat läge",
-    advancedBadge: "Avancerat läge",
+    // v0.6.0 audit-fix A7: styled as a button (variant="outline" in AppShellLayout.tsx) - the text
+    // now states the ACTION clicking it performs ("switch to simple mode"), not just the current
+    // state, so it reads as a button rather than a status label. aria-label (backToSimpleTooltip)
+    // is unchanged.
+    advancedBadge: "Till enkelt läge",
     backToSimpleTooltip: "Tillbaka till enkelt läge",
     enableConfirm: {
       title: "Aktivera avancerat läge?",
-      body: "Avancerat läge visar alla inställningar — vikter, tränare, fältbyggare och exportval. Du kan alltid gå tillbaka.",
+      // v0.6.0 audit-fix A7: dropped "fältbyggare"/"vikter" jargon - plain description of what
+      // changes (tabs replace the step-by-step view) and the reassurance that it's reversible.
+      body: "Avancerat läge visar hela appen med alla flikar och inställningar. Din steg-för-steg-vy ersätts av flikar tills du byter tillbaka. Du kan alltid byta tillbaka med ett klick.",
       cancel: "Avbryt",
       confirm: "Aktivera",
     },
+    // v0.6.0 audit-fix A6: reworded without "flik" (the persona didn't know what a "flik" was) - now
+    // names the app AREA, not a UI element - and gained a second, default-weight "Tillbaka till mina
+    // steg" action (AdvancedRouteGate.tsx) so a gated route isn't a one-way street to the confirm
+    // modal.
     routeGate: {
-      title: "Den här fliken finns i avancerat läge",
-      body: (tabLabel: string) => `Fliken ${tabLabel} visas i avancerat läge, som öppnar alla inställningar.`,
+      title: "Den här delen av appen hör till avancerat läge.",
+      body: (tabLabel: string) => `${tabLabel} hör till avancerat läge, som öppnar alla inställningar.`,
       openAdvancedButton: "Öppna avancerat läge",
+      backToStepsButton: "Tillbaka till mina steg",
     },
     saveFailedNoticeTitle: "Kunde inte spara centralt",
     saveFailedNotice: "Läget gäller den här datorn, men kunde inte sparas centralt.",
@@ -1798,14 +2178,17 @@ export const sv = {
     // v0.6.0 F6 (M-S6): UiModeIntroBanner.tsx - StartPage's one-time (localStorage-gated, mirrors
     // TutorialBanner's `gp.tutorial.seen` pattern) "the app now has a simpler mode" notice, shown
     // only to a SIMPLE-mode user (an already-advanced user needs no introduction to a mode they're
-    // not in). "Behåll avancerat läge" is a deliberate, explicit opt-out - it flips the mode
-    // straight to ADVANCED WITHOUT UiModeSwitch's confirm modal, since choosing it from this banner
-    // already IS the confirmation.
+    // not in).
+    //
+    // v0.6.0 audit-fix A2: reworded (b) to name what's ACTUALLY different instead of just announcing
+    // a mode exists, and (c) "keepAdvancedButton" now routes through the same confirm as
+    // UiModeSwitch (useConfirmedAdvancedMode) instead of flipping the mode directly - see
+    // UiModeIntroBanner.tsx.
     intro: {
-      title: "Appen har fått ett enklare läge",
-      body: "Appen har fått ett enklare läge — alla avancerade inställningar finns kvar under Avancerat läge längst ner till vänster.",
+      title: "Enklare läge är på",
+      body: "Du ser en förenklad version med bara det du behöver. Alla detaljinställningar finns kvar under \"Avancerat läge\" längst ner till vänster.",
       okButton: "Okej",
-      keepAdvancedButton: "Behåll avancerat läge",
+      keepAdvancedButton: "Visa alla inställningar (avancerat läge)",
     },
   },
 } as const;

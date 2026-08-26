@@ -13,6 +13,12 @@ interface LiveSolveViewProps {
    *  has settled, at which point this view keeps rendering the LAST frame (dimmed, with a "go to
    *  Resultat" hint) rather than disappearing (the parent stops polling, see `useLiveSolution`). */
   running: boolean;
+  /** v0.6.0 audit fix C3: true only for OptimizePanelSimple's simple-mode usage - hides the
+   *  "Förbättring #N" pulse text and the fluctuating "Kölista: N" waitlist count (persona audit:
+   *  numbers that visibly tick up/down mid-solve read as alarming, not reassuring, to a non-technical
+   *  admin), while keeping the group boxes AND the waitlist's own player chips rendered exactly as in
+   *  advanced mode. Defaults to false so OptimizePanel.tsx's (advanced) usage is pixel-identical. */
+  simple?: boolean;
 }
 
 /** Sentinel "group" key for the waitlist bucket in the moved-player tracking map below - distinct
@@ -142,7 +148,7 @@ const LiveGroupBox = memo(
  * frame. Deliberately a lighter component than `GroupCard` (no lock toggles, no explain/what-if
  * actions - this is a live spectacle, not an editable results view).
  */
-export function LiveSolveView({ planId, snapshot, running }: LiveSolveViewProps) {
+export function LiveSolveView({ planId, snapshot, running, simple = false }: LiveSolveViewProps) {
   const navigate = useNavigate();
 
   // Tracks each participant's group (or WAITLIST_KEY) as of the last frame this component actually
@@ -212,10 +218,15 @@ export function LiveSolveView({ planId, snapshot, running }: LiveSolveViewProps)
         <Title order={5}>{sv.optimize.live.heading}</Title>
         {/* Warm sand accent (v0.3.0 WI-6 palette) - the brief calls this out by name as one of the
             sparing places the accent color should show up, since it's the one piece of text that
-            visibly ticks forward on every polled frame ("it's alive"). */}
-        <Text key={snapshot.sequence} fw={600} size="sm" c="sand.7" className="gp-live-pulse">
-          {sv.optimize.live.improvementNumber(snapshot.improvementCount)}
-        </Text>
+            visibly ticks forward on every polled frame ("it's alive").
+            v0.6.0 audit fix C3: hidden entirely in simple mode - a number that visibly ticks up mid-
+            solve reads as alarming, not reassuring, without the "it's alive" framing advanced users
+            get from the rest of this view's jargon (formatScoreLine, etc.). */}
+        {!simple && (
+          <Text key={snapshot.sequence} fw={600} size="sm" c="sand.7" className="gp-live-pulse">
+            {sv.optimize.live.improvementNumber(snapshot.improvementCount)}
+          </Text>
+        )}
       </MantineGroup>
       {/* Distinct testid from the existing solve-progress card's `live-score-line` (OptimizePanel.tsx)
           - both render simultaneously while a solve is running, so reusing that id would create a
@@ -243,8 +254,11 @@ export function LiveSolveView({ planId, snapshot, running }: LiveSolveViewProps)
       </SimpleGrid>
 
       <Card withBorder padding="xs" data-testid="live-waitlist">
+        {/* v0.6.0 audit fix C3: static (non-fluctuating) "Kölista" heading in simple mode - the
+            player chips below still render exactly as in advanced mode, only the number that visibly
+            ticks up/down mid-solve is hidden. */}
         <Text fw={600} size="sm" mb={4}>
-          {sv.optimize.live.waitlistLabel(snapshot.waitlist.length)}
+          {simple ? sv.simple.optimize.liveWaitlistHeading : sv.optimize.live.waitlistLabel(snapshot.waitlist.length)}
         </Text>
         <MantineGroup gap={4} wrap="wrap">
           <PlayerChips

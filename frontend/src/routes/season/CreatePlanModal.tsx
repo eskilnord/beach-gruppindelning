@@ -2,9 +2,10 @@ import { Button, Group, Modal, NumberInput, Stack, Text, TextInput } from "@mant
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { useCreatePlan } from "../../api/plans";
-import { ApiError } from "../../api/client";
+import { userErrorText, technicalErrorDetail } from "../../lib/errorText";
 import { HelpTip } from "../../components/HelpTip";
 import { AdvancedOnly } from "../../components/uimode/AdvancedOnly";
+import { useIsSimpleMode } from "../../lib/uiMode/useUiMode";
 import { sv } from "../../i18n/sv";
 import {
   PLAN_DEFAULTS_EMPTY_VALUES,
@@ -27,6 +28,7 @@ interface FormValues extends PlanDefaultsFormValues {
 
 export function CreatePlanModal({ opened, seasonId, onClose, onCreated }: CreatePlanModalProps) {
   const createPlan = useCreatePlan(seasonId);
+  const isSimple = useIsSimpleMode();
 
   const form = useForm<FormValues>({
     initialValues: { name: "", category: "", ...PLAN_DEFAULTS_EMPTY_VALUES },
@@ -52,13 +54,27 @@ export function CreatePlanModal({ opened, seasonId, onClose, onCreated }: Create
       form.reset();
       onCreated(created.id);
     } catch (error) {
+      const technical = technicalErrorDetail(error);
       notifications.show({
         color: "red",
         title: sv.common.error,
-        message: error instanceof ApiError ? error.message : sv.createPlanModal.createFailed,
+        message: (
+          <Stack gap={2}>
+            <Text size="sm">{userErrorText(error, sv.createPlanModal.createFailed)}</Text>
+            {technical && (
+              <Text size="xs" c="dimmed">
+                {sv.common.technicalInfo(technical)}
+              </Text>
+            )}
+          </Stack>
+        ),
       });
     }
   });
+
+  // v0.6.0 audit-fix A10: SIMPLE calls this field "Grupptyp" with a narrower placeholder and a
+  // persistent visible description; ADVANCED keeps "Kategori" unchanged.
+  const categoryLabelText = isSimple ? sv.createPlanModal.categoryLabelSimple : sv.createPlanModal.categoryLabel;
 
   return (
     <Modal opened={opened} onClose={handleClose} title={sv.createPlanModal.title} centered>
@@ -66,17 +82,32 @@ export function CreatePlanModal({ opened, seasonId, onClose, onCreated }: Create
         <Stack gap="sm">
           <TextInput
             label={sv.createPlanModal.nameLabel}
-            placeholder={sv.createPlanModal.namePlaceholder}
+            placeholder={isSimple ? sv.createPlanModal.namePlaceholderSimple : sv.createPlanModal.namePlaceholder}
             withAsterisk
             data-autofocus
             {...form.getInputProps("name")}
           />
-          <TextInput
-            label={sv.createPlanModal.categoryLabel}
-            description={<HelpTip label={sv.help.ariaLabel(sv.createPlanModal.categoryLabel)}>{sv.help.plan.category}</HelpTip>}
-            placeholder={sv.createPlanModal.categoryPlaceholder}
-            {...form.getInputProps("category")}
-          />
+          {/* v0.6.0 audit-fix A9: the HelpTip sits as a plain-text sibling ABOVE the input (not
+              inside Mantine's `label` prop, which would nest an interactive <button> inside a real
+              <label> - invalid HTML, see HelpTip.tsx's own doc comment) so the icon reads inline
+              with the label instead of as an orphan glyph on its own line below. `aria-label` on the
+              TextInput keeps its accessible name exactly "Kategori"/"Grupptyp" (ARIA aria-label takes
+              precedence over the visually-associated <label> text, and testing-library's
+              getByLabelText matches it too), independent of the visible label's own markup. */}
+          <Stack gap={4}>
+            <Group gap={4} wrap="nowrap">
+              <Text size="sm" fw={500}>
+                {categoryLabelText}
+              </Text>
+              <HelpTip label={sv.help.ariaLabel(categoryLabelText)}>{sv.help.plan.category}</HelpTip>
+            </Group>
+            <TextInput
+              aria-label={categoryLabelText}
+              placeholder={isSimple ? sv.createPlanModal.categoryPlaceholderSimple : sv.createPlanModal.categoryPlaceholder}
+              description={isSimple ? sv.createPlanModal.categoryDescriptionSimple : undefined}
+              {...form.getInputProps("category")}
+            />
+          </Stack>
 
           {/* v0.6.0 F2 (M-S2): SIMPLE mode creates a plan with just name+kategori - the backend's
               own defaults cover group sizing, so these four optional overrides are ADVANCED-only.

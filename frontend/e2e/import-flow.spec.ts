@@ -106,7 +106,9 @@ test("import wizard via Justera: upload → justera → map → validate → dec
   await expect(skipBadges).toHaveCount(2);
   await expect(warnBadges).toHaveCount(2);
 
-  const duplicateDecision = page.getByRole("textbox", { name: "Beslut för rad 6" });
+  // v0.6.0 audit-fix B2: row numbers shown to the user are now 1-based (the Excel row number), so
+  // the raw 0-based rowIndex 6 this locator originally targeted is now labeled "rad 7".
+  const duplicateDecision = page.getByRole("textbox", { name: "Beslut för rad 7" });
   await expect(duplicateDecision).toHaveValue(sv.importWizard.validate.decision.createNew);
   await duplicateDecision.click();
   await page.getByRole("option", { name: sv.importWizard.validate.decision.skip }).click();

@@ -46,11 +46,11 @@ public class PriorityOrderService {
      * rank-specific suffix in {@link #summarySv} to produce one finished sentence. At {@link
      * PriorityOrder#defaultOrder()} (TRAIN_TOGETHER=1, PREVIOUS_GROUP=2, PREFERRED_TIME=3, LEVEL=4)
      * this reproduces the four example sentences from the B7 milestone brief (rank 1/4 suffixes
-     * revised per B7 review — see {@link #summarySv}):
+     * revised per B7 review, rank 2/3 revised per v0.6.0 audit batch D — see {@link #summarySv}):
      * <ul>
      *   <li>"Spelare som önskat varandra hamnar i samma grupp. Det väger tyngst av allt."
-     *   <li>"Spelare får fortsätta i sin tidigare grupp när det går."
-     *   <li>"Önskad träningstid uppfylls när det inte krockar med viktigare önskemål."
+     *   <li>"Spelare får fortsätta i sin tidigare grupp – uppfylls när det går."
+     *   <li>"Önskad träningstid uppfylls – uppfylls om det inte krockar med viktigare önskemål."
      *   <li>"Grupperna hålls jämna i nivå – vägs in sist."
      * </ul>
      */
@@ -338,13 +338,21 @@ public class PriorityOrderService {
      * itself, not literally "grupperna", that "weighs heaviest of all" when ranked 1st. Restructuring
      * as {@code action + ". Det väger tyngst av allt."} ("Det" = "it", referring back to the priority
      * as a whole across the sentence boundary) removes the ambiguity for all four clauses.
+     *
+     * <p><b>Rank 2/3 suffixes revised (v0.6.0 audit batch D, finding D5).</b> Previously a plain
+     * continuation of {@code action} ({@code action + " när det går."} / {@code action + " när det
+     * inte krockar med viktigare önskemål."}), which read as one grammatically fused clause. Both are
+     * now {@code action + " – uppfylls ..."} — ordinal-anchored (each suffix names only what its RANK
+     * means, independent of the specific clause it follows) and monotone with rank 1's "Det väger
+     * tyngst av allt." / rank 4's "– vägs in sist.": all four suffixes now read as their own
+     * dash-attached clause rather than three different grammatical patterns across four ranks.
      */
     private static String summarySv(Priority priority, int rank) {
         String action = ACTION_CLAUSE_SV.get(priority);
         return switch (rank) {
             case 1 -> action + ". Det väger tyngst av allt.";
-            case 2 -> action + " när det går.";
-            case 3 -> action + " när det inte krockar med viktigare önskemål.";
+            case 2 -> action + " – uppfylls när det går.";
+            case 3 -> action + " – uppfylls om det inte krockar med viktigare önskemål.";
             default -> action + " – vägs in sist.";
         };
     }

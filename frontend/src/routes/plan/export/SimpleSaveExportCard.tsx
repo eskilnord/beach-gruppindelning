@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import { Alert, Button, Card, Divider, Loader, Text, TextInput, Title } from "@mantine/core";
+import { useNavigate, useParams } from "react-router-dom";
+import { Alert, Button, Card, Divider, Group, List, Loader, Modal, Stack, Text, TextInput, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { ApiError } from "../../../api/client";
 import { useExportPlan } from "../../../api/export";
 import { usePlan } from "../../../api/plans";
-import { useCreateSavedPlan } from "../../../api/savedPlans";
+import { useCreateSavedPlan, useSavedPlans } from "../../../api/savedPlans";
 import { useOptimizationRuns } from "../../../api/runs";
 import { sv } from "../../../i18n/sv";
 import { formatDateTime } from "../../../lib/formatDateTime";
+import { describeExportResult } from "./exportForm";
 
 /** "sv-SE" `YYYY-MM-DD` for the prefilled save name - deliberately NOT `formatDateTime` (that's a
  *  short LOCALE display string with a time component, spec §19.9's own "Senaste körning" style) -
@@ -37,7 +38,8 @@ function showError(error: unknown, fallback: string) {
  * own doc comment on why saving/locking has its own tab):
  *  - "Spara plan": a `POST .../saved-plans` with a prefilled `${plan.name} ${YYYY-MM-DD}` name -
  *    success/failure render INLINE in this card (not a toast), so the admin sees the result without
- *    looking away.
+ *    looking away. v0.6.0 audit batch D (D6): guarded by a "same name already exists?" confirm, and
+ *    followed by a compact read-only list of this plan's saved versions (newest first).
  *  - "Exportera till Excel": the exact same `useExportPlan` mutation ExportPanel's advanced card
  *    uses, but with the request body PINNED to `{format:"xlsx", layout:"grouped",
  *    includeComments:false}` - comments can never leak through this simplified path (see
@@ -45,14 +47,17 @@ function showError(error: unknown, fallback: string) {
  *    choice, and the "Inkludera kommentarer" opt-in, stays reachable only in Avancerat läge (the
  *    dimmed hint line says so explicitly).
  *
- * The "kör en optimering först" empty-hint (sv.export.emptyNoRun, `hasRun` gating the export
- * button) is preserved unchanged from ExportPanel's advanced card - saving is NOT gated on it
- * (saving a plan with no run yet is still a legitimate empty snapshot, same as SavedPlansPanel).
+ * v0.6.0 audit batch D (D8): the "kör en optimering först" gate no longer borrows ExportPanel's
+ * ADVANCED-worded `sv.export.emptyNoRun` (which names "fliken Optimering", a tab that doesn't exist
+ * in SIMPLE's navigation) - it has its own SIMPLE-worded copy + a working "Gå till Optimera" button,
+ * and a FAILED runs query renders as its own distinct error state (never the "no run yet" claim).
  */
 export function SimpleSaveExportCard() {
   const { planId } = useParams<{ planId: string }>();
+  const navigate = useNavigate();
   const plan = usePlan(planId);
   const runs = useOptimizationRuns(planId);
+  const savedPlans = useSavedPlans(planId);
   const hasRun = (runs.data?.length ?? 0) > 0;
 
   const createSavedPlan = useCreateSavedPlan(planId ?? "");
@@ -62,6 +67,13 @@ export function SimpleSaveExportCard() {
   const [nameInitialized, setNameInitialized] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // v0.6.0 audit batch D (D6): "a version with this exact name already exists" double-save guard -
+  // opens instead of saving immediately; confirming proceeds with the save anyway.
+  const [duplicateConfirmOpen, setDuplicateConfirmOpen] = useState(false);
+  // v0.6.0 audit batch D (D7): a cancelled Tauri save dialog used to be completely silent (saveFile
+  // just resolved `false`, nothing shown) - rendered as a subtle inline note (not a toast, which
+  // would misleadingly read as either a success or an error) right under the export button.
+  const [exportCancelledNote, setExportCancelledNote] = useState(false);
 
   // Prefills the name field the moment the plan's own name has loaded - only once, and only if the
   // admin hasn't already started typing (so a slow-loading plan query can never clobber an
@@ -77,7 +89,7 @@ export function SimpleSaveExportCard() {
     return null;
   }
 
-  const handleSave = () => {
+  const performSave = () => {
     setSaveError(null);
     setSavedAt(null);
     createSavedPlan.mutate(
@@ -93,25 +105,53 @@ export function SimpleSaveExportCard() {
     );
   };
 
+  const handleSave = () => {
+    const trimmed = name.trim();
+    const isDuplicateName = (savedPlans.data ?? []).some((version) => version.name === trimmed);
+    if (isDuplicateName) {
+      setDuplicateConfirmOpen(true);
+      return;
+    }
+    performSave();
+  };
+
   const handleExport = () => {
+    setExportCancelledNote(false);
     exportPlan.mutate(
       { format: "xlsx", layout: "grouped", includeComments: false },
       {
-        onSuccess: (saved) => {
-          if (saved) {
-            notifications.show({ color: "green", message: sv.export.exportSuccess });
+        onSuccess: (result) => {
+          const notification = describeExportResult(result, {
+            downloaded: sv.export.exportSuccess,
+            savedGeneric: sv.export.exportSaved,
+            savedWithFilename: sv.export.exportSavedToDisk,
+            cancelled: sv.export.exportCancelled,
+          });
+          if (!result.saved) {
+            setExportCancelledNote(true);
+            return;
           }
+          notifications.show({ color: notification.color, message: notification.message });
         },
         onError: (error) => showError(error, sv.export.exportFailed),
       },
     );
   };
 
+  // v0.6.0 audit batch D (D6): newest-first for display - useSavedPlans itself returns oldest-first
+  // (its own doc comment: `ORDER BY created_at, id`, the plan's full save HISTORY), so this reverses
+  // a copy rather than mutating the cached array.
+  const savedVersionsNewestFirst = [...(savedPlans.data ?? [])].reverse();
+
   return (
     <Card withBorder padding="lg" data-testid="simple-save-export-card">
       <Title order={4} mb="md">
         {sv.simple.steps.exportera}
       </Title>
+
+      <Text size="sm" c="dimmed" mb="md">
+        {sv.simple.saveExport.intro}
+      </Text>
 
       <TextInput
         label={sv.simple.saveExport.nameLabel}
@@ -145,12 +185,51 @@ export function SimpleSaveExportCard() {
         </Alert>
       )}
 
+      <Text fw={600} size="sm" mb={4}>
+        {sv.simple.saveExport.savedVersionsHeading}
+      </Text>
+      {savedPlans.isLoading && <Loader size="xs" />}
+      {!savedPlans.isLoading && savedVersionsNewestFirst.length === 0 && (
+        <Text size="sm" c="dimmed" data-testid="simple-saved-versions-empty">
+          {sv.simple.saveExport.savedVersionsEmpty}
+        </Text>
+      )}
+      {savedVersionsNewestFirst.length > 0 && (
+        <List size="sm" spacing={4} data-testid="simple-saved-versions-list">
+          {savedVersionsNewestFirst.map((version) => (
+            <List.Item key={version.id}>
+              {version.name} — {formatDateTime(version.createdAt)}
+            </List.Item>
+          ))}
+        </List>
+      )}
+
       <Divider my="md" />
 
       {runs.isLoading && <Loader size="sm" />}
-      {!runs.isLoading && !hasRun && (
+      {runs.isError && (
+        <Alert color="red" mb="md" data-testid="export-runs-error">
+          <Stack gap={8}>
+            <Text size="sm">{sv.simple.saveExport.loadRunsFailed}</Text>
+            <Button size="xs" variant="light" onClick={() => runs.refetch()}>
+              {sv.simple.saveExport.retryButton}
+            </Button>
+          </Stack>
+        </Alert>
+      )}
+      {!runs.isLoading && !runs.isError && !hasRun && (
         <Alert color="gray" mb="md" data-testid="export-empty-hint">
-          {sv.export.emptyNoRun}
+          <Stack gap={8}>
+            <Text size="sm">{sv.simple.saveExport.noRun.message}</Text>
+            <Button
+              size="xs"
+              variant="light"
+              onClick={() => navigate(`/plans/${planId}/optimering`)}
+              style={{ alignSelf: "flex-start" }}
+            >
+              {sv.simple.saveExport.noRun.button}
+            </Button>
+          </Stack>
         </Alert>
       )}
 
@@ -158,15 +237,48 @@ export function SimpleSaveExportCard() {
         size="lg"
         onClick={handleExport}
         loading={exportPlan.isPending}
-        disabled={!hasRun}
+        disabled={!hasRun || runs.isError}
         data-testid="simple-export-button"
       >
         {sv.simple.saveExport.exportButton}
       </Button>
 
       <Text size="xs" c="dimmed" mt="sm">
+        {sv.simple.saveExport.exportExplanation}
+      </Text>
+      {exportCancelledNote && (
+        <Text size="xs" c="dimmed" mt={4} data-testid="simple-export-cancelled-note">
+          {sv.export.exportCancelled}
+        </Text>
+      )}
+
+      <Text size="xs" c="dimmed" mt="sm">
         {sv.simple.saveExport.advancedHint}
       </Text>
+
+      <Modal
+        opened={duplicateConfirmOpen}
+        onClose={() => setDuplicateConfirmOpen(false)}
+        title={sv.simple.saveExport.duplicateNameConfirm.title}
+      >
+        <Text size="sm" mb="lg">
+          {sv.simple.saveExport.duplicateNameConfirm.message}
+        </Text>
+        <Group justify="flex-end">
+          <Button variant="default" onClick={() => setDuplicateConfirmOpen(false)}>
+            {sv.common.cancel}
+          </Button>
+          <Button
+            data-testid="simple-save-duplicate-confirm"
+            onClick={() => {
+              setDuplicateConfirmOpen(false);
+              performSave();
+            }}
+          >
+            {sv.simple.saveExport.duplicateNameConfirm.confirmLabel}
+          </Button>
+        </Group>
+      </Modal>
     </Card>
   );
 }

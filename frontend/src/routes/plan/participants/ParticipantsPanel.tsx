@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Alert, Badge, Button, Card, Group, Loader, Text, TextInput, Title, Tooltip } from "@mantine/core";
+import { Alert, Badge, Button, Card, Group, Loader, Stack, Text, TextInput, Title, Tooltip } from "@mantine/core";
 import { IconCircleCheck, IconUsers } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
@@ -13,7 +13,8 @@ import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
 import { DeleteConfirmModal } from "../../../components/DeleteConfirmModal";
 import { EmptyState } from "../../../components/EmptyState";
-import { SimpleOnly } from "../../../components/uimode/AdvancedOnly";
+import { AdvancedOnly, SimpleOnly } from "../../../components/uimode/AdvancedOnly";
+import { useIsSimpleMode } from "../../../lib/uiMode/useUiMode";
 import { describeLevelConfidence } from "./levelConfidence";
 import { ParticipantDrawer } from "./ParticipantDrawer";
 import type { ParticipantRow } from "./participantRow";
@@ -82,12 +83,20 @@ interface CommentCellParams {
 }
 
 function CommentCell(props: ICellRendererParams<ParticipantRow> & CommentCellParams) {
+  const isSimple = useIsSimpleMode();
   const hasComment = Boolean(props.data?.importedComment && props.data.importedComment.trim().length > 0);
   if (!hasComment) {
     return null;
   }
   const count = props.data ? props.suggestionCounts?.get(props.data.id) : undefined;
-  if (count && count > 0) {
+  // B18.1 (v0.6.0 audit-fix batch B): the plan-level suggestions-count endpoint
+  // (usePlanCommentSuggestions -> ParticipantSuggestionCount) returns a single total per
+  // participant with no per-kind breakdown (see api/commentSuggestions.ts's "comment minimization"
+  // doc comment). SIMPLE mode hides COACH_* suggestions entirely (CommentSuggestionList's
+  // visibleSuggestionKinds), so that raw total can overcount what SIMPLE would actually show if the
+  // drawer were opened - rather than promise a possibly-wrong N, SIMPLE always falls back to the
+  // plain dot indicator below, never a number.
+  if (!isSimple && count && count > 0) {
     return (
       <Tooltip label={sv.participants.suggestionCountTooltip(count)}>
         <Badge color="blue" variant="filled">
@@ -218,6 +227,9 @@ export function ParticipantsPanel() {
   // v0.6.0 F4 (M-S4): "no level at all" - both the imported estimate AND a manual override are
   // absent. Feeds the summary strip below.
   const withoutLevelCount = rows.filter((row) => row.estimatedLevel == null && row.manualLevelScore == null).length;
+  // B16 (v0.6.0 audit-fix batch B): feeds the "K av N klarmarkerade" segment of the SIMPLE summary
+  // strip above.
+  const reviewedCount = rows.filter((row) => row.reviewedDone).length;
 
   return (
     <Card withBorder padding="lg">
@@ -227,8 +239,11 @@ export function ParticipantsPanel() {
           <Button variant="default" onClick={() => navigate(`/plans/${planId}/import`)}>
             {sv.participants.importButton}
           </Button>
+          {/* B15 (v0.6.0 audit-fix batch B, P1): both actions are destructive/bulk (irreversible
+              recompute overwrite, permanent comment anonymization) and confusing for a non-technical
+              admin - ADVANCED-only, never rendered in SIMPLE mode. */}
           {!isEmpty && (
-            <>
+            <AdvancedOnly>
               <Button
                 variant="default"
                 loading={recomputeLevels.isPending}
@@ -253,7 +268,7 @@ export function ParticipantsPanel() {
               <Button color="red" variant="outline" onClick={() => setAnonymizeOpen(true)}>
                 {sv.participants.anonymizeButton}
               </Button>
-            </>
+            </AdvancedOnly>
           )}
         </Group>
       </Group>
@@ -270,6 +285,15 @@ export function ParticipantsPanel() {
               "comment minimization" doc comment), so those two segments are deliberately dropped
               rather than adding a new backend call. */}
           <SimpleOnly>
+            {/* B16 (v0.6.0 audit-fix batch B, P1): step-framing heading/body, so a non-technical
+                admin lands on this screen knowing WHY they're here and that "klarmarkerad" is
+                optional bookkeeping, not a required gate. */}
+            <Stack gap={2} mb="sm" data-testid="simple-participants-step-heading">
+              <Title order={5}>{sv.simple.participants.stepHeading}</Title>
+              <Text size="sm" c="dimmed">
+                {sv.simple.participants.stepBody}
+              </Text>
+            </Stack>
             <Group gap={6} mb="sm" data-testid="simple-participants-summary">
               <Text size="sm">{sv.simple.participants.summary.total(rows.length)}</Text>
               <Text size="sm" c="dimmed">
@@ -278,6 +302,10 @@ export function ParticipantsPanel() {
               <Text size="sm" c={withoutLevelCount > 0 ? "orange" : undefined}>
                 {sv.simple.participants.summary.withoutLevel(withoutLevelCount)}
               </Text>
+              <Text size="sm" c="dimmed">
+                ·
+              </Text>
+              <Text size="sm">{sv.simple.participants.summary.reviewed(reviewedCount, rows.length)}</Text>
             </Group>
           </SimpleOnly>
 

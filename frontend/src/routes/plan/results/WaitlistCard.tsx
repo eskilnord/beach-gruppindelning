@@ -6,6 +6,14 @@ export interface WaitlistEntry {
   name: string;
   level: number | null;
   priority: string | null;
+  /** v0.6.0 audit-fix batch C (C7, P2, persona audit "Gunilla" - "Kölista card explains"): the plan
+   *  explanation's own per-person `WaitlistEntryView.reasonSv` (already fetched once for the
+   *  Resultat tab, see ResultsPanel.tsx's `waitlistReasonByParticipantId`) - rendered directly on the
+   *  row when present so "why is my kid on the waitlist" is answered without opening Förklara.
+   *  Optional/null: `model.waitlist` (ResultsPanel.tsx) builds entries from a DIFFERENT fetch
+   *  (`assignments`) that has no reason field of its own, and the plan explanation may still be
+   *  loading/failed when this row first renders. */
+  reasonSv?: string | null;
 }
 
 interface WaitlistCardProps {
@@ -55,7 +63,19 @@ export function WaitlistCard({ entries, runId, highlightedParticipantId, onExpla
                 id={`participant-row-${entry.participantProfileId}`}
                 className={highlightedParticipantId === entry.participantProfileId ? "gp-highlight-flash" : undefined}
               >
-                <Table.Td>{entry.name}</Table.Td>
+                <Table.Td>
+                  <Text size="sm">{entry.name}</Text>
+                  {/* v0.6.0 audit-fix batch C (C7, P2, persona audit "Gunilla"): the finished
+                      Swedish sentence explaining why THIS person has no group, rendered directly -
+                      see the `reasonSv` field's own doc comment above for the data source. Omitted
+                      (not a fabricated "no reason available" line) while the plan explanation this
+                      comes from hasn't resolved yet. */}
+                  {entry.reasonSv && (
+                    <Text size="xs" c="dimmed">
+                      {entry.reasonSv}
+                    </Text>
+                  )}
+                </Table.Td>
                 <Table.Td>{entry.level != null ? Math.round(entry.level) : "—"}</Table.Td>
                 <Table.Td>
                   {entry.priority != null && (

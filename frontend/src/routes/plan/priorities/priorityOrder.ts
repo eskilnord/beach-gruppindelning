@@ -69,3 +69,13 @@ export function isPermutation<T>(candidate: readonly T[], reference: readonly T[
   }
   return true;
 }
+
+/**
+ * v0.6.0 audit batch D (D4): true when `a` and `b` are the same length and have equal elements at
+ * every index (order-sensitive, unlike {@link isPermutation}) - backs PrioritiesPanel.tsx's
+ * "Återställ till standardordning" button visibility (only shown once the displayed order has
+ * actually drifted from `PriorityOrderView.defaultOrder`).
+ */
+export function arraysEqual<T>(a: readonly T[], b: readonly T[]): boolean {
+  return a.length === b.length && a.every((item, index) => item === b[index]);
+}

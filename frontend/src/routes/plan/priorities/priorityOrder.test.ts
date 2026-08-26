@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isPermutation, moveItem, reorder } from "./priorityOrder";
+import { arraysEqual, isPermutation, moveItem, reorder } from "./priorityOrder";
 
 describe("moveItem", () => {
   const list = ["A", "B", "C", "D"];
@@ -76,5 +76,21 @@ describe("isPermutation", () => {
 
   it("false on a different length", () => {
     expect(isPermutation([...reference, "LEVEL"], reference)).toBe(false);
+  });
+});
+
+describe("arraysEqual", () => {
+  const reference = ["TRAIN_TOGETHER", "PREVIOUS_GROUP", "PREFERRED_TIME", "LEVEL"];
+
+  it("true for the same order", () => {
+    expect(arraysEqual(reference, [...reference])).toBe(true);
+  });
+
+  it("false for a different order of the same elements (order-sensitive, unlike isPermutation)", () => {
+    expect(arraysEqual(reference, ["PREVIOUS_GROUP", "TRAIN_TOGETHER", "PREFERRED_TIME", "LEVEL"])).toBe(false);
+  });
+
+  it("false on a different length", () => {
+    expect(arraysEqual(reference, reference.slice(0, 3))).toBe(false);
   });
 });

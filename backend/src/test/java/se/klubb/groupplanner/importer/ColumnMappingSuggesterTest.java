@@ -66,7 +66,7 @@ class ColumnMappingSuggesterTest {
                 .get()
                 .extracting(ColumnSuggestion::reason)
                 .asString()
-                .contains("spelarvyn");
+                .contains("under Deltagare");
 
         assertThat(ColumnMappingSuggester.suggest("RankInfo")).contains(MappingTargetKind.IGNORE);
         assertThat(ColumnMappingSuggester.suggest("AnmäldAktivitet")).contains(MappingTargetKind.IGNORE);

@@ -59,7 +59,7 @@ describe("SheetStep", () => {
     );
 
     renderWithProviders(
-      <SheetStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onExpired={() => {}} />,
+      <SheetStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onBack={() => {}} onExpired={() => {}} />,
     );
 
     // Before analysis resolves, nothing is pre-selected yet (no sheets[0] fallback jump).

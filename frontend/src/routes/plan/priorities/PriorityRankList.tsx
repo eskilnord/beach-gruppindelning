@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { ActionIcon, Badge, Group, Paper, Stack, Text } from "@mantine/core";
-import { IconArrowDown, IconArrowUp } from "@tabler/icons-react";
+import { ActionIcon, Badge, Group, Paper, Stack, Text, Tooltip } from "@mantine/core";
+import { IconArrowDown, IconArrowUp, IconGripVertical } from "@tabler/icons-react";
 import type { PriorityKey, PriorityRowView } from "../../../api/priorityOrder";
 import { sv } from "../../../i18n/sv";
 
@@ -108,6 +108,10 @@ export function PriorityRankList({ order, priorities, disabled = false, onMove, 
             style={{
               ...(showInsertionLine ? { borderTop: "3px solid var(--mantine-color-blue-6)" } : undefined),
               ...(rowEnabled ? undefined : { opacity: 0.6 }),
+              // v0.6.0 audit batch D (D4): the row is draggable (native HTML5 DnD, above) - `grab`
+              // signals that affordance instead of the default pointer cursor implying it's just
+              // clickable text.
+              cursor: disabled ? undefined : "grab",
             }}
             onDragStart={(event) => {
               setDragIndex(index);
@@ -142,7 +146,25 @@ export function PriorityRankList({ order, priorities, disabled = false, onMove, 
           >
             <Group justify="space-between" wrap="nowrap">
               <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-                <Badge circle size="lg" variant={rowEnabled ? "filled" : "light"} color={rowEnabled ? undefined : "gray"}>
+                {/* v0.6.0 audit batch D (D4): a visual drag-handle affordance, decorative only (the
+                    whole row is already draggable and the arrow buttons are the tested, always-
+                    available path - see this component's own doc comment) - aria-hidden so it adds
+                    nothing to the accessibility tree. */}
+                <IconGripVertical
+                  size={16}
+                  color="var(--mantine-color-dimmed)"
+                  aria-hidden
+                  style={{ cursor: disabled ? undefined : "grab", flexShrink: 0 }}
+                />
+                <Badge
+                  circle
+                  size="lg"
+                  // v0.6.0 audit batch D (D4): outline once the list is disabled (customWeightsActive)
+                  // - a third, visually distinct state from the normal filled/light split, reinforcing
+                  // that this rank number isn't currently authoritative over optimization.
+                  variant={disabled ? "outline" : rowEnabled ? "filled" : "light"}
+                  color={rowEnabled ? undefined : "gray"}
+                >
                   {index + 1}
                 </Badge>
                 <div style={{ minWidth: 0 }}>
@@ -150,41 +172,62 @@ export function PriorityRankList({ order, priorities, disabled = false, onMove, 
                   <Text size="sm" c="dimmed">
                     {sv.simple.priorities.explanations[key]}
                   </Text>
+                  {/* v0.6.0 audit batch D (D3): static, per-POSITION sentence (moves WITH the row
+                      across a reorder, since it's indexed by `index`/rank, never by `key`) - honest by
+                      construction: it describes what THIS rank means, not a claim about this specific
+                      priority. */}
+                  <Text size="xs" c="dimmed" data-testid="priority-rank-meaning">
+                    {sv.simple.priorities.rankMeaning[index]}
+                  </Text>
                   {!rowEnabled && (
-                    <Text size="xs" c="dimmed" data-testid="priority-row-disabled-note">
+                    // v0.6.0 audit batch D (D4): deliberately NOT `c="dimmed"` any more - stacked on
+                    // top of the row's own `opacity: 0.6` (disabled constraint) and, when the whole
+                    // list is ALSO disabled (customWeightsActive), that list-level 0.6 too - two
+                    // compounding dims plus a low-contrast text color made this genuinely hard to read.
+                    <Text size="sm" data-testid="priority-row-disabled-note">
                       {sv.simple.priorities.disabledRuleNote}
                     </Text>
                   )}
                 </div>
               </Group>
-              <ActionIcon.Group>
-                <ActionIcon
-                  ref={(el) => {
-                    const entry = buttonRefs.current.get(key) ?? { up: null, down: null };
-                    entry.up = el;
-                    buttonRefs.current.set(key, entry);
-                  }}
-                  variant="default"
-                  aria-label={sv.simple.priorities.moveUpAriaLabel(labelSv)}
-                  disabled={disabled || index === 0}
-                  onClick={() => handleMoveClick(index, "up")}
-                >
-                  <IconArrowUp size={16} />
-                </ActionIcon>
-                <ActionIcon
-                  ref={(el) => {
-                    const entry = buttonRefs.current.get(key) ?? { up: null, down: null };
-                    entry.down = el;
-                    buttonRefs.current.set(key, entry);
-                  }}
-                  variant="default"
-                  aria-label={sv.simple.priorities.moveDownAriaLabel(labelSv)}
+              {/* v0.6.0 audit batch D (D4): a plain Group with an explicit 4px gap, replacing
+                  ActionIcon.Group's flush (0px, shared-border) layout - the two arrows read as
+                  separate actions now, not one segmented control. */}
+              <Group gap={4} wrap="nowrap">
+                <Tooltip label={sv.simple.priorities.moveUpAriaLabel(labelSv)} disabled={disabled || index === 0}>
+                  <ActionIcon
+                    ref={(el) => {
+                      const entry = buttonRefs.current.get(key) ?? { up: null, down: null };
+                      entry.up = el;
+                      buttonRefs.current.set(key, entry);
+                    }}
+                    variant="default"
+                    aria-label={sv.simple.priorities.moveUpAriaLabel(labelSv)}
+                    disabled={disabled || index === 0}
+                    onClick={() => handleMoveClick(index, "up")}
+                  >
+                    <IconArrowUp size={16} />
+                  </ActionIcon>
+                </Tooltip>
+                <Tooltip
+                  label={sv.simple.priorities.moveDownAriaLabel(labelSv)}
                   disabled={disabled || index === order.length - 1}
-                  onClick={() => handleMoveClick(index, "down")}
                 >
-                  <IconArrowDown size={16} />
-                </ActionIcon>
-              </ActionIcon.Group>
+                  <ActionIcon
+                    ref={(el) => {
+                      const entry = buttonRefs.current.get(key) ?? { up: null, down: null };
+                      entry.down = el;
+                      buttonRefs.current.set(key, entry);
+                    }}
+                    variant="default"
+                    aria-label={sv.simple.priorities.moveDownAriaLabel(labelSv)}
+                    disabled={disabled || index === order.length - 1}
+                    onClick={() => handleMoveClick(index, "down")}
+                  >
+                    <IconArrowDown size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
             </Group>
           </Paper>
         );

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
@@ -7,6 +7,12 @@ import { renderWithProviders } from "../../../test/renderWithProviders";
 import { sv } from "../../../i18n/sv";
 import { filterSuggestionsForUiMode, ImprovementSuggestions } from "./ImprovementSuggestions";
 import type { ImprovementSuggestionsResponse, SuggestionView } from "../../../api/types";
+
+const navigateMock = vi.fn();
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+  return { ...actual, useNavigate: () => navigateMock };
+});
 
 const SUGGESTIONS_URL = "/api/plans/plan-1/runs/run-1/suggestions";
 
@@ -229,7 +235,7 @@ describe("ImprovementSuggestions", () => {
     expect(await screen.findByTestId("improvement-suggestions-error")).toHaveTextContent("Run not found in plan plan-1: run-1");
   });
 
-  it("renders a PRIORITY_ORDER suggestion in the actionable list, never as a limitation", async () => {
+  it("renders a PRIORITY_ORDER suggestion in the actionable list, never as a limitation, with an 'Ändra prioritetsordning' CTA that navigates to prioriteringar (C9)", async () => {
     const response: ImprovementSuggestionsResponse = {
       ...BASE_RESPONSE,
       suggestions: [
@@ -250,6 +256,7 @@ describe("ImprovementSuggestions", () => {
     };
     server.use(http.get(SUGGESTIONS_URL, () => HttpResponse.json(response)));
 
+    const user = userEvent.setup();
     renderWithProviders(<ImprovementSuggestions planId="plan-1" runId="run-1" />);
 
     expect(await screen.findAllByTestId("improvement-suggestion-row")).toHaveLength(1);
@@ -257,6 +264,44 @@ describe("ImprovementSuggestions", () => {
     expect(screen.getByText(response.suggestions[0].titleSv)).toBeInTheDocument();
     expect(screen.getByText(response.suggestions[0].detailSv!)).toBeInTheDocument();
     expect(screen.getByText(response.suggestions[0].impactSv)).toBeInTheDocument();
+
+    const button = screen.getByRole("button", { name: sv.results.explain.simple.changePriorityOrderButton });
+    await user.click(button);
+    expect(navigateMock).toHaveBeenCalledWith("/plans/plan-1/prioriteringar");
+  });
+
+  // v0.6.0 audit-fix batch C (C9, P2): a non-PRIORITY_ORDER suggestion must never grow the reorder CTA.
+  it("does not render the 'Ändra prioritetsordning' CTA on a non-PRIORITY_ORDER suggestion", async () => {
+    const response: ImprovementSuggestionsResponse = {
+      ...BASE_RESPONSE,
+      suggestions: [suggestion({ kind: "PLAYER_TIME" })],
+    };
+    server.use(http.get(SUGGESTIONS_URL, () => HttpResponse.json(response)));
+
+    renderWithProviders(<ImprovementSuggestions planId="plan-1" runId="run-1" />);
+
+    await screen.findAllByTestId("improvement-suggestion-row");
+    expect(
+      screen.queryByRole("button", { name: sv.results.explain.simple.changePriorityOrderButton }),
+    ).not.toBeInTheDocument();
+  });
+
+  // v0.6.0 audit-fix batch C (C8, P2, persona audit "Gunilla"): SIMPLE's own omitted-count wording -
+  // no raw backend cap number, points at the one thing a non-technical council member CAN do.
+  it("shows the SIMPLE-specific omitted-count wording (no raw count) instead of the ADVANCED 'N ytterligare...' copy", async () => {
+    const response: ImprovementSuggestionsResponse = {
+      ...BASE_RESPONSE,
+      omittedCount: 2,
+      suggestions: [suggestion({ kind: "PLAYER_TIME" })],
+    };
+    server.use(http.get(SUGGESTIONS_URL, () => HttpResponse.json(response)));
+
+    renderWithProviders(<ImprovementSuggestions planId="plan-1" runId="run-1" />, { uiMode: "SIMPLE" });
+
+    expect(await screen.findByTestId("improvement-suggestions-omitted")).toHaveTextContent(
+      sv.results.suggestions.omittedCountSimple,
+    );
+    expect(screen.queryByText(sv.results.suggestions.omittedCount(2))).not.toBeInTheDocument();
   });
 
   it("falls back to the actionable list (never a limitation, never a crash) for a kind unknown to this frontend build", async () => {

@@ -64,17 +64,16 @@ export function resolveSimpleStepIndex(pathname: string): number {
 export interface StepCompletion {
   /**
    * Whether the step looks "done". `undefined` (not `false`) when there's no cheap signal to derive
-   * it from yet - e.g. Prioriteringar (placeholder route, F3), Resultat (no cheap
-   * distinct-from-Optimera signal without an extra backend call), and Exportera (saving isn't
-   * reachable from this step yet - see FIX 3 below). Guidance only, never a gate: PlanSimpleStepper
-   * actually renders this now (v0.6.0 F2 review fix, FIX 1 - it used to be computed and then never
-   * read, which let the Mantine-native, position-only checkmark misleadingly mark every step
-   * "done" once the admin navigated past it, regardless of this value). `allowNextStepsSelect` still
-   * lets the admin jump straight to any step regardless of what's "completed" here.
+   * it from yet - e.g. Prioriteringar (placeholder route, F3). Guidance only, never a gate:
+   * PlanSimpleStepper actually renders this now (v0.6.0 F2 review fix, FIX 1 - it used to be
+   * computed and then never read, which let the Mantine-native, position-only checkmark misleadingly
+   * mark every step "done" once the admin navigated past it, regardless of this value).
+   * `allowNextStepsSelect` still lets the admin jump straight to any step regardless of what's
+   * "completed" here.
    */
   completed: boolean | undefined;
   /** Description shown under the step label - either a live-number ("260 deltagare", "3 tider") or,
-   *  for the three steps with no cheap live signal, a static fallback (sv.simple.stepDescriptions -
+   *  for the steps with no cheap live signal, a static fallback (sv.simple.stepDescriptions -
    *  FIX 8) so all six steps render a description line and the stepper doesn't have uneven step
    *  heights. `undefined` only while the underlying live-number query is still loading (or errored -
    *  see PlanSimpleStepper.tsx's doc comment on that). */
@@ -82,25 +81,43 @@ export interface StepCompletion {
 }
 
 /** Already-fetched, cheap counts this milestone reuses instead of inventing new backend calls -
- *  see PlanSimpleStepper.tsx for which existing react-query hooks supply each one
- *  (useParticipants/useTimeSlots/useOptimizationRuns - all already used elsewhere in the plan tabs).
+ *  see PlanSimpleStepper.tsx for which existing react-query hooks supply each one.
  *  `undefined` means "not loaded yet" (query still pending/erroring), which {@link completionFor}
  *  treats the same as "no signal" rather than as zero. */
 export interface StepCompletionInput {
   participantsCount: number | undefined;
+  /** Count of configured time SLOTS - drives the Tider step's description text only (e.g.
+   *  "3 tider"). See {@link activeCourtsCount} for what actually gates the checkmark. */
   timeSlotsCount: number | undefined;
+  /**
+   * v0.6.0 audit-fix A8: the number of ACTIVE training-block "banor" across every time slot -
+   * derived from the same `useTrainingBlocksForPlan` query ResourcesPanel.tsx already keys on (see
+   * PlanSimpleStepper.tsx). A plan can have time slots configured with every court switched off
+   * (0 capacity) - that's not "done" no matter how many slots exist, so this - not
+   * {@link timeSlotsCount} - is what {@link tiderCompletion} gates the checkmark on.
+   */
+  activeCourtsCount: number | undefined;
+  /** Count of optimization runs ever started - drives the Optimera step's description text only
+   *  (e.g. "2 körningar"). See {@link latestRunFinished} for what actually gates the checkmark. */
   optimizationRunsCount: number | undefined;
+  /**
+   * v0.6.0 audit-fix A8: whether the MOST RECENT optimization run has actually finished
+   * (`status === "FINISHED"`, from `useOptimizationRuns`'s most-recent-first list - `data[0]`).
+   * `runs.length > 0` alone used to check both Optimera AND (via a permanently-grey "static
+   * fallback") never checked Resultat at all - a run that's 1 second into solving, or one that
+   * crashed/was cancelled, isn't "done", and a plan that finished solving 20 minutes ago had a
+   * permanently grey Resultat "5" reading as an unexplained accusation. Both
+   * {@link optimeraCompletion} and {@link resultatCompletion} now gate on this SAME signal instead.
+   */
+  latestRunFinished: boolean | undefined;
   /** v0.6.0 F3 (M-S3): the loaded `GET /api/plans/{planId}/priority-order` view, reduced to just
    *  the two fields {@link priorityCompletion} needs - `undefined` while that query hasn't resolved
-   *  yet (same "no signal" treatment as the other three inputs above). See PlanSimpleStepper.tsx for
+   *  yet (same "no signal" treatment as the other inputs above). See PlanSimpleStepper.tsx for
    *  how this is derived from `usePriorityOrder`'s full response. */
   priorityOrder: PriorityOrderCompletionInput | undefined;
-  /** v0.6.0 F6 (M-S6): `useSavedPlans(planId).data?.length` - restored now that SimpleSaveExportCard
-   *  actually lands on the export route (F2 review fix FIX 3's own TODO). Saving a version is a real
-   *  user action (unlike Prioriteringar's seeded-default-order trap, priorityCompletion's own doc
-   *  comment) - `count > 0` is honest evidence of "the admin has saved at least once", so this step
-   *  reuses the same countCompletion helper as deltagare/tider/optimera below, not a static
-   *  fallback. */
+  /** v0.6.0 F6 (M-S6): `useSavedPlans(planId).data?.length` - Saving a version is a real
+   *  user action - `count > 0` is honest evidence of "the admin has saved at least once", so this
+   *  step reuses the same countCompletion helper as deltagare/tider above, not a static fallback. */
   savedPlansCount: number | undefined;
 }
 
@@ -127,7 +144,56 @@ function countCompletion(count: number | undefined, singular: string, plural: st
 }
 
 /**
- * v0.6.0 F3 (M-S3), review fix FIX 4 (MAJOR): unlike the three live-COUNT steps above (which are
+ * v0.6.0 audit-fix A8: completion now gates on {@link StepCompletionInput.activeCourtsCount} (real
+ * capacity), not the raw slot count - a plan can have every court switched off on every slot, which
+ * looks "configured" by slot count alone but has zero actual training capacity. The DESCRIPTION
+ * still shows the slot count (`timeSlotsCount`) - "3 tider" - since that's still the honest, useful
+ * live number for this step; only the checkmark's meaning changed.
+ */
+function tiderCompletion(timeSlotsCount: number | undefined, activeCourtsCount: number | undefined): StepCompletion {
+  if (timeSlotsCount === undefined) {
+    return { completed: undefined, description: undefined };
+  }
+  return {
+    completed: activeCourtsCount === undefined ? undefined : activeCourtsCount > 0,
+    description: pluralize(timeSlotsCount, "tid", "tider"),
+  };
+}
+
+/**
+ * v0.6.0 audit-fix A8: completion now gates on {@link StepCompletionInput.latestRunFinished} - a run
+ * that's still solving (or one that was cancelled/failed) isn't "done" just because it exists. The
+ * DESCRIPTION still shows the total run count ("2 körningar") - that's still honest, useful
+ * information; only the checkmark's meaning changed.
+ */
+function optimeraCompletion(
+  optimizationRunsCount: number | undefined,
+  latestRunFinished: boolean | undefined,
+): StepCompletion {
+  if (optimizationRunsCount === undefined) {
+    return { completed: undefined, description: undefined };
+  }
+  return {
+    completed: latestRunFinished === true,
+    description: pluralize(optimizationRunsCount, "körning", "körningar"),
+  };
+}
+
+/**
+ * v0.6.0 audit-fix A8: Resultat used to be permanently un-checked ("no cheap distinct-from-Optimera
+ * signal without an extra backend call") - the audit called out that a permanently grey "5" reads as
+ * an unexplained accusation to a non-technical admin. It CAN now check: it reuses the exact same
+ * `latestRunFinished` signal Optimera does (no extra backend call - Optimera's own
+ * `useOptimizationRuns` query already carries this). The description stays the static fallback
+ * (sv.simple.stepDescriptions.resultat) - there's no cheap distinct live number to show here, only
+ * the checkmark gained a real signal.
+ */
+function resultatCompletion(latestRunFinished: boolean | undefined): StepCompletion {
+  return { completed: latestRunFinished, description: sv.simple.stepDescriptions.resultat };
+}
+
+/**
+ * v0.6.0 F3 (M-S3), review fix FIX 4 (MAJOR): unlike the live-COUNT steps above (which are
  * "not completed" until a count is actually positive), every plan is seeded with a default
  * priority order the moment the query resolves - so "the GET resolved" is never by itself evidence
  * the admin has actually engaged with this screen. `completed` therefore gates on
@@ -163,16 +229,10 @@ function priorityCompletion(input: PriorityOrderCompletionInput | undefined): St
 export function completionFor(input: StepCompletionInput): StepCompletion[] {
   return [
     countCompletion(input.participantsCount, "deltagare", "deltagare"),
-    countCompletion(input.timeSlotsCount, "tid", "tider"),
+    tiderCompletion(input.timeSlotsCount, input.activeCourtsCount),
     priorityCompletion(input.priorityOrder),
-    countCompletion(input.optimizationRunsCount, "körning", "körningar"),
-    // Resultat: mirrors "has an optimization run" too closely to be a meaningfully distinct signal
-    // without an extra backend call (e.g. "does the latest run have assigned groups") - left
-    // un-checked rather than duplicating Optimera's completion or adding load.
-    { completed: undefined, description: sv.simple.stepDescriptions.resultat },
-    // Exportera (v0.6.0 F6, M-S6): restored - SimpleSaveExportCard now lands on the export route, so
-    // "has the admin saved at least one version" is real, cheap evidence again (see
-    // StepCompletionInput.savedPlansCount's own doc comment for why F2's review fix dropped this).
+    optimeraCompletion(input.optimizationRunsCount, input.latestRunFinished),
+    resultatCompletion(input.latestRunFinished),
     countCompletion(input.savedPlansCount, "sparad plan", "sparade planer"),
   ];
 }

@@ -59,31 +59,51 @@ export async function restartBackend(): Promise<BackendInfo> {
 }
 
 /**
+ * v0.6.0 audit batch D (D7): {@link saveFile}'s outcome, richer than a plain boolean so callers can
+ * show truthful, mode-aware feedback instead of one "laddades ner" string that's only actually true
+ * in the browser branch:
+ *  - `saved`: false only when the admin cancelled the Tauri save dialog (the browser branch always
+ *    "succeeds" from the page's point of view once the download is triggered - there is no
+ *    equivalent cancellation signal there).
+ *  - `isTauriSave`: which branch actually ran, so a caller can pick "Filen sparades." (Tauri, a real
+ *    disk write via the native dialog) vs. "Exporten laddades ner." (browser, an `<a download>`)
+ *    without re-deriving it from {@link isTauri} itself.
+ *  - `filename`: the name actually used, when known - the chosen path's basename in Tauri, or the
+ *    suggested filename in the browser (the browser always honors it for `<a download>`). Omitted
+ *    only when `saved` is false.
+ */
+export interface SaveFileResult {
+  saved: boolean;
+  isTauriSave: boolean;
+  filename?: string;
+}
+
+/**
  * Saves a downloaded file (M8 export, spec §20/§21.3) to disk, browser-vs-Tauri per CLAUDE.md's dev
  * commands note ("export = byte download, Tauri APIs isolated in platform.ts with browser
  * fallbacks"): in the browser, a temporary `<a download>` + object URL (no filesystem access
  * available from a plain tab); in Tauri, the native "Spara som"-dialog (`@tauri-apps/plugin-dialog`'s
  * `save`) followed by a direct byte write (`@tauri-apps/plugin-fs`'s `writeFile`) - both dynamically
  * imported, same pattern as `getBackendInfo`'s `@tauri-apps/api/core` import, so the browser bundle
- * never needs the desktop-only plugins. Returns `false` if the user cancelled the Tauri save dialog
- * (there is no equivalent cancellation signal in the browser branch - it always "succeeds" from the
- * page's point of view once the download is triggered).
+ * never needs the desktop-only plugins. See {@link SaveFileResult}'s own doc comment for what the
+ * return value tells callers - `{saved: false}` when the admin cancelled the Tauri save dialog.
  *
  * NOTE for the desktop shell: `@tauri-apps/plugin-dialog`/`@tauri-apps/plugin-fs` must also be
  * registered Rust-side (desktop/src-tauri/Cargo.toml dependencies + capabilities/default.json
  * permissions) before this Tauri branch works at runtime - out of scope for this milestone's
  * frontend-only half (see docs/plan.md M8), tracked as a desktop-side follow-up.
  */
-export async function saveFile(blob: Blob, suggestedFilename: string): Promise<boolean> {
+export async function saveFile(blob: Blob, suggestedFilename: string): Promise<SaveFileResult> {
   if (isTauri()) {
     const { save } = await import("@tauri-apps/plugin-dialog");
     const path = await save({ defaultPath: suggestedFilename });
     if (!path) {
-      return false;
+      return { saved: false, isTauriSave: true };
     }
     const { writeFile } = await import("@tauri-apps/plugin-fs");
     await writeFile(path, new Uint8Array(await blob.arrayBuffer()));
-    return true;
+    const filename = path.split(/[\\/]/).pop() || suggestedFilename;
+    return { saved: true, isTauriSave: true, filename };
   }
 
   const url = URL.createObjectURL(blob);
@@ -97,5 +117,5 @@ export async function saveFile(blob: Blob, suggestedFilename: string): Promise<b
   } finally {
     URL.revokeObjectURL(url);
   }
-  return true;
+  return { saved: true, isTauriSave: false, filename: suggestedFilename };
 }

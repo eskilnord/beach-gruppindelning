@@ -8,7 +8,7 @@ import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-rou
 import { http, HttpResponse } from "msw";
 import { server } from "../../../test/server";
 import { sv } from "../../../i18n/sv";
-import { useUiModeStore } from "../../../lib/uiMode/uiModeStore";
+import { setUiModeForTests, useUiModeStore } from "../../../lib/uiMode/uiModeStore";
 import { PrioritiesPanel } from "./PrioritiesPanel";
 import { priorityOrderKey, type PriorityOrderView } from "../../../api/priorityOrder";
 
@@ -515,8 +515,12 @@ describe("PrioritiesPanel", () => {
     // debounce would have fired.
     fireEvent.click(screen.getByText("go-to-other-plan"));
 
-    // The save status resets immediately (idle) rather than carrying plan-1's "Sparar…" over.
-    expect(screen.getByTestId("priority-save-status")).toHaveTextContent("");
+    // The save status resets immediately (idle) rather than carrying plan-1's "Sparar…" over - v0.6.0
+    // audit batch D (D4) moved the status region to render adjacent to the list (inside the `data &&`
+    // block, alongside PriorityRankList) rather than unconditionally in the header, so it briefly
+    // unmounts entirely during plan-2's own loading window; either way, plan-1's stale "Sparar…" text
+    // must never still be on screen.
+    expect(screen.queryByText(sv.simple.priorities.saving)).not.toBeInTheDocument();
 
     // Advance well past 600ms: if the pending debounce from plan-1 had NOT been cancelled on the
     // planId switch, it would now fire and PUT plan-1's edited order at plan-2's endpoint (both
@@ -579,6 +583,10 @@ describe("PrioritiesPanel", () => {
       renderPanel();
       await screen.findAllByTestId("priority-row");
 
+      // v0.6.0 audit batch D (D2): the button is routed through useConfirmedAdvancedMode - already
+      // ADVANCED here (this file's global test setup defaults to ADVANCED - src/test/setup.ts), so
+      // the shared confirm modal is a same-mode no-op and the click navigates straight through, same
+      // as before D2.
       const user = userEvent.setup();
       await user.click(screen.getByRole("button", { name: sv.simple.priorities.overridesAlert.openAdvancedButton }));
 
@@ -586,7 +594,29 @@ describe("PrioritiesPanel", () => {
       expect(useUiModeStore.getState().mode).toBe("ADVANCED");
     });
 
-    it("'Återställ till prioriteringsordning' confirms, PUTs the shown order, and clears the alert", async () => {
+    // v0.6.0 audit batch D (D2): from SIMPLE mode, the same button must show the shared confirm modal
+    // first - unlike the already-ADVANCED case above, it does NOT navigate until the admin confirms.
+    it("'Öppna avancerat läge' shows the shared confirm modal first when starting from SIMPLE mode", async () => {
+      mockGet(CUSTOM);
+      server.use(http.put("/api/app-settings", async () => HttpResponse.json({ uiMode: "ADVANCED" })));
+      setUiModeForTests("SIMPLE");
+      renderPanel();
+      await screen.findAllByTestId("priority-row");
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: sv.simple.priorities.overridesAlert.openAdvancedButton }));
+
+      const dialog = await screen.findByRole("dialog", { name: sv.uiMode.enableConfirm.title });
+      expect(useUiModeStore.getState().mode).toBe("SIMPLE"); // not switched yet - awaiting confirm.
+      expect(screen.queryByTestId("falt-route")).not.toBeInTheDocument();
+
+      await user.click(within(dialog).getByRole("button", { name: sv.uiMode.enableConfirm.confirm }));
+
+      expect(await screen.findByTestId("falt-route")).toBeInTheDocument();
+      expect(useUiModeStore.getState().mode).toBe("ADVANCED");
+    });
+
+    it("'Återställ till prioriteringsordning' confirms, PUTs the shown order, clears the alert, and shows Sparat ✓", async () => {
       let putBody: unknown;
       mockGet(CUSTOM);
       server.use(
@@ -602,22 +632,29 @@ describe("PrioritiesPanel", () => {
       const user = userEvent.setup();
       await user.click(screen.getByRole("button", { name: sv.simple.priorities.overridesAlert.resetButton }));
 
-      const dialog = await screen.findByRole("dialog");
-      // v0.6.0 F3 review fix (FIX 6, MAJOR): the confirm message now also states plainly that the
-      // shown order becomes the saved one.
-      expect(dialog).toHaveTextContent(sv.simple.priorities.resetConfirm.message);
-      expect(dialog).toHaveTextContent("Ordningen som visas blir då den som gäller, och de anpassade vikterna ersätts.");
+      // v0.6.0 audit batch D (D1): the modal now renders the about-to-apply order as an actual LIST
+      // (each priority's backend-supplied labelSv), between the intro and trailing text - not folded
+      // into one paragraph.
+      const dialog = await screen.findByRole("dialog", { name: sv.simple.priorities.resetConfirm.title });
+      expect(dialog).toHaveTextContent(sv.simple.priorities.resetConfirm.introText);
+      expect(dialog).toHaveTextContent(sv.simple.priorities.resetConfirm.trailingText);
+      const list = within(dialog).getByTestId("priority-reset-confirm-list");
+      expect(within(list).getAllByRole("listitem").map((item) => item.textContent)).toEqual(
+        CUSTOM.order.map((key, index) => `${index + 1}. ${CUSTOM.priorities.find((row) => row.key === key)!.labelSv}`),
+      );
       await user.click(within(dialog).getByRole("button", { name: sv.simple.priorities.resetConfirm.confirmLabel }));
 
       expect(putBody).toEqual({ order: CUSTOM.order });
       expect(screen.queryByTestId("priority-overrides-alert")).not.toBeInTheDocument();
+      // v0.6.0 audit batch D (D1): reset success sets the same "Sparat ✓" terminal status the ordinary
+      // autosave path shows.
+      expect(await screen.findByText(sv.simple.priorities.saved)).toBeInTheDocument();
       await screen.findByText(sv.simple.priorities.heading); // still on the panel, no crash
     });
 
     // v0.6.0 F3 review fix (FIX 10, MINOR): a failed reset's error is rendered as its OWN red Alert
-    // above the explanatory message - not swapped in place of it (DeleteConfirmModal.tsx's
-    // `errorMessage` prop).
-    it("a failed reset shows the error as a red Alert ABOVE the (still-visible) explanatory message", async () => {
+    // above the explanatory text - not swapped in place of it.
+    it("a failed reset shows the error as a red Alert ABOVE the (still-visible) explanatory text", async () => {
       mockGet(CUSTOM);
       server.use(
         http.put(`/api/plans/${PLAN_ID}/priority-order`, () =>
@@ -629,12 +666,83 @@ describe("PrioritiesPanel", () => {
 
       const user = userEvent.setup();
       await user.click(screen.getByRole("button", { name: sv.simple.priorities.overridesAlert.resetButton }));
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await screen.findByRole("dialog", { name: sv.simple.priorities.resetConfirm.title });
       await user.click(within(dialog).getByRole("button", { name: sv.simple.priorities.resetConfirm.confirmLabel }));
 
       expect(await within(dialog).findByText("Kunde inte återställa")).toBeInTheDocument();
-      // The original explanatory message is STILL shown too, not replaced by the error.
-      expect(within(dialog).getByText(sv.simple.priorities.resetConfirm.message)).toBeInTheDocument();
+      // The original explanatory text is STILL shown too, not replaced by the error.
+      expect(within(dialog).getByText(sv.simple.priorities.resetConfirm.introText)).toBeInTheDocument();
+    });
+
+    // v0.6.0 audit batch D (D4): the intro's "högst upp får störst betydelse" sentence and the
+    // "Detaljer" accordion both contradict customWeightsActive (the order genuinely isn't driving
+    // optimization right now) - both are suppressed while it's true.
+    it("suppresses the intro's weight sentence and the Detaljer accordion while customWeightsActive", async () => {
+      mockGet(CUSTOM);
+      renderPanel();
+      await screen.findAllByTestId("priority-row");
+
+      expect(screen.getByText(sv.simple.priorities.introReduced)).toBeInTheDocument();
+      expect(screen.queryByText("Det som står högst upp får störst betydelse när grupperna sätts.")).not.toBeInTheDocument();
+      expect(screen.queryByText(sv.simple.priorities.interpretationHeading)).not.toBeInTheDocument();
+      // The inline "locked" note replaces it right above the dimmed list instead.
+      expect(screen.getByTestId("priority-locked-note")).toHaveTextContent(sv.simple.priorities.lockedNote);
+    });
+  });
+
+  // v0.6.0 audit batch D (D4): a second, independent reset button - restores `defaultOrder`
+  // regardless of customWeightsActive, shown only once the displayed order has actually drifted from
+  // it.
+  describe("Återställ till standardordning", () => {
+    it("is hidden when the order already matches defaultOrder", async () => {
+      mockGet(NORMAL_ORDER); // NORMAL_ORDER.order === NORMAL_ORDER.defaultOrder in this fixture.
+      renderPanel();
+      await screen.findAllByTestId("priority-row");
+
+      expect(screen.queryByTestId("priority-reset-to-default-button")).not.toBeInTheDocument();
+    });
+
+    it("appears once the order drifts from defaultOrder, and restores it on confirm", async () => {
+      const DRIFTED: PriorityOrderView = {
+        ...NORMAL_ORDER,
+        order: ["LEVEL", "PREFERRED_TIME", "PREVIOUS_GROUP", "TRAIN_TOGETHER"],
+      };
+      let putBody: unknown;
+      mockGet(DRIFTED);
+      server.use(
+        http.put(`/api/plans/${PLAN_ID}/priority-order`, async ({ request }) => {
+          putBody = await request.json();
+          return HttpResponse.json(NORMAL_ORDER);
+        }),
+      );
+      renderPanel();
+      await screen.findAllByTestId("priority-row");
+
+      const user = userEvent.setup();
+      const trigger = screen.getByTestId("priority-reset-to-default-button");
+      expect(trigger).toHaveTextContent(sv.simple.priorities.resetToDefaultButton);
+      await user.click(trigger);
+
+      const dialog = await screen.findByRole("dialog", { name: sv.simple.priorities.resetToDefaultConfirm.title });
+      const list = within(dialog).getByTestId("priority-reset-to-default-list");
+      expect(within(list).getAllByRole("listitem")).toHaveLength(4);
+      await user.click(within(dialog).getByRole("button", { name: sv.simple.priorities.resetToDefaultConfirm.confirmLabel }));
+
+      expect(putBody).toEqual({ order: NORMAL_ORDER.defaultOrder });
+      await screen.findByText(sv.simple.priorities.saved);
+    });
+
+    it("is hidden while customWeightsActive, even if the order also drifted from defaultOrder", async () => {
+      mockGet({
+        ...NORMAL_ORDER,
+        order: ["LEVEL", "PREFERRED_TIME", "PREVIOUS_GROUP", "TRAIN_TOGETHER"],
+        matchesOrder: false,
+        customWeightsActive: true,
+      });
+      renderPanel();
+      await screen.findAllByTestId("priority-row");
+
+      expect(screen.queryByTestId("priority-reset-to-default-button")).not.toBeInTheDocument();
     });
   });
 });

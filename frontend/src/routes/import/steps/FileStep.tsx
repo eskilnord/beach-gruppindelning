@@ -1,16 +1,24 @@
 import { useState } from "react";
-import { Box, Button, FileButton, Group, Loader, Stack, Text, Title } from "@mantine/core";
+import { Alert, Box, Button, FileButton, Group, Loader, Stack, Text, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useCreateImportSession, type ImportAnalysis } from "../../../api/import";
-import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
 import { cacheImportSheets } from "../importSessionStorage";
+import { userErrorText } from "../userErrorText";
 
 const ACCEPTED_EXTENSIONS = [".xlsx", ".csv"];
+const LEGACY_EXCEL_EXTENSION = ".xls";
 
 function hasAcceptedExtension(fileName: string): boolean {
   const lower = fileName.toLowerCase();
   return ACCEPTED_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
+// Only meaningful once hasAcceptedExtension has already said no (a ".xlsx" file does NOT also match
+// this suffix check - ".xlsx" ends in "lsx", not ".xls" - so call order doesn't actually matter, but
+// this is only ever called from the rejected-extension branch below).
+function isLegacyExcelFile(fileName: string): boolean {
+  return fileName.toLowerCase().endsWith(LEGACY_EXCEL_EXTENSION);
 }
 
 interface FileStepProps {
@@ -23,13 +31,22 @@ interface FileStepProps {
  *  target plus Mantine's core FileButton covers both interactions. */
 export function FileStep({ planId, onUploaded }: FileStepProps) {
   const [dragActive, setDragActive] = useState(false);
+  // v0.6.0 audit-fix B5: a rejected .xls file gets a PERSISTENT message near the drop zone (naming
+  // the actual filename) rather than a toast that can disappear before the admin reads it - cleared
+  // on the next upload attempt, whatever its outcome.
+  const [legacyXlsFileName, setLegacyXlsFileName] = useState<string | null>(null);
   const createSession = useCreateImportSession(planId);
 
   const handleFile = async (file: File | null) => {
     if (!file) {
       return;
     }
+    setLegacyXlsFileName(null);
     if (!hasAcceptedExtension(file.name)) {
+      if (isLegacyExcelFile(file.name)) {
+        setLegacyXlsFileName(file.name);
+        return;
+      }
       notifications.show({
         color: "red",
         title: sv.common.error,
@@ -42,10 +59,15 @@ export function FileStep({ planId, onUploaded }: FileStepProps) {
       cacheImportSheets(created.sessionId, created.sheets);
       onUploaded(created.sessionId, created.analysis);
     } catch (error) {
+      // v0.6.0 audit-fix B5: a network failure (the request never reached the backend at all) reads
+      // very differently from a parse failure (the backend received the file and rejected it, e.g. a
+      // 400 for a corrupt/unreadable workbook) - userErrorText distinguishes the two; anything neither
+      // (unexpected) falls back to this step's own existing, more specific "Kunde inte läsa in filen".
+      const message = error instanceof TypeError ? sv.importWizard.networkError : userErrorText(error);
       notifications.show({
         color: "red",
         title: sv.common.error,
-        message: error instanceof ApiError ? error.message : sv.importWizard.file.uploadFailed,
+        message: message === sv.importWizard.genericError ? sv.importWizard.file.uploadFailed : message,
       });
     }
   };
@@ -92,6 +114,11 @@ export function FileStep({ planId, onUploaded }: FileStepProps) {
           </Stack>
         )}
       </Box>
+      {legacyXlsFileName && (
+        <Alert color="red" title={sv.importWizard.file.legacyXlsTitle(legacyXlsFileName)}>
+          {sv.importWizard.file.legacyXlsMessage}
+        </Alert>
+      )}
     </Stack>
   );
 }

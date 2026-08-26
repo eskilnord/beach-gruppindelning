@@ -166,7 +166,8 @@ class ImportValidationServiceIntegrationTest {
         RowValidationResult row = results.get(0);
         assertThat(row.status()).isEqualTo(RowStatus.WARN);
         assertThat(row.reasons()).anyMatch(reason -> reason.equals(
-                "Tidigare grupp \"Slumpad text utan siffra\" kunde inte tolkas till en gruppnivå – kontinuitet används inte för denna rad"));
+                "Tidigare grupp \"Slumpad text utan siffra\" kunde inte tolkas som en grupp — den här deltagaren "
+                        + "får ingen fördel av sin tidigare grupp. Du kan fylla i det för hand under Deltagare."));
     }
 
     @Test

@@ -113,14 +113,32 @@ describe("TutorialModal (SIMPLE mode)", () => {
     navigateMock.mockClear();
     renderWithProviders(<TutorialModal opened planId="plan-1" onClose={onClose} />, { uiMode: "SIMPLE" });
 
-    // Step index 3 = "Prioriteringar" (sv.tutorial.simpleSteps).
-    await user.click(screen.getByRole("button", { name: sv.tutorial.nextButton }));
+    // Step index 2 = "Prioriteringar" (sv.tutorial.simpleSteps) - v0.6.0 audit batch D (D10): the
+    // former "Säsong & plan" opener step is gone, so Prioriteringar moved from index 3 to index 2.
     await user.click(screen.getByRole("button", { name: sv.tutorial.nextButton }));
     await user.click(screen.getByRole("button", { name: sv.tutorial.nextButton }));
     expect(screen.getByTestId("tutorial-active-step-title")).toHaveTextContent("Prioriteringar");
 
     await user.click(screen.getByTestId("tutorial-go-there"));
     expect(navigateMock).toHaveBeenCalledWith("/plans/plan-1/prioriteringar");
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  // v0.6.0 audit batch D (D10): the 6th step ("Spara & exportera") targets the export route -
+  // "Ta mig dit" for it must navigate correctly, same as every other SIMPLE step.
+  it("'Ta mig dit' on the last (Spara & exportera) step navigates to the plan's export route", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    navigateMock.mockClear();
+    renderWithProviders(<TutorialModal opened planId="plan-1" onClose={onClose} />, { uiMode: "SIMPLE" });
+
+    for (let i = 0; i < 5; i += 1) {
+      await user.click(screen.getByRole("button", { name: sv.tutorial.nextButton }));
+    }
+    expect(screen.getByTestId("tutorial-active-step-title")).toHaveTextContent("Spara & exportera");
+
+    await user.click(screen.getByTestId("tutorial-go-there"));
+    expect(navigateMock).toHaveBeenCalledWith("/plans/plan-1/export");
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -131,7 +149,8 @@ describe("TutorialModal (SIMPLE mode)", () => {
     for (let i = 0; i < 5; i += 1) {
       await user.click(screen.getByRole("button", { name: sv.tutorial.nextButton }));
     }
-    expect(screen.getByTestId("tutorial-active-step-title")).toHaveTextContent("Resultat & export");
+    // v0.6.0 audit batch D (D10): the 6th step is now "Spara & exportera" (was "Resultat & export").
+    expect(screen.getByTestId("tutorial-active-step-title")).toHaveTextContent("Spara & exportera");
     expect(screen.queryByRole("button", { name: sv.tutorial.nextButton })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: sv.tutorial.doneButton })).toBeInTheDocument();
   });

@@ -79,7 +79,15 @@ describe("SimpleExplainBody", () => {
   it("renders the headline, placement narrative, and positive factors", () => {
     renderBody({
       ...BASE,
-      positiveFactors: [{ messageSv: "Kompisönskemål med Lisa uppfylldes" }],
+      // v0.6.0 audit-fix batch C (C10, P1): the FIRST positive factor is, by the backend's own
+      // contract (ExplanationService#placementSummarySv is built directly from it), always what's
+      // already stated in the summary sentence above - dropped here so it isn't repeated a second
+      // time (see the dedicated "drops the lead positive factor" test below for that behavior on its
+      // own). This fixture's second factor is the one expected to actually render.
+      positiveFactors: [
+        { messageSv: "Karin Lindqvist spelar på ungefär samma nivå som resten av Grupp A." },
+        { messageSv: "Kompisönskemål med Lisa uppfylldes" },
+      ],
     });
 
     expect(screen.getByTestId("explain-why-headline")).toHaveTextContent(
@@ -87,6 +95,25 @@ describe("SimpleExplainBody", () => {
     );
     expect(screen.getByText(BASE.placementSummarySv)).toBeInTheDocument();
     expect(screen.getByText("Kompisönskemål med Lisa uppfylldes", { exact: false })).toBeInTheDocument();
+  });
+
+  // v0.6.0 audit-fix batch C (C10, P1): "no triple repetition" - the lead factor (already stated in
+  // placementSummarySv, rendered just above this list) must not ALSO show up as its own checkmark
+  // line, and a raw-numbers level-match sibling (kept for ADVANCED only) must never appear in SIMPLE.
+  it("drops the lead positive factor (already folded into the summary) and any raw nivåscore numbers", () => {
+    renderBody({
+      ...BASE,
+      positiveFactors: [
+        { messageSv: "Karin Lindqvist spelar på ungefär samma nivå som resten av Grupp A." },
+        { messageSv: "Karin Lindqvists nivåscore 640,0 matchar Grupp As nivåspann 600,0–690,0" },
+        { messageSv: "Kompisönskemål med Lisa uppfylldes" },
+      ],
+    });
+
+    const factorRows = screen.getAllByTestId("explain-positive-factor");
+    expect(factorRows).toHaveLength(1);
+    expect(factorRows[0]).toHaveTextContent("Kompisönskemål med Lisa uppfylldes");
+    expect(screen.queryByText("nivåscore", { exact: false })).not.toBeInTheDocument();
   });
 
   it("omits the trailing parenthetical when the selected group has no timeLabelSv", () => {
@@ -108,7 +135,11 @@ describe("SimpleExplainBody", () => {
     // v0.6.0 F5 review fix (minor, waitlist heading level): substitutes for the (order-4) headline
     // slot here, so its own heading must be order 4 too, not the order-5 it defaults to as an
     // embedded ADVANCED section.
-    expect(screen.getByRole("heading", { level: 4, name: sv.results.waitlist.heading })).toBeInTheDocument();
+    // v0.6.0 audit-fix batch C (C7, P2): the heading itself is now a full sentence naming the person
+    // ("«Namn» fick ingen plats den här gången"), not the static "Oplacerad / Kölista" card title.
+    expect(
+      screen.getByRole("heading", { level: 4, name: sv.results.explain.waitlist.headline(BASE.name) }),
+    ).toBeInTheDocument();
   });
 
   it("collapses positive factors beyond 3 behind a 'Visa fler' anchor", async () => {
@@ -116,6 +147,8 @@ describe("SimpleExplainBody", () => {
     renderBody({
       ...BASE,
       positiveFactors: [
+        // C10: dropped - the lead factor already folded into placementSummarySv.
+        { messageSv: "Ledande faktor (redan i sammanfattningen)" },
         { messageSv: "Faktor 1" },
         { messageSv: "Faktor 2" },
         { messageSv: "Faktor 3" },
@@ -123,6 +156,7 @@ describe("SimpleExplainBody", () => {
       ],
     });
 
+    expect(screen.queryByText("Ledande faktor", { exact: false })).not.toBeInTheDocument();
     expect(screen.getByText("Faktor 1", { exact: false })).toBeInTheDocument();
     expect(screen.getByText("Faktor 3", { exact: false })).toBeInTheDocument();
     expect(screen.queryByText("Faktor 4", { exact: false })).not.toBeInTheDocument();
@@ -238,7 +272,13 @@ describe("SimpleExplainBody", () => {
    *  default accessibility filtering, so every test that queries a CTA by role must open the panel
    *  first (same as a real user would). */
   async function openWhatWouldItTake(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(screen.getByRole("button", { name: sv.results.explain.simple.whatWouldItTakeHeading }));
+    const control = screen.getByRole("button", { name: sv.results.explain.simple.whatWouldItTakeHeading });
+    // v0.6.0 audit-fix batch C (C14, P2): a single-unmet-wish fixture (most of this suite's) now
+    // opens this accordion BY DEFAULT - clicking an already-open control would toggle it CLOSED, so
+    // this helper is now idempotent instead of assuming a closed starting state.
+    if (control.getAttribute("aria-expanded") !== "true") {
+      await user.click(control);
+    }
   }
 
   it("shows 'Ändra prioritetsordning' only when verdict is FLIPS_BY_REORDER AND a caution is present, and navigates to prioriteringar", async () => {
@@ -403,7 +443,12 @@ describe("SimpleExplainBody", () => {
     it("drops a coach-wish positive factor from the (otherwise non-empty) positive-factors list", () => {
       renderBody({
         ...BASE,
-        positiveFactors: [{ messageSv: "Kompisönskemål med Lisa uppfylldes" }, coachPositiveFactor()],
+        positiveFactors: [
+          // C10: dropped regardless - the lead factor already folded into placementSummarySv.
+          { messageSv: "Karin Lindqvist spelar på ungefär samma nivå som resten av Grupp A." },
+          { messageSv: "Kompisönskemål med Lisa uppfylldes" },
+          coachPositiveFactor(),
+        ],
       });
 
       expect(screen.getByText("Kompisönskemål med Lisa uppfylldes", { exact: false })).toBeInTheDocument();
@@ -428,6 +473,92 @@ describe("SimpleExplainBody", () => {
       expect(rows).toHaveLength(1);
       expect(rows[0]).toHaveTextContent("Vill spela med Erik Eriksson");
       expect(screen.queryByText(COACH_NAME, { exact: false })).not.toBeInTheDocument();
+    });
+
+    // v0.6.0 audit-fix batch C (C12, P1): a DEFENSIVE, data-independent backstop over primaryReasonSv
+    // text itself - distinct from the wishId-based COACH: filter above, which only catches wishes the
+    // backend has already classified as coach-family. This one substitutes an honest generic sentence
+    // for ANY unmet wish whose reason text happens to mention "tränar...", coach-classified or not.
+    it("substitutes a generic sentence for a non-coach-classified wish whose primaryReasonSv still mentions a coach", () => {
+      renderBody({
+        ...BASE,
+        unmetWishes: [
+          unmetWish({
+            wishId: "FRIEND:person-3",
+            primaryReasonSv: `${COACH_NAME} tränar en annan grupp, så flytten gick inte.`,
+          }),
+        ],
+      });
+
+      expect(screen.getByText(sv.results.explain.simple.trainerReasonSubstitute)).toBeInTheDocument();
+      expect(screen.queryByText(COACH_NAME, { exact: false })).not.toBeInTheDocument();
+    });
+  });
+
+  // v0.6.0 audit-fix batch C (C13, P2): parity with primaryReasonSv (`size="sm"`) - a caveat
+  // qualifying the main answer shouldn't render smaller than the answer itself.
+  it("renders hedgeSv at size='sm', matching primaryReasonSv", () => {
+    renderBody({
+      ...BASE,
+      unmetWishes: [unmetWish({ hedgeSv: "Jämförelsen gäller att flytta Erik ensam." })],
+    });
+
+    const hedge = screen.getByText("Jämförelsen gäller att flytta Erik ensam.");
+    const reason = screen.getByText("Erik placerades i en annan grupp för att jämna ut nivåerna.");
+    // Mantine's Text sets its `size` prop as the "--text-fz" CSS custom property (Text.mjs's own
+    // varsResolver) - comparing that directly is the robust way to assert "same size", independent
+    // of the (deliberately still different) `c="dimmed"` color styling on the hedge.
+    expect(hedge.style.getPropertyValue("--text-fz")).not.toBe("");
+    expect(hedge.style.getPropertyValue("--text-fz")).toBe(reason.style.getPropertyValue("--text-fz"));
+  });
+
+  describe("'Vad skulle krävas?' accordion (C14)", () => {
+    it("renders no accordion at all when prioritySensitivity is absent (FIX-3 regression: no empty panel)", () => {
+      renderBody({ ...BASE, unmetWishes: [unmetWish({ prioritySensitivity: undefined })] });
+
+      expect(screen.getByTestId("explain-unmet-wish")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: sv.results.explain.simple.whatWouldItTakeHeading })).not.toBeInTheDocument();
+    });
+
+    it("still renders the accordion (with unavailableReasonSv) when prioritySensitivity is present but available: false", () => {
+      renderBody({
+        ...BASE,
+        unmetWishes: [unmetWish({ prioritySensitivity: { available: false, unavailableReasonSv: "Ett hårt krav blockerar." } })],
+      });
+
+      expect(screen.getByRole("button", { name: sv.results.explain.simple.whatWouldItTakeHeading })).toBeInTheDocument();
+    });
+
+    it("opens by default when there is exactly one unmet wish", () => {
+      renderBody({
+        ...BASE,
+        unmetWishes: [unmetWish({ prioritySensitivity: { available: true, summarySv: "Redan synligt utan klick." } })],
+      });
+
+      // No click - `aria-expanded` is the honest open/closed signal (see the "stays collapsed" test's
+      // own doc comment: Mantine keeps the panel mounted either way, so text presence alone can't
+      // distinguish open from closed).
+      expect(screen.getByRole("button", { name: sv.results.explain.simple.whatWouldItTakeHeading })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
+    });
+
+    it("stays collapsed by default when there is more than one unmet wish", () => {
+      renderBody({
+        ...BASE,
+        unmetWishes: [
+          unmetWish({ wishId: "w1", prioritySensitivity: { available: true, summarySv: "Svar för önskemål 1." } }),
+          unmetWish({ wishId: "w2", wishSv: "Vill spela på torsdagar", prioritySensitivity: { available: true, summarySv: "Svar för önskemål 2." } }),
+        ],
+      });
+
+      // Mantine's Accordion.Panel stays MOUNTED (display:none) while collapsed - not absent from the
+      // DOM, so `queryByText` alone can't tell open from closed (see openWhatWouldItTake's own doc
+      // comment above) - `aria-expanded` on the control is the honest signal.
+      const controls = screen.getAllByRole("button", { name: sv.results.explain.simple.whatWouldItTakeHeading });
+      expect(controls).toHaveLength(2);
+      controls.forEach((control) => expect(control).toHaveAttribute("aria-expanded", "false"));
     });
   });
 });

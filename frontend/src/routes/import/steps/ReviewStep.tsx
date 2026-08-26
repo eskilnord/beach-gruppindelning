@@ -18,18 +18,22 @@ import {
   useImportAnalysis,
   type ImportCommitResult,
 } from "../../../api/import";
-import { ApiError, isNotFoundError } from "../../../api/client";
+import { isNotFoundError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
 import { AdvancedOnly, SimpleOnly } from "../../../components/uimode/AdvancedOnly";
 import { useIsSimpleMode } from "../../../lib/uiMode/useUiMode";
 import { SessionExpiredPanel } from "../SessionExpiredPanel";
 import { ImportResultView } from "../ImportResultView";
+import { userErrorText } from "../userErrorText";
 import { COACH_TARGETS } from "./MappingStep";
 
 interface ReviewStepProps {
   planId: string;
   sessionId: string;
   onAdjust: () => void;
+  /** v0.6.0 audit-fix B4: "Välj en annan fil" - restarts the wizard at step 1, always available
+   *  regardless of ui-mode (unlike "Justera", which is ADVANCED-only). */
+  onRestart: () => void;
   onExpired: () => void;
 }
 
@@ -38,7 +42,7 @@ interface ReviewStepProps {
  * plain-Swedish reasons, then commits on a single "Importera" click. "Justera" drops into the
  * existing step-by-step wizard with the session already pre-filled.
  */
-export function ReviewStep({ planId, sessionId, onAdjust, onExpired }: ReviewStepProps) {
+export function ReviewStep({ planId, sessionId, onAdjust, onRestart, onExpired }: ReviewStepProps) {
   const analysisQuery = useImportAnalysis(planId, sessionId);
   const commit = useCommitImport(planId, sessionId);
   const isSimple = useIsSimpleMode();
@@ -59,10 +63,13 @@ export function ReviewStep({ planId, sessionId, onAdjust, onExpired }: ReviewSte
   }
   if (analysisQuery.isError) {
     return (
-      <Alert color="red">
-        {analysisQuery.error instanceof ApiError
-          ? analysisQuery.error.message
-          : sv.common.unknownError}
+      <Alert color="red" title={sv.common.error}>
+        <Stack gap="sm">
+          <Text>{userErrorText(analysisQuery.error)}</Text>
+          <Button onClick={() => void analysisQuery.refetch()} w="fit-content" variant="default">
+            {sv.importWizard.retryButton}
+          </Button>
+        </Stack>
       </Alert>
     );
   }
@@ -92,7 +99,7 @@ export function ReviewStep({ planId, sessionId, onAdjust, onExpired }: ReviewSte
       notifications.show({
         color: "red",
         title: sv.common.error,
-        message: error instanceof ApiError ? error.message : sv.importWizard.commit.commitFailed,
+        message: userErrorText(error),
       });
     }
   };
@@ -116,11 +123,21 @@ export function ReviewStep({ planId, sessionId, onAdjust, onExpired }: ReviewSte
   // payload/mapping submission below (handleCommit) - simple mode hides, it never changes semantics,
   // so imported coach data still lands in the DB and stays visible in ADVANCED mode.
   const visibleColumns = isSimple ? analysis.columns.filter((column) => !COACH_TARGETS.has(column.target)) : analysis.columns;
+  // v0.6.0 audit-fix B4: the "Kolumner" card must match what the table below actually shows - in
+  // SIMPLE mode that's `visibleColumns`, not the backend's own (coach-inclusive) mappedCount/
+  // ignoredCount, plus a footer note naming how many columns are hidden in this mode.
+  const hiddenColumnCount = analysis.columns.length - visibleColumns.length;
+  const mappedCount = isSimple
+    ? visibleColumns.filter((column) => column.target !== "ignore").length
+    : analysis.mappedCount;
+  const ignoredCount = isSimple
+    ? visibleColumns.filter((column) => column.target === "ignore").length
+    : analysis.ignoredCount;
 
   return (
     <Stack gap="md">
       <Title order={4}>{sv.importWizard.review.heading}</Title>
-      <Text c="dimmed">{sv.importWizard.review.intro}</Text>
+      <Text c="dimmed">{isSimple ? sv.importWizard.review.introSimple : sv.importWizard.review.intro}</Text>
 
       {analysis.usedTemplate && analysis.templateName && (
         <Alert color="blue" title={sv.importWizard.review.templateBannerTitle}>
@@ -142,9 +159,12 @@ export function ReviewStep({ planId, sessionId, onAdjust, onExpired }: ReviewSte
           <Text size="sm" c="dimmed">
             {sv.importWizard.review.mappingCardLabel}
           </Text>
-          <Text fw={600}>
-            {sv.importWizard.review.mappingSummary(analysis.mappedCount, analysis.ignoredCount)}
-          </Text>
+          <Text fw={600}>{sv.importWizard.review.mappingSummary(mappedCount, ignoredCount)}</Text>
+          {isSimple && hiddenColumnCount > 0 && (
+            <Text size="xs" c="dimmed">
+              {sv.importWizard.review.hiddenColumnNote(hiddenColumnCount)}
+            </Text>
+          )}
         </Card>
         <Card withBorder padding="md">
           <Text size="sm" c="dimmed">
@@ -188,10 +208,15 @@ export function ReviewStep({ planId, sessionId, onAdjust, onExpired }: ReviewSte
                   <Text size="sm">{column.headerText || "—"}</Text>
                   {column.synthetic && (
                     <Badge size="xs" variant="light">
-                      {sv.importWizard.mapping.derivedBadge}
+                      {sv.importWizard.review.derivedBadge}
                     </Badge>
                   )}
                 </Group>
+                {column.synthetic && (
+                  <Text size="xs" c="dimmed" fs="italic">
+                    {sv.importWizard.review.derivedHint}
+                  </Text>
+                )}
               </Table.Td>
               <Table.Td>
                 <Text size="sm">{targetLabel(column.target)}</Text>
@@ -206,12 +231,17 @@ export function ReviewStep({ planId, sessionId, onAdjust, onExpired }: ReviewSte
         </Table.Tbody>
       </Table>
 
-      <TextInput
-        label={sv.importWizard.commit.templateNameLabel}
-        placeholder={sv.importWizard.commit.templateNamePlaceholder}
-        value={templateName}
-        onChange={(event) => setTemplateName(event.currentTarget.value)}
-      />
+      {/* v0.6.0 audit-fix B4: "Spara mappning som mall" is an advanced power-user affordance (naming
+          and reusing a mapping template) - hidden in SIMPLE mode rather than left on a card whose
+          whole point there is "one click, no decisions to make". */}
+      <AdvancedOnly>
+        <TextInput
+          label={sv.importWizard.commit.templateNameLabel}
+          placeholder={sv.importWizard.commit.templateNamePlaceholder}
+          value={templateName}
+          onChange={(event) => setTemplateName(event.currentTarget.value)}
+        />
+      </AdvancedOnly>
 
       <Group>
         <Button loading={commit.isPending} onClick={() => void handleCommit()}>
@@ -226,6 +256,12 @@ export function ReviewStep({ planId, sessionId, onAdjust, onExpired }: ReviewSte
             {sv.importWizard.review.adjustButton}
           </Button>
         </AdvancedOnly>
+        {/* v0.6.0 audit-fix B4: available in BOTH modes - the honest "this is the wrong file"
+            escape hatch, unlike "Justera" which assumes the file is right and only the mapping
+            needs fixing. */}
+        <Button variant="default" onClick={onRestart} disabled={commit.isPending}>
+          {sv.importWizard.review.chooseAnotherFileButton}
+        </Button>
       </Group>
 
       {/* v0.6.0 F4 review fix (minor): SIMPLE mode drops the "Justera" escape hatch above - this

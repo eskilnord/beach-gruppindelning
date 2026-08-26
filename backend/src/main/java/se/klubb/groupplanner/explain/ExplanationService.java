@@ -383,7 +383,7 @@ public class ExplanationService {
         List<FactorView> negative = new ArrayList<>();
         List<BrokenWishView> brokenWishes = new ArrayList<>();
 
-        addLevelMatchFactor(positive, negative, target, selectedGroup, stats);
+        String levelMatchLeadSv = addLevelMatchFactor(positive, negative, target, selectedGroup, stats);
         positive.add(new FactorView("%s hade plats: %d/%d spelare".formatted(selectedGroup.name(), stats.size(), selectedGroup.maxSize())));
         addTimeFactor(positive, negative, ctx, target, selectedGroup);
 
@@ -420,7 +420,7 @@ public class ExplanationService {
         }
 
         String lockedNoticeSv = target.isPinned() ? CausalNarrator.lockedNoticeSv(ctx, target, selectedGroup, timeLabelSv) : null;
-        String placementSummarySv = placementSummarySv(target, selectedGroup, timeLabelSv, positive);
+        String placementSummarySv = placementSummarySv(target, selectedGroup, positive, levelMatchLeadSv);
 
         return new PersonExplanationResponse(
                 ctx.run().id(), ctx.run().planRevision(), ctx.currentRevision(), ctx.stale(),
@@ -428,20 +428,31 @@ public class ExplanationService {
                 appliedWeights, alt.views(), indirectFactors, null, placementSummarySv, lockedNoticeSv, unmetWishes);
     }
 
-    /** M-E2: {@code placementSummarySv} — one plain sentence naming the player, group, time, and the
-     * single strongest positive factor (the FIRST positive factor collected for this player, in the
-     * same order the rest of the response already presents them — no separate "strength" ranking is
-     * computed or claimed, since {@code positive} carries no score to rank by; ordering is level-match
-     * first, capacity second, time third, then constraint matches, which is already "most informative
-     * fact first" by construction of {@link #buildPlacedExplanation}). */
-    private String placementSummarySv(PlayerAssignment target, Group selectedGroup, String timeLabelSv, List<FactorView> positive) {
-        String where = timeLabelSv == null
-                ? "%s är placerad i %s.".formatted(target.getDisplayName(), selectedGroup.name())
-                : "%s är placerad i %s (%s).".formatted(target.getDisplayName(), selectedGroup.name(), timeLabelSv);
-        if (positive.isEmpty()) {
-            return where;
+    /** M-E2/C10 (audit-fix batch C, v0.6.0): one plain sentence naming the single strongest positive
+     * factor about the placement. C10 review fix: the OLD leading "«Namn» är placerad i «Grupp»
+     * («tid»)" where-clause is DROPPED — the headline the frontend renders elsewhere already states
+     * this, so repeating it here was pure redundancy, not new information.
+     *
+     * <p>Prefers {@code levelMatchLeadSv} — populated by {@link #addLevelMatchFactor} ONLY for its
+     * lay-phrased, no-raw-numbers in-band case (see that method's own javadoc for why the matching
+     * numeric sentence moved to a SECOND {@code positive} list entry instead of a new DTO field) —
+     * over the first collected positive factor, since {@code levelMatchLeadSv} is the one case where
+     * {@code positive.get(0)} would otherwise be written in the semi-technical "«Namn»s nivåscore ...
+     * matchar ..." register a non-technical admin can't parse. Every OTHER positive factor this class
+     * ever collects (capacity, time-match, wish matches, the level band's out-of-band/no-band
+     * fallback) is already plain Swedish safe to lead with directly.
+     *
+     * <p>Falls back to an honest bare placement confirmation ("«Namn» fick en plats i «Grupp».") when
+     * there is nothing positive to report at all — a deliberate, minimal, always-true sentence rather
+     * than fabricating a reason (kravspec §17.4). */
+    private String placementSummarySv(PlayerAssignment target, Group selectedGroup, List<FactorView> positive, String levelMatchLeadSv) {
+        if (levelMatchLeadSv != null) {
+            return levelMatchLeadSv;
         }
-        return where + " " + positive.get(0).messageSv() + ".";
+        if (!positive.isEmpty()) {
+            return positive.get(0).messageSv() + ".";
+        }
+        return "%s fick en plats i %s.".formatted(target.getDisplayName(), selectedGroup.name());
     }
 
     /** Shared by {@link #buildPlacedExplanation}/{@code CausalNarrator}: the group's scheduled time,
@@ -465,31 +476,53 @@ public class ExplanationService {
      * bands are informational per design §7 "never hard") gets an honest "ligger över/under gruppens
      * nivåspann" NEGATIVE factor instead. An explanation engine that asserts a false match is worse
      * than no engine at all (spec §17.4: förklaringar från data, aldrig gissningar). */
-    private void addLevelMatchFactor(
+    /** C10 (audit-fix batch C, v0.6.0) design note, in-band case ONLY: adds TWO {@code positive}
+     * entries instead of one — a LAY headline sentence FIRST (no raw score/band numbers, safe for
+     * {@link #placementSummarySv} and for simple mode's rendered {@code positiveFactors} list alike),
+     * then the original numeric sentence SECOND (unchanged in substance, only the ":s" genitive fixed
+     * per C14). This is the chosen design for "keep both the lay wording and the numeric variant":
+     * a SECOND LIST ENTRY carries the numeric detail rather than a new {@code FactorView} field —
+     * {@code ExplanationDtos.java} is out of this milestone's territory, and {@code positive} is
+     * already a {@code List}, so no DTO shape change was needed at all. Advanced surfaces (the full
+     * drawer) render the ENTIRE {@code positiveFactors} list and therefore stay exactly as informative
+     * as before (both sentences visible); a simple-mode consumer can filter the numeric entry out the
+     * same way it already filters a coach-naming factor (text-sniffing on a fixed backend template —
+     * see frontend {@code SimpleExplainBody.isCoachFactor}'s own precedent/doc comment for why that is
+     * the established, accepted pattern here). This return value is the one exception: it is handed
+     * back to the caller (not stored in any DTO) purely so {@link #placementSummarySv} can lead with
+     * the lay sentence without re-deriving/text-matching it out of the {@code positive} list. */
+    private String addLevelMatchFactor(
             List<FactorView> positive, List<FactorView> negative, PlayerAssignment target, Group group, MoveProbe.GroupStats stats) {
         int bandMin = group.levelMinScaled();
         int bandMax = group.levelMaxScaled();
         int level = target.getLevelScaled();
+        String nameGen = JustificationMessages.genitive(target.getDisplayName());
+        String groupGen = JustificationMessages.genitive(group.name());
         if (bandMax > 0) {
             String levelSv = JustificationMessages.formatLevel(level);
             String bandSv = JustificationMessages.formatLevel(bandMin) + "–" + JustificationMessages.formatLevel(bandMax);
             if (level >= bandMin && level <= bandMax) {
-                positive.add(new FactorView("%s:s nivåscore %s matchar %s:s nivåspann %s".formatted(
-                        target.getDisplayName(), levelSv, group.name(), bandSv)));
+                String laySv = "%s spelar på ungefär samma nivå som resten av %s.".formatted(target.getDisplayName(), group.name());
+                positive.add(new FactorView(laySv));
+                positive.add(new FactorView("%s nivåscore %s matchar %s nivåspann %s".formatted(nameGen, levelSv, groupGen, bandSv)));
+                return laySv;
             } else if (level > bandMax) {
-                negative.add(new FactorView("%s:s nivåscore %s ligger över %s:s nivåspann %s".formatted(
-                        target.getDisplayName(), levelSv, group.name(), bandSv)));
+                negative.add(new FactorView("%s nivåscore %s ligger över %s nivåspann %s".formatted(nameGen, levelSv, groupGen, bandSv)));
             } else {
-                negative.add(new FactorView("%s:s nivåscore %s ligger under %s:s nivåspann %s".formatted(
-                        target.getDisplayName(), levelSv, group.name(), bandSv)));
+                negative.add(new FactorView("%s nivåscore %s ligger under %s nivåspann %s".formatted(nameGen, levelSv, groupGen, bandSv)));
             }
         } else if (stats.size() > 0) {
             // No configured band to compare against: state the two numbers neutrally instead of
             // asserting an unverifiable "ligger nära" (same truthfulness principle as the band case).
-            positive.add(new FactorView("%s:s nivåscore är %s; %s:s nivåsnitt är %s".formatted(
-                    target.getDisplayName(), JustificationMessages.formatLevel(level), group.name(),
-                    JustificationMessages.formatLevel(stats.meanScaled()))));
+            // Left as the plain numeric sentence (no lay/numeric split): this branch only fires when
+            // the group has no level band configured at all, a narrow edge case outside C10's own
+            // scope (which is specifically about the in-band "matchar" claim) - if it becomes
+            // positive.get(0), placementSummarySv's fallback still renders it as-is (a known,
+            // documented residual case, not the common path this milestone targets).
+            positive.add(new FactorView("%s nivåscore är %s; %s nivåsnitt är %s".formatted(
+                    nameGen, JustificationMessages.formatLevel(level), groupGen, JustificationMessages.formatLevel(stats.meanScaled()))));
         }
+        return null;
     }
 
     private void addTimeFactor(List<FactorView> positive, List<FactorView> negative, RunContext ctx, PlayerAssignment target, Group group) {
@@ -502,11 +535,11 @@ public class ExplanationService {
         }
         long timeSlotId = schedule.getTrainingBlock().timeSlotId();
         if (target.canAttend(timeSlotId)) {
-            positive.add(new FactorView("%s kunde träna på %s:s tid (%s)".formatted(
-                    target.getDisplayName(), group.name(), ctx.index().timeSlotLabel(timeSlotId))));
+            positive.add(new FactorView("%s kunde träna på %s tid (%s)".formatted(
+                    target.getDisplayName(), JustificationMessages.genitive(group.name()), ctx.index().timeSlotLabel(timeSlotId))));
         } else {
-            negative.add(new FactorView("%s kan egentligen inte träna på %s:s tid (%s)".formatted(
-                    target.getDisplayName(), group.name(), ctx.index().timeSlotLabel(timeSlotId))));
+            negative.add(new FactorView("%s kan egentligen inte träna på %s tid (%s)".formatted(
+                    target.getDisplayName(), JustificationMessages.genitive(group.name()), ctx.index().timeSlotLabel(timeSlotId))));
         }
     }
 
@@ -620,8 +653,9 @@ public class ExplanationService {
             // delvis för att" — the fact pattern (wish + co-placement + coach binding) is proven
             // from data, but DECISIVE influence on the solver's choice is not, and an explanation
             // engine must never overclaim (same truthfulness class as M7 review fix M1).
-            String messageSv = "%s:s placering kan delvis bero på att %s (önskad medspelare) %s tränaren %s, som är knuten till %s".formatted(
-                    target.getDisplayName(), otherName, must ? "behöver" : "önskar", coachName, selectedGroup.name());
+            String messageSv = "%s placering kan delvis bero på att %s (önskad medspelare) %s tränaren %s, som är knuten till %s".formatted(
+                    JustificationMessages.genitive(target.getDisplayName()), otherName, must ? "behöver" : "önskar", coachName,
+                    selectedGroup.name());
             byOtherParticipant.put(otherId, new IndirectFactorView(
                     participantDbId(ctx, otherId), otherName, coachName, binding.type().name(), selectedGroup.name(), messageSv));
         }

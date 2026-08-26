@@ -12,6 +12,7 @@ import { ValidateStep } from "./steps/ValidateStep";
 import { CommitStep } from "./steps/CommitStep";
 import { ReviewStep } from "./steps/ReviewStep";
 import { SessionExpiredPanel } from "./SessionExpiredPanel";
+import { hasCreatedCustomField } from "./importSessionStorage";
 
 const STEP_KEYS = ["file", "review", "sheet", "map", "validate", "commit"] as const;
 type StepKey = (typeof STEP_KEYS)[number];
@@ -38,6 +39,10 @@ export function ImportWizardPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [cancelOpen, setCancelOpen] = useState(false);
+  // v0.6.0 audit-fix B3: true only right after handleUploaded routes here because one-click
+  // analysis was NOT confident - cleared once the user proceeds past SheetStep (onNext below), so a
+  // later Tillbaka visit to this step (via B1's new back buttons) doesn't re-show the notice.
+  const [showAnalysisFailedNotice, setShowAnalysisFailedNotice] = useState(false);
 
   const plan = usePlan(planId);
   const sessionId = searchParams.get("session");
@@ -65,6 +70,7 @@ export function ImportWizardPage() {
       if (analysis.readyToCommit) {
         setSearchParams({ session: newSessionId, step: "review" });
       } else {
+        setShowAnalysisFailedNotice(true);
         setSearchParams({ session: newSessionId, step: "sheet" });
       }
     },
@@ -72,6 +78,7 @@ export function ImportWizardPage() {
   );
 
   const handleRestart = useCallback(() => {
+    setShowAnalysisFailedNotice(false);
     setSearchParams({});
   }, [setSearchParams]);
 
@@ -133,17 +140,29 @@ export function ImportWizardPage() {
           planId={planId}
           sessionId={sessionId}
           onAdjust={() => goToStep("sheet")}
+          onRestart={handleRestart}
           onExpired={handleRestart}
         />
       )}
       {step === "sheet" && sessionId && (
-        <SheetStep planId={planId} sessionId={sessionId} onNext={() => goToStep("map")} onExpired={handleRestart} />
+        <SheetStep
+          planId={planId}
+          sessionId={sessionId}
+          onNext={() => {
+            setShowAnalysisFailedNotice(false);
+            goToStep("map");
+          }}
+          onBack={() => goToStep("file")}
+          onExpired={handleRestart}
+          showAnalysisFailedNotice={showAnalysisFailedNotice}
+        />
       )}
       {step === "map" && sessionId && (
         <MappingStep
           planId={planId}
           sessionId={sessionId}
           onNext={() => goToStep("validate")}
+          onBack={() => goToStep("sheet")}
           onExpired={handleRestart}
         />
       )}
@@ -152,18 +171,25 @@ export function ImportWizardPage() {
           planId={planId}
           sessionId={sessionId}
           onNext={() => goToStep("commit")}
+          onBack={() => goToStep("map")}
           onExpired={handleRestart}
         />
       )}
       {step === "commit" && sessionId && (
-        <CommitStep planId={planId} sessionId={sessionId} onExpired={handleRestart} />
+        <CommitStep
+          planId={planId}
+          sessionId={sessionId}
+          onBack={() => goToStep("validate")}
+          onExpired={handleRestart}
+        />
       )}
 
       <DeleteConfirmModal
         opened={cancelOpen}
         title={sv.importWizard.cancelConfirmTitle}
-        message={sv.importWizard.cancelConfirmMessage}
-        confirmLabel={sv.importWizard.cancelButton}
+        message={sv.importWizard.cancelConfirmMessage(sessionId ? hasCreatedCustomField(sessionId) : false)}
+        confirmLabel={sv.importWizard.cancelConfirmDiscardLabel}
+        cancelLabel={sv.importWizard.cancelConfirmContinueLabel}
         loading={deleteSession.isPending}
         onClose={() => setCancelOpen(false)}
         onConfirm={handleCancelConfirmed}

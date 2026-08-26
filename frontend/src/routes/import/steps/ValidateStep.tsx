@@ -7,14 +7,16 @@ import {
   type ImportRowDecision,
   type RowStatus,
 } from "../../../api/import";
-import { ApiError, isNotFoundError } from "../../../api/client";
+import { isNotFoundError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
 import { SessionExpiredPanel } from "../SessionExpiredPanel";
+import { userErrorText } from "../userErrorText";
 
 interface ValidateStepProps {
   planId: string;
   sessionId: string;
   onNext: () => void;
+  onBack: () => void;
   onExpired: () => void;
 }
 
@@ -30,7 +32,7 @@ function defaultDecisionFor(status: RowStatus): ImportRowDecision {
  *  control — create new, skip, or link to an existing person for each match proposal. Defaults
  *  mirror the backend's own commit-time defaulting (SKIP rows default to skip, everything else to
  *  create-new — never silently auto-merging into a matched person, see ImportCommitService). */
-export function ValidateStep({ planId, sessionId, onNext, onExpired }: ValidateStepProps) {
+export function ValidateStep({ planId, sessionId, onNext, onBack, onExpired }: ValidateStepProps) {
   const validation = useImportValidation(planId, sessionId);
   const persons = usePersons();
   const setDecisions = useSetImportDecisions(planId, sessionId);
@@ -43,6 +45,10 @@ export function ValidateStep({ planId, sessionId, onNext, onExpired }: ValidateS
   // mirrors the same defaulting for anything never explicitly decided).
   const [edits, setEdits] = useState<Record<number, ImportRowDecision>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
+  // v0.6.0 audit-fix B6: by default only WARN/SKIP rows are shown (the rows that actually need a
+  // look) - "Visa alla N rader" expands to the full list. Starts collapsed every time the step mounts
+  // (deliberately not persisted - re-entering this step via Tillbaka is a fresh look at current data).
+  const [showAll, setShowAll] = useState(false);
   // Re-entrancy guard for handleNext: `setDecisions.isPending` only flips after a render, and the
   // empty-draft path never goes pending at all, so a double-click could otherwise fire onNext()
   // (or the batch PUT) twice. A ref is synchronous - the second click is a no-op immediately.
@@ -53,8 +59,13 @@ export function ValidateStep({ planId, sessionId, onNext, onExpired }: ValidateS
   }
   if (validation.isError) {
     return (
-      <Alert color="red">
-        {validation.error instanceof ApiError ? validation.error.message : sv.common.unknownError}
+      <Alert color="red" title={sv.common.error}>
+        <Stack gap="sm">
+          <Text>{userErrorText(validation.error)}</Text>
+          <Button onClick={() => void validation.refetch()} w="fit-content" variant="default">
+            {sv.importWizard.retryButton}
+          </Button>
+        </Stack>
       </Alert>
     );
   }
@@ -93,17 +104,33 @@ export function ValidateStep({ planId, sessionId, onNext, onExpired }: ValidateS
         onExpired();
         return;
       }
-      setSaveError(error instanceof ApiError ? error.message : sv.importWizard.validate.saveDecisionFailed);
+      setSaveError(userErrorText(error));
       navigating.current = false; // Save failed - stay on the step and allow a retry.
     }
   };
 
-  const { okCount, warnCount, skipCount } = validation.data;
+  const { okCount, warnCount, skipCount, totalRows } = validation.data;
+  // v0.6.0 audit-fix B6: default to only the rows that actually need a look (WARN/SKIP) - "Visa alla
+  // N rader" reveals the rest. `totalRows` (not rows.length) is what the toggle button's count
+  // promises, mirroring the summary line above.
+  const visibleRows = showAll ? validation.data.rows : validation.data.rows.filter((row) => row.status !== "OK");
 
   return (
     <Stack gap="md">
       <Title order={4}>{sv.importWizard.validate.heading}</Title>
       <Text>{sv.importWizard.validate.summary(okCount, warnCount, skipCount)}</Text>
+      <Text size="sm" c="dimmed">
+        {sv.importWizard.validate.reassurance}
+      </Text>
+
+      <Button
+        variant="subtle"
+        size="compact-sm"
+        w="fit-content"
+        onClick={() => setShowAll((prev) => !prev)}
+      >
+        {showAll ? sv.importWizard.validate.showFilteredButton : sv.importWizard.validate.showAllButton(totalRows)}
+      </Button>
 
       <Table.ScrollContainer minWidth={720}>
         <Table withTableBorder striped verticalSpacing="xs">
@@ -116,7 +143,7 @@ export function ValidateStep({ planId, sessionId, onNext, onExpired }: ValidateS
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {validation.data.rows.map((row) => {
+            {visibleRows.map((row) => {
               const decision = edits[row.rowIndex] ?? defaultDecisionFor(row.status);
               const options = [
                 { value: "CREATE_NEW", label: sv.importWizard.validate.decision.createNew },
@@ -132,9 +159,13 @@ export function ValidateStep({ planId, sessionId, onNext, onExpired }: ValidateS
               const currentValue =
                 decision.action === "MATCH_EXISTING" ? `${MATCH_PREFIX}${decision.personId}` : decision.action;
 
+              // v0.6.0 audit-fix B2: rowIndex is the backend's 0-based raw sheet-row index (see
+              // ImportValidationService) - +1 shows the row number a user would actually see if they
+              // opened the file in Excel (row 1 = the very first row), never the raw array index.
+              const displayRowNumber = row.rowIndex + 1;
               return (
                 <Table.Tr key={row.rowIndex}>
-                  <Table.Td>{row.rowIndex}</Table.Td>
+                  <Table.Td>{displayRowNumber}</Table.Td>
                   <Table.Td>
                     <Badge color={STATUS_COLOR[row.status]}>{sv.importWizard.validate.status[row.status]}</Badge>
                   </Table.Td>
@@ -155,7 +186,7 @@ export function ValidateStep({ planId, sessionId, onNext, onExpired }: ValidateS
                   </Table.Td>
                   <Table.Td>
                     <Select
-                      aria-label={`Beslut för rad ${row.rowIndex}`}
+                      aria-label={`Beslut för rad ${displayRowNumber}`}
                       data={options}
                       value={currentValue}
                       onChange={(value) => {
@@ -181,6 +212,9 @@ export function ValidateStep({ planId, sessionId, onNext, onExpired }: ValidateS
       {saveError && <Alert color="red">{saveError}</Alert>}
 
       <Group justify="flex-end">
+        <Button variant="default" onClick={onBack} disabled={setDecisions.isPending}>
+          {sv.common.back}
+        </Button>
         <Button onClick={() => void handleNext()} loading={setDecisions.isPending} disabled={setDecisions.isPending}>
           {sv.importWizard.validate.nextButton}
         </Button>

@@ -8,11 +8,14 @@ import { sv } from "../../../i18n/sv";
 import { useIsSimpleMode } from "../../../lib/uiMode/useUiMode";
 import { SessionExpiredPanel } from "../SessionExpiredPanel";
 import { NewCustomFieldModal } from "../NewCustomFieldModal";
+import { markCustomFieldCreated } from "../importSessionStorage";
+import { userErrorText } from "../userErrorText";
 
 interface MappingStepProps {
   planId: string;
   sessionId: string;
   onNext: () => void;
+  onBack: () => void;
   onExpired: () => void;
 }
 
@@ -55,7 +58,7 @@ export const COACH_TARGETS = new Set(["coachName", "isCoach"]);
 /** Wizard step 3 (spec §8.4): one row per source column, a target dropdown pre-filled from the
  *  backend's suggestion (template match or synonym/fuzzy match), custom-field targets from the
  *  plan's CUSTOM-storage field definitions, and a sensitive-data badge for comment targets. */
-export function MappingStep({ planId, sessionId, onNext, onExpired }: MappingStepProps) {
+export function MappingStep({ planId, sessionId, onNext, onBack, onExpired }: MappingStepProps) {
   const columns = useImportColumns(planId, sessionId);
   const fieldDefinitions = useFieldDefinitions(planId);
   const setMapping = useSetImportMapping(planId, sessionId);
@@ -81,8 +84,13 @@ export function MappingStep({ planId, sessionId, onNext, onExpired }: MappingSte
   }
   if (columns.isError) {
     return (
-      <Alert color="red">
-        {columns.error instanceof ApiError ? columns.error.message : sv.common.unknownError}
+      <Alert color="red" title={sv.common.error}>
+        <Stack gap="sm">
+          <Text>{userErrorText(columns.error)}</Text>
+          <Button onClick={() => void columns.refetch()} w="fit-content" variant="default">
+            {sv.importWizard.retryButton}
+          </Button>
+        </Stack>
       </Alert>
     );
   }
@@ -229,6 +237,9 @@ export function MappingStep({ planId, sessionId, onNext, onExpired }: MappingSte
       </Table.ScrollContainer>
 
       <Group justify="flex-end">
+        <Button variant="default" onClick={onBack}>
+          {sv.common.back}
+        </Button>
         <Button onClick={handleNext} loading={setMapping.isPending}>
           {sv.importWizard.mapping.nextButton}
         </Button>
@@ -239,6 +250,7 @@ export function MappingStep({ planId, sessionId, onNext, onExpired }: MappingSte
         opened={newFieldModalColumn !== null}
         onClose={() => setNewFieldModalColumn(null)}
         onCreated={(field) => {
+          markCustomFieldCreated(sessionId);
           if (newFieldModalColumn !== null) {
             setTargets((prev) => ({ ...prev, [newFieldModalColumn]: `customField:${field.key}` }));
           }

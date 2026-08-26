@@ -8,6 +8,7 @@ import { http, HttpResponse } from "msw";
 import { server } from "../../test/server";
 import { sv } from "../../i18n/sv";
 import type { PriorityOrderView } from "../../api/priorityOrder";
+import type { SlotBlocksView } from "../../api/types";
 import { SIMPLE_STEPS } from "./planSimpleSteps";
 import { PlanSimpleStepper } from "./PlanSimpleStepper";
 
@@ -62,17 +63,48 @@ const DEFAULT_PRIORITY_ORDER: PriorityOrderView = {
   ],
 };
 
-/** `participants`/`timeSlots`/`runs`/`savedPlans` default to a "fully loaded, non-empty-except-
- *  savedPlans" plan (260/3/0/0 - matches the pre-existing live-number description assertions
- *  below). `priorityOrder` (v0.6.0 F3) defaults to {@link DEFAULT_PRIORITY_ORDER} - pass `null` to
- *  instead make that endpoint error, for tests that need Prioriteringar's completion signal to stay
- *  unresolved (`undefined`, same as a still-loading query). `savedPlans` (v0.6.0 F6, restored -
- *  F2 review fix FIX 3's own TODO) drives Exportera's live count the same way `runs` drives
- *  Optimera's. */
+/** v0.6.0 audit-fix A8: builds `timeSlots` grouped training-block entries (one court block per
+ *  slot), with the first `activeCourts` of them marked `active: true` and the rest `active: false` -
+ *  the same grouped shape `useTrainingBlocksForPlan` (ResourcesPanel.tsx's own query) returns, now
+ *  also driving the Tider step's checkmark (real capacity, not just slot count). */
+function trainingBlocksFixture(timeSlots: number, activeCourts: number): SlotBlocksView[] {
+  return Array.from({ length: timeSlots }, (_, i) => ({
+    timeSlot: {
+      id: `t${i}`,
+      activityPlanId: PLAN_ID,
+      dayOfWeek: "THURSDAY",
+      startTime: "18:00",
+      endTime: "19:00",
+      durationMinutes: 60,
+      label: `Tid ${i}`,
+    },
+    blocks: [
+      {
+        id: `block${i}`,
+        timeSlotId: `t${i}`,
+        courtId: `court${i}`,
+        courtName: `Bana ${i}`,
+        activityPlanId: PLAN_ID,
+        active: i < activeCourts,
+        locked: false,
+      },
+    ],
+  }));
+}
+
+/** `participants`/`timeSlots`(+`activeCourts`)/`runs`(+`latestRunFinished`)/`savedPlans` default to
+ *  a "fully loaded, non-empty-except-savedPlans, latest run finished" plan (260/3 slots with 2
+ *  active courts/1 finished run/0 saved plans - matches the pre-existing live-number description
+ *  assertions below, while also giving Tider/Optimera/Resultat a real "done" signal by default -
+ *  v0.6.0 audit-fix A8). `priorityOrder` (v0.6.0 F3) defaults to {@link DEFAULT_PRIORITY_ORDER} -
+ *  pass `null` to instead make that endpoint error, for tests that need Prioriteringar's completion
+ *  signal to stay unresolved (`undefined`, same as a still-loading query). */
 function mockPlanData({
   participants = 260,
   timeSlots = 3,
-  runs = 0,
+  activeCourts = 2,
+  runs = 1,
+  latestRunFinished = true,
   savedPlans = 0,
   priorityOrder = DEFAULT_PRIORITY_ORDER as PriorityOrderView | null,
 } = {}) {
@@ -80,10 +112,18 @@ function mockPlanData({
     http.get(`/api/plans/${PLAN_ID}/participants`, () =>
       HttpResponse.json(Array.from({ length: participants }, (_, i) => ({ id: `p${i}` }))),
     ),
-    http.get(`/api/plans/${PLAN_ID}/time-slots`, () =>
-      HttpResponse.json(Array.from({ length: timeSlots }, (_, i) => ({ id: `t${i}` }))),
+    http.get(`/api/plans/${PLAN_ID}/training-blocks`, () =>
+      HttpResponse.json(trainingBlocksFixture(timeSlots, activeCourts)),
     ),
-    http.get(`/api/plans/${PLAN_ID}/runs`, () => HttpResponse.json(Array.from({ length: runs }, (_, i) => ({ id: `r${i}` })))),
+    http.get(`/api/plans/${PLAN_ID}/runs`, () =>
+      HttpResponse.json(
+        // Most-recent-first (useOptimizationRuns's own doc comment) - `data[0]` is the latest run.
+        Array.from({ length: runs }, (_, i) => ({
+          id: `r${i}`,
+          status: i === 0 ? (latestRunFinished ? "FINISHED" : "SOLVING_ACTIVE") : "FINISHED",
+        })),
+      ),
+    ),
     http.get(`/api/plans/${PLAN_ID}/priority-order`, () =>
       priorityOrder ? HttpResponse.json(priorityOrder) : HttpResponse.json({ error: "not found" }, { status: 404 }),
     ),
@@ -136,7 +176,7 @@ describe("PlanSimpleStepper", () => {
     ).toBeInTheDocument();
   });
 
-  it("Resultat falls back to a static description; Prioriteringar (F3) shows its live top priority - every step renders one (FIX 8)", async () => {
+  it("Prioriteringar (F3) shows its live top priority; Resultat (A8) shows the static description with a real checkmark signal - every step renders a description (FIX 8)", async () => {
     mockPlanData();
     renderStepper(`/plans/${PLAN_ID}/deltagare`);
 
@@ -149,6 +189,9 @@ describe("PlanSimpleStepper", () => {
     expect(
       await within(screen.getByTestId("plan-simple-step-resultat")).findByText(sv.simple.stepDescriptions.resultat),
     ).toBeInTheDocument();
+    // v0.6.0 audit-fix A8: Resultat CAN check now (mockPlanData's default has a finished run) - a
+    // permanently grey "5" used to read as an unexplained accusation.
+    expect(screen.getByTestId("plan-simple-step-resultat").querySelector(CHECK_ICON_SELECTOR)).not.toBeNull();
   });
 
   it("Prioriteringar falls back to the static placeholder description while its query hasn't resolved yet (F3)", async () => {
@@ -170,6 +213,27 @@ describe("PlanSimpleStepper", () => {
     expect(screen.getByTestId("current-path")).toHaveTextContent(`/plans/${PLAN_ID}/export`);
   });
 
+  // v0.6.0 audit-fix A8: Tider's checkmark now gates on ACTIVE COURT count, not just how many time
+  // slots are configured - a plan can have slots with every court switched off (zero real capacity).
+  it("Tider is NOT checked when time slots exist but every court is inactive", async () => {
+    mockPlanData({ timeSlots: 2, activeCourts: 0 });
+    renderStepper(`/plans/${PLAN_ID}/export`);
+
+    await within(screen.getByTestId("plan-simple-step-tider")).findByText("2 tider");
+    expect(screen.getByTestId("plan-simple-step-tider").querySelector(CHECK_ICON_SELECTOR)).toBeNull();
+  });
+
+  // v0.6.0 audit-fix A8: Optimera/Resultat's checkmarks now gate on the LATEST run's status, not
+  // merely on `runs.length > 0` - a run 1 second into solving must not check either step.
+  it("Optimera and Resultat are NOT checked while the latest run is still solving, even though a run exists", async () => {
+    mockPlanData({ runs: 1, latestRunFinished: false });
+    renderStepper(`/plans/${PLAN_ID}/export`);
+
+    await within(screen.getByTestId("plan-simple-step-optimera")).findByText("1 körning");
+    expect(screen.getByTestId("plan-simple-step-optimera").querySelector(CHECK_ICON_SELECTOR)).toBeNull();
+    expect(screen.getByTestId("plan-simple-step-resultat").querySelector(CHECK_ICON_SELECTOR)).toBeNull();
+  });
+
   // v0.6.0 F2 review fix (FIX 1): completionFor's `completed` used to be computed and never read -
   // Mantine's own position-only Stepper state (`active > index`) checkmarked every step once the
   // admin navigated past it, regardless of whether it actually had any data. These two tests pin the
@@ -185,7 +249,9 @@ describe("PlanSimpleStepper", () => {
       mockPlanData({
         participants: 0,
         timeSlots: 0,
+        activeCourts: 0,
         runs: 0,
+        latestRunFinished: false,
         priorityOrder: { ...DEFAULT_PRIORITY_ORDER, updatedAt: null },
       });
       renderStepper(`/plans/${PLAN_ID}/export`);
@@ -204,8 +270,8 @@ describe("PlanSimpleStepper", () => {
       expect(within(screen.getByTestId("plan-simple-step-resultat")).getByText("5")).toBeInTheDocument();
     });
 
-    it("a plan with participants+slots loaded checks Deltagare/Tider once past them, on step 3 (Prioriteringar)", async () => {
-      mockPlanData({ participants: 260, timeSlots: 3, runs: 0 });
+    it("a plan with participants+active courts loaded checks Deltagare/Tider once past them, on step 3 (Prioriteringar)", async () => {
+      mockPlanData({ participants: 260, timeSlots: 3, activeCourts: 2, runs: 0, latestRunFinished: false });
       renderStepper(`/plans/${PLAN_ID}/prioriteringar`);
 
       await within(screen.getByTestId("plan-simple-step-deltagare")).findByText("260 deltagare");

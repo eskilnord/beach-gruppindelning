@@ -34,3 +34,31 @@ export function readCachedImportSheets(sessionId: string): ImportSheetSummary[] 
     return [];
   }
 }
+
+/**
+ * v0.6.0 audit-fix B7: tracks (best-effort, client-side) whether this import session created any
+ * custom field definitions via "Skapa nytt fält…" (NewCustomFieldModal, wired from MappingStep) - the
+ * cancel-confirmation dialog needs this to know whether "Inget har sparats än." is actually true (a
+ * created field definition is its own durable write, independent of the ImportSession, and survives
+ * cancelling the import). sessionStorage (not plain component state) so the flag survives an
+ * accidental page reload mid-wizard, same rationale as the sheet-list cache above.
+ */
+function customFieldCreatedKey(sessionId: string): string {
+  return `gp-import-created-field-${sessionId}`;
+}
+
+export function markCustomFieldCreated(sessionId: string): void {
+  try {
+    sessionStorage.setItem(customFieldCreatedKey(sessionId), "1");
+  } catch {
+    // Best-effort only - worst case the cancel dialog falls back to the generic message.
+  }
+}
+
+export function hasCreatedCustomField(sessionId: string): boolean {
+  try {
+    return sessionStorage.getItem(customFieldCreatedKey(sessionId)) === "1";
+  } catch {
+    return false;
+  }
+}

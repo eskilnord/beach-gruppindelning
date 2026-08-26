@@ -189,9 +189,10 @@ class PrioritySensitivityCalculatorTest {
 
         assertThat(c.available()).isTrue();
         assertThat(c.verdict()).isEqualTo("NO_ORDER_HELPS");
-        assertThat(c.blockerLabelSv()).isEqualTo("Målstorlek grupp");
+        // C11(c) (audit-fix batch C): registry jargon ("Målstorlek grupp") replaced by plain Swedish.
+        assertThat(c.blockerLabelSv()).isEqualTo("gruppens storlek");
         assertThat(c.summarySv()).isEqualTo(
-                "Ingen ordning av de fyra prioriteringarna räcker här. Det som väger tyngst emot är Målstorlek grupp, "
+                "Ingen ordning av de fyra prioriteringarna räcker här. Det som väger tyngst emot är gruppens storlek, "
                         + "som inte styrs av prioritetsordningen.");
         assertThat(c.suggestedOrder()).isNull();
         assertThat(c.cautionSv()).isNull();
@@ -214,7 +215,7 @@ class PrioritySensitivityCalculatorTest {
         assertThat(c.verdict()).isEqualTo("ALREADY_TOP");
         assertThat(c.summarySv()).isEqualTo(
                 "Träna tillsammans har redan högsta prioritet. Ingen ordning av de fyra prioriteringarna räcker här. "
-                        + "Det som väger tyngst emot är Målstorlek grupp, som inte styrs av prioritetsordningen.");
+                        + "Det som väger tyngst emot är gruppens storlek, som inte styrs av prioritetsordningen.");
     }
 
     // ─────────────────────────────────────────────────────────────────────── INCONCLUSIVE (unitsKnown=false)

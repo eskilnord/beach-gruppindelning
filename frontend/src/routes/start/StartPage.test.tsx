@@ -132,7 +132,10 @@ describe("StartPage", () => {
     expect(await screen.findByText(sv.start.demoDataSuccess)).toBeInTheDocument();
   });
 
-  it("shows an error notification and does not navigate when demo-data creation fails", async () => {
+  // v0.6.0 audit-fix A4: the notification now always shows the Swedish fallback as its primary
+  // message, with the raw backend text demoted to a small dimmed "Teknisk information: …" line -
+  // both are asserted here, rather than the raw backend text alone.
+  it("shows an error notification (Swedish fallback + technical detail) and does not navigate when demo-data creation fails", async () => {
     server.use(
       http.get("/api/seasons", () => HttpResponse.json([SEASON])),
       http.get("/api/seasons/season-1/plans", () => HttpResponse.json([])),
@@ -144,7 +147,8 @@ describe("StartPage", () => {
 
     await user.click(await screen.findByTestId("load-demo-data"));
 
-    expect(await screen.findByText("Kunde inte skapa demodata just nu")).toBeInTheDocument();
+    expect(await screen.findByText(sv.start.demoDataFailed)).toBeInTheDocument();
+    expect(screen.getByText(sv.common.technicalInfo("Kunde inte skapa demodata just nu"))).toBeInTheDocument();
     expect(screen.queryByTestId("participants-stub")).not.toBeInTheDocument();
   });
 });

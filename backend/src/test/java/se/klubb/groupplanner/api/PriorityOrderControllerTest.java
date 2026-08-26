@@ -120,12 +120,12 @@ class PriorityOrderControllerTest {
         JsonNode previousGroup = findByKey(json, "PREVIOUS_GROUP");
         assertThat(previousGroup.get("rank").asInt()).isEqualTo(2);
         assertThat(previousGroup.get("summarySv").asText())
-                .isEqualTo("Spelare får fortsätta i sin tidigare grupp när det går.");
+                .isEqualTo("Spelare får fortsätta i sin tidigare grupp – uppfylls när det går.");
 
         JsonNode preferredTime = findByKey(json, "PREFERRED_TIME");
         assertThat(preferredTime.get("rank").asInt()).isEqualTo(3);
         assertThat(preferredTime.get("summarySv").asText())
-                .isEqualTo("Önskad träningstid uppfylls när det inte krockar med viktigare önskemål.");
+                .isEqualTo("Önskad träningstid uppfylls – uppfylls om det inte krockar med viktigare önskemål.");
 
         JsonNode level = findByKey(json, "LEVEL");
         assertThat(level.get("rank").asInt()).isEqualTo(4);

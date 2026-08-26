@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ActionIcon, Alert, Badge, Card, Collapse, Group, Loader, Stack, Text, Title } from "@mantine/core";
+import { useNavigate } from "react-router-dom";
+import { ActionIcon, Alert, Badge, Button, Card, Collapse, Group, Loader, Stack, Text, Title } from "@mantine/core";
 import { IconArrowsSort, IconChevronDown, IconChevronUp, IconClock, IconResize, IconUserStar } from "@tabler/icons-react";
 import type { Icon } from "@tabler/icons-react";
 import { useImprovementSuggestions } from "../../../api/explanations";
@@ -133,7 +134,7 @@ export function ImprovementSuggestions({ planId, runId }: ImprovementSuggestions
               {actionable.length > 0 && (
                 <Stack gap="sm">
                   {actionable.map((suggestion, index) => (
-                    <SuggestionRow key={index} suggestion={suggestion} />
+                    <SuggestionRow key={index} planId={planId} suggestion={suggestion} />
                   ))}
                 </Stack>
               )}
@@ -148,7 +149,7 @@ export function ImprovementSuggestions({ planId, runId }: ImprovementSuggestions
                   </Text>
                   <Stack gap="sm">
                     {limitations.map((suggestion, index) => (
-                      <SuggestionRow key={index} suggestion={suggestion} isLimitation />
+                      <SuggestionRow key={index} planId={planId} suggestion={suggestion} isLimitation />
                     ))}
                   </Stack>
                 </div>
@@ -156,7 +157,11 @@ export function ImprovementSuggestions({ planId, runId }: ImprovementSuggestions
 
               {suggestions.data.omittedCount > 0 && (
                 <Text size="xs" c="dimmed" mt="sm" data-testid="improvement-suggestions-omitted">
-                  {sv.results.suggestions.omittedCount(suggestions.data.omittedCount)}
+                  {/* v0.6.0 audit-fix batch C (C8, P2, persona audit "Gunilla"): SIMPLE's own wording -
+                      "N ytterligare punkter visas inte" names a raw backend cap count with no next
+                      step for a non-technical council member; this points at the one thing they CAN
+                      do (switch to ADVANCED) instead. ADVANCED keeps the original count-based copy. */}
+                  {isSimple ? sv.results.suggestions.omittedCountSimple : sv.results.suggestions.omittedCount(suggestions.data.omittedCount)}
                 </Text>
               )}
             </Collapse>
@@ -167,7 +172,16 @@ export function ImprovementSuggestions({ planId, runId }: ImprovementSuggestions
   );
 }
 
-function SuggestionRow({ suggestion, isLimitation }: { suggestion: SuggestionView; isLimitation?: boolean }) {
+function SuggestionRow({
+  planId,
+  suggestion,
+  isLimitation,
+}: {
+  planId: string;
+  suggestion: SuggestionView;
+  isLimitation?: boolean;
+}) {
+  const navigate = useNavigate();
   const KindIcon = KIND_ICON[suggestion.kind] ?? IconClock;
   return (
     <Group
@@ -189,6 +203,23 @@ function SuggestionRow({ suggestion, isLimitation }: { suggestion: SuggestionVie
         <Badge size="xs" variant="light" color={isLimitation ? "gray" : "green"} mt={4}>
           {suggestion.impactSv}
         </Badge>
+        {/* v0.6.0 audit-fix batch C (C9, P2): PRIORITY_ORDER (v0.6.0 E5) names a change the council
+            genuinely CAN make (reordering the four priorities), but nothing on this row previously
+            said WHERE to make it - the reorder icon alone doesn't tell a non-technical reader that a
+            "prioriteringar" screen exists. Reuses the exact same label/route SimpleExplainBody's own
+            "Ändra prioritetsordning" CTA already navigates to. */}
+        {suggestion.kind === "PRIORITY_ORDER" && (
+          <div>
+            <Button
+              size="compact-xs"
+              variant="light"
+              mt={6}
+              onClick={() => navigate(`/plans/${planId}/prioriteringar`)}
+            >
+              {sv.results.explain.simple.changePriorityOrderButton}
+            </Button>
+          </div>
+        )}
       </div>
     </Group>
   );

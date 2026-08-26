@@ -136,7 +136,7 @@ public final class ColumnMappingSuggester {
                 "varningar", "varning", "warnings", "warning");
         // timeRelation custom fields cannot be committed from free-text Excel cells
         // (ImportCommitService.TIME_RELATION_IMPORT_WARNING) — surface that as an explicit ignore.
-        putIgnore(map, "Tidsönskemål anges i spelarvyn efter importen",
+        putIgnore(map, "Tidsönskemål anges under Deltagare efter importen",
                 "tid", "tidönskemål", "tidonskemal", "time wish", "önskad tid", "onskad tid");
         return map;
     }

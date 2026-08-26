@@ -68,6 +68,7 @@ import { SimpleCapacitySummary } from "./resources/SimpleCapacitySummary";
 import { ResourcesPanel } from "./resources/ResourcesPanel";
 import { ParticipantsPanel } from "./participants/ParticipantsPanel";
 import { ExplainDrawer } from "./results/explain/ExplainDrawer";
+import { WhatIfDialog } from "./results/explain/WhatIfDialog";
 import { GroupCard } from "./results/GroupCard";
 import { ImprovementSuggestions } from "./results/ImprovementSuggestions";
 import { ResultsSummary } from "./results/ResultsSummary";
@@ -290,7 +291,7 @@ describe("MappingStep coach targets", () => {
   it("keeps the auto-suggested coachName row editable in ADVANCED", async () => {
     mockMappingEndpoints();
     renderWithProviders(
-      <MappingStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onExpired={() => {}} />,
+      <MappingStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onBack={() => {}} onExpired={() => {}} />,
       { uiMode: "ADVANCED" },
     );
     const select = await screen.findByRole("textbox", { name: "Mappning för kolumn Önskad tränare" });
@@ -302,7 +303,7 @@ describe("MappingStep coach targets", () => {
   it("shows only the advanced-only note for the auto-suggested coachName row in SIMPLE - no select, no target label, no sample/coach name", async () => {
     mockMappingEndpoints();
     renderWithProviders(
-      <MappingStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onExpired={() => {}} />,
+      <MappingStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onBack={() => {}} onExpired={() => {}} />,
       { uiMode: "SIMPLE" },
     );
     // v0.6.0 F4 review fix (FIX 6, MAJOR): the row used to keep a DISABLED select that still leaked
@@ -327,7 +328,7 @@ describe("MappingStep coach targets", () => {
       }),
     );
     renderWithProviders(
-      <MappingStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onExpired={() => {}} />,
+      <MappingStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onBack={() => {}} onExpired={() => {}} />,
       { uiMode: "SIMPLE" },
     );
     await screen.findByTestId("mapping-coach-row-note");
@@ -448,10 +449,13 @@ describe("ResourcesPanel (no coach content)", () => {
 });
 
 // v0.6.0 F4 review fix (FIX 9): ResourcesPanel's per-court Switch chips (ADVANCED-only, interactive)
-// vs the plain "N block" summary line (rendered unconditionally in BOTH modes) that's SIMPLE's only
-// court-count presentation - the chips add manual-exception control ADVANCED gets and SIMPLE
+// vs the plain court-count summary line (rendered unconditionally in BOTH modes) that's SIMPLE's
+// only court-count presentation - the chips add manual-exception control ADVANCED gets and SIMPLE
 // deliberately doesn't (see the minor "triple-stated court count" review fix: SIMPLE used to ALSO
-// get its own redundant read-only text block here, removed since the summary line already covers it).
+// get its own redundant read-only text block here, removed since the summary line already covers
+// it). v0.6.0 audit-fix B11 ("Gunilla" persona, "block" jargon): SIMPLE's line now reads "N banor
+// aktiva" (sv.simple.resources.courtsSummary) instead of ADVANCED's unchanged "N block" wording
+// (sv.resources.blocksCount) - see ResourcesPanel.tsx's SlotRow.
 describe("ResourcesPanel court chips vs summary", () => {
   it("shows the per-court Switch chips in ADVANCED", async () => {
     server.use(http.get("/api/plans/plan-1/training-blocks", () => HttpResponse.json([RESOURCES_ENTRY])));
@@ -460,11 +464,11 @@ describe("ResourcesPanel court chips vs summary", () => {
     expect(screen.getAllByTestId("block-chip")).toHaveLength(2);
   });
 
-  it("hides the per-court Switch chips in SIMPLE, leaving only the plain block-count summary line", async () => {
+  it("hides the per-court Switch chips in SIMPLE, leaving only the plain court-count summary line", async () => {
     server.use(http.get("/api/plans/plan-1/training-blocks", () => HttpResponse.json([RESOURCES_ENTRY])));
     renderAtRoute("/plans/:planId/resurser", "/plans/plan-1/resurser", <ResourcesPanel />, "SIMPLE");
     const row = await screen.findByTestId("time-slot-row");
-    expect(row).toHaveTextContent(sv.resources.blocksCount(2));
+    expect(row).toHaveTextContent(sv.simple.resources.courtsSummary(2, 2));
     expect(screen.queryByTestId("block-chip")).not.toBeInTheDocument();
   });
 });
@@ -516,7 +520,7 @@ describe("ReviewStep coach target row", () => {
   it("shows the coachName column - header, target label, and the coach's name from the reason text - in ADVANCED", async () => {
     mockReviewEndpoints();
     renderWithProviders(
-      <ReviewStep planId={REVIEW_PLAN_ID} sessionId={REVIEW_SESSION_ID} onAdjust={() => {}} onExpired={() => {}} />,
+      <ReviewStep planId={REVIEW_PLAN_ID} sessionId={REVIEW_SESSION_ID} onAdjust={() => {}} onRestart={() => {}} onExpired={() => {}} />,
       { uiMode: "ADVANCED" },
     );
     await screen.findByText("Önskad tränare");
@@ -527,7 +531,7 @@ describe("ReviewStep coach target row", () => {
   it("drops the whole coachName row - header, target label, and coach name - in SIMPLE", async () => {
     mockReviewEndpoints();
     renderWithProviders(
-      <ReviewStep planId={REVIEW_PLAN_ID} sessionId={REVIEW_SESSION_ID} onAdjust={() => {}} onExpired={() => {}} />,
+      <ReviewStep planId={REVIEW_PLAN_ID} sessionId={REVIEW_SESSION_ID} onAdjust={() => {}} onRestart={() => {}} onExpired={() => {}} />,
       { uiMode: "SIMPLE" },
     );
     // Waits on the firstName row's REASON text (unique - unlike "Förnamn", which also matches the
@@ -547,7 +551,7 @@ describe("ReviewStep Justera button", () => {
   it("shows the Justera button in ADVANCED", async () => {
     mockReviewEndpoints();
     renderWithProviders(
-      <ReviewStep planId={REVIEW_PLAN_ID} sessionId={REVIEW_SESSION_ID} onAdjust={() => {}} onExpired={() => {}} />,
+      <ReviewStep planId={REVIEW_PLAN_ID} sessionId={REVIEW_SESSION_ID} onAdjust={() => {}} onRestart={() => {}} onExpired={() => {}} />,
       { uiMode: "ADVANCED" },
     );
     expect(await screen.findByRole("button", { name: sv.importWizard.review.adjustButton })).toBeInTheDocument();
@@ -556,7 +560,7 @@ describe("ReviewStep Justera button", () => {
   it("hides the Justera button in SIMPLE, showing the dimmed adjust-in-advanced hint instead", async () => {
     mockReviewEndpoints();
     renderWithProviders(
-      <ReviewStep planId={REVIEW_PLAN_ID} sessionId={REVIEW_SESSION_ID} onAdjust={() => {}} onExpired={() => {}} />,
+      <ReviewStep planId={REVIEW_PLAN_ID} sessionId={REVIEW_SESSION_ID} onAdjust={() => {}} onRestart={() => {}} onExpired={() => {}} />,
       { uiMode: "SIMPLE" },
     );
     await screen.findByRole("button", { name: sv.importWizard.review.importButton });
@@ -900,5 +904,59 @@ describe("ExplainDrawer coach factor + COACH unmet wish (Resultat person explain
     expect(screen.queryByText(COACH_NAME, { exact: false })).not.toBeInTheDocument();
     expect(screen.queryByTestId("explain-unmet-wish")).not.toBeInTheDocument();
     expect(screen.getByText(sv.results.explain.simple.noUnmetWishes)).toBeInTheDocument();
+  });
+});
+
+// v0.6.0 audit-fix batch C (C12, P1): the "Testa flytt" what-if consequence dialog's own coach-hiding
+// row - a coach-family newlyBroken/newlyFixed constraint row must collapse into an honest count-line
+// ("+ N tränarvillkor (avancerat läge)") in SIMPLE, never naming the coach, but render per-row with
+// the coach's name intact in ADVANCED (byte-identical to before this finding).
+describe("WhatIfDialog coach-family newlyBroken/newlyFixed rows (Resultat what-if)", () => {
+  const WHATIF_RESPONSE = {
+    runId: "run-1",
+    basedOnRevision: 1,
+    currentRevision: 1,
+    stale: false,
+    scoreDelta: { hard: 0, medium: 0, soft: -10 },
+    wouldBreakHard: false,
+    groupSizeChanges: [],
+    levelSpreadChanges: [],
+    newlyBroken: [{ key: "coachWishRequired", messageSv: `Karin Lindqvist måste ha tränare ${COACH_NAME}, men fick det inte` }],
+    newlyFixed: [],
+    suggestedActions: [],
+  };
+
+  function mockWhatIfEndpoint() {
+    server.use(http.post("/api/plans/plan-1/whatif/move", () => HttpResponse.json(WHATIF_RESPONSE)));
+  }
+
+  function renderWhatIfDialog(uiMode: UiMode) {
+    return renderWithProviders(
+      <WhatIfDialog
+        planId="plan-1"
+        runId="run-1"
+        participantProfileId="participant-1"
+        participantName="Karin Lindqvist"
+        currentGroupId="group-1"
+        allGroups={[{ id: "group-1", name: "Grupp A" }, { id: "group-2", name: "Grupp B" }]}
+        onClose={() => {}}
+        initialTargetGroupId="group-2"
+      />,
+      { uiMode },
+    );
+  }
+
+  it("shows the coach's name per-row in ADVANCED", async () => {
+    mockWhatIfEndpoint();
+    renderWhatIfDialog("ADVANCED");
+    expect(await screen.findByText(WHATIF_RESPONSE.newlyBroken[0].messageSv)).toBeInTheDocument();
+  });
+
+  it("hides the coach's name behind a collapsed count-line in SIMPLE", async () => {
+    mockWhatIfEndpoint();
+    renderWhatIfDialog("SIMPLE");
+    await screen.findByTestId("whatif-consequence");
+    expect(screen.queryByText(COACH_NAME, { exact: false })).not.toBeInTheDocument();
+    expect(screen.getByText(sv.results.whatIf.simple.coachRowsCollapsed(1))).toBeInTheDocument();
   });
 });

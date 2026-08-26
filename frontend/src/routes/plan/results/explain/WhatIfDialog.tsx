@@ -6,11 +6,21 @@ import { useWhatIfMove } from "../../../../api/whatif";
 import { ApiError } from "../../../../api/client";
 import { sv } from "../../../../i18n/sv";
 import { DeleteConfirmModal } from "../../../../components/DeleteConfirmModal";
+import { useIsSimpleMode } from "../../../../lib/uiMode/useUiMode";
 import { formatScoreDelta } from "./formatScoreDelta";
 import type { GroupOption } from "./ExplainDrawer";
-import type { ScoreDeltaView } from "../../../../api/types";
+import type { ConstraintMessageView, ScoreDeltaView } from "../../../../api/types";
 
 const WAITLIST_VALUE = "__WAITLIST__";
+
+/** v0.6.0 audit-fix batch C (C12, P1): every coach-family constraint key is spelled `coach...`
+ *  (`ConstraintKeys.java`, `coachNoOverlap`/`coachWishRequired`/etc.) except one legacy outlier,
+ *  `savedPlanCoachBlocked` - `includes` (not `startsWith`) catches that one too. Filtering on this
+ *  DATA field (unlike SimpleExplainBody's own coach filters, which have no such field to key off and
+ *  must text-sniff the rendered Swedish instead) is the more robust choice wherever it's available. */
+function isCoachConstraintMessage(message: ConstraintMessageView): boolean {
+  return message.key.toLowerCase().includes("coach");
+}
 
 /** Green = strictly better, gray = exactly zero (the NEUTRAL case - no-change must not read as an
  *  improvement), red = worse or breaks hard. Same dominance order as HardMediumSoftLongScore. */
@@ -108,6 +118,9 @@ function WhatIfDialogBody({
     initialTargetGroupId != null && allGroups.some((g) => g.id === initialTargetGroupId) ? initialTargetGroupId : null;
   const [targetValue, setTargetValue] = useState<string | null>(validInitialTargetGroupId);
   const [confirmBreakHard, setConfirmBreakHard] = useState<"MOVE_ANYWAY" | "LOCK_AND_RESOLVE" | null>(null);
+  // v0.6.0 audit-fix batch C (C12, P1): SIMPLE hides raw score/spread numbers and coach specifics
+  // (see the render branches below) - ADVANCED stays byte-identical to before this finding.
+  const isSimple = useIsSimpleMode();
 
   const consequence = useWhatIfMove(planId);
   const moveAssignment = useMoveAssignment(planId);
@@ -224,13 +237,19 @@ function WhatIfDialogBody({
             </Alert>
           )}
 
-          <Group gap={6} mt="xs" wrap="nowrap">
-            <Text>{sv.results.whatIf.scoreDeltaLabel}:</Text>
-            {/* Gray for an exactly-zero delta - mirrors the NEUTRAL verdict (backend M7-review
-                extension, "påverkar inte totalpoängen") rather than presenting no-change as an
-                improvement (green). */}
-            <Badge color={scoreDeltaColor(data.scoreDelta)}>{formatScoreDelta(data.scoreDelta)}</Badge>
-          </Group>
+          {/* v0.6.0 audit-fix batch C (C12, P1): the raw Totalpoäng line is jargon (an unscaled,
+              unbounded weighted score) a non-technical admin can't interpret - hidden in SIMPLE,
+              which already has the wouldBreakHard alert plus the plain-language broken/fixed lists
+              below to answer "is this a good idea?" without a number. */}
+          {!isSimple && (
+            <Group gap={6} mt="xs" wrap="nowrap">
+              <Text>{sv.results.whatIf.scoreDeltaLabel}:</Text>
+              {/* Gray for an exactly-zero delta - mirrors the NEUTRAL verdict (backend M7-review
+                  extension, "påverkar inte totalpoängen") rather than presenting no-change as an
+                  improvement (green). */}
+              <Badge color={scoreDeltaColor(data.scoreDelta)}>{formatScoreDelta(data.scoreDelta)}</Badge>
+            </Group>
+          )}
 
           {data.groupSizeChanges.length > 0 && (
             <div>
@@ -245,7 +264,9 @@ function WhatIfDialogBody({
             </div>
           )}
 
-          {data.levelSpreadChanges.length > 0 && (
+          {/* v0.6.0 audit-fix batch C (C12, P1): "spread" (nivåspridning, a raw point unit) is the
+              same class of jargon as Totalpoäng above - SIMPLE-hidden. */}
+          {!isSimple && data.levelSpreadChanges.length > 0 && (
             <div>
               <Text size="sm" fw={500} mt="sm">
                 {sv.results.whatIf.levelSpreadChangesHeading}
@@ -261,26 +282,39 @@ function WhatIfDialogBody({
           {data.newlyBroken.length > 0 && (
             <div>
               <Text size="sm" fw={500} mt="sm">
-                {sv.results.explain.newlyBrokenHeading}
+                {isSimple ? sv.results.whatIf.simple.newlyBrokenHeading : sv.results.explain.newlyBrokenHeading}
               </Text>
-              {data.newlyBroken.map((m, i) => (
+              {(isSimple ? data.newlyBroken.filter((m) => !isCoachConstraintMessage(m)) : data.newlyBroken).map((m, i) => (
                 <Text size="sm" c="red" key={`${m.key}-${i}`}>
                   {m.messageSv}
                 </Text>
               ))}
+              {/* v0.6.0 audit-fix batch C (C12, P1): coach-family rows collapse into one honest
+                  count-line rather than naming a coach - the same substitution-not-hiding principle
+                  as SimpleExplainBody's own trainerReasonSubstitute. */}
+              {isSimple && data.newlyBroken.some(isCoachConstraintMessage) && (
+                <Text size="sm" c="red">
+                  {sv.results.whatIf.simple.coachRowsCollapsed(data.newlyBroken.filter(isCoachConstraintMessage).length)}
+                </Text>
+              )}
             </div>
           )}
 
           {data.newlyFixed.length > 0 && (
             <div>
               <Text size="sm" fw={500} mt="sm">
-                {sv.results.explain.newlyFixedHeading}
+                {isSimple ? sv.results.whatIf.simple.newlyFixedHeading : sv.results.explain.newlyFixedHeading}
               </Text>
-              {data.newlyFixed.map((m, i) => (
+              {(isSimple ? data.newlyFixed.filter((m) => !isCoachConstraintMessage(m)) : data.newlyFixed).map((m, i) => (
                 <Text size="sm" c="green" key={`${m.key}-${i}`}>
                   {m.messageSv}
                 </Text>
               ))}
+              {isSimple && data.newlyFixed.some(isCoachConstraintMessage) && (
+                <Text size="sm" c="green">
+                  {sv.results.whatIf.simple.coachRowsCollapsed(data.newlyFixed.filter(isCoachConstraintMessage).length)}
+                </Text>
+              )}
             </div>
           )}
         </div>
@@ -288,16 +322,29 @@ function WhatIfDialogBody({
 
       <Divider />
 
+      {/* v0.6.0 audit-fix batch C (C12, P1): SIMPLE drops "Lås & markera för omoptimering" entirely -
+          an ADVANCED-only action (locking + implicitly flagging the plan for a future re-solve is a
+          two-step workflow concept SIMPLE never otherwise exposes) - and makes "Behåll nuvarande" the
+          visually primary choice, "Flytta ändå" secondary, since staying put is the safer default a
+          non-technical admin should reach for first. ADVANCED keeps the original three-button variant
+          set byte-identical. */}
       <Group justify="flex-end">
-        <Button variant="default" onClick={onClose}>
+        <Button variant={isSimple ? "filled" : "default"} onClick={onClose}>
           {sv.results.whatIf.actions.keep}
         </Button>
-        <Button variant="outline" disabled={!data || applying} loading={applying && !confirmBreakHard} onClick={handleMoveAnyway}>
+        <Button
+          variant={isSimple ? "light" : "outline"}
+          disabled={!data || applying}
+          loading={applying && !confirmBreakHard}
+          onClick={handleMoveAnyway}
+        >
           {sv.results.whatIf.actions.moveAnyway}
         </Button>
-        <Button disabled={!data || !targetGroupId || applying} loading={applying && !confirmBreakHard} onClick={handleLockAndResolve}>
-          {sv.results.whatIf.actions.lockAndResolve}
-        </Button>
+        {!isSimple && (
+          <Button disabled={!data || !targetGroupId || applying} loading={applying && !confirmBreakHard} onClick={handleLockAndResolve}>
+            {sv.results.whatIf.actions.lockAndResolve}
+          </Button>
+        )}
       </Group>
 
       <DeleteConfirmModal

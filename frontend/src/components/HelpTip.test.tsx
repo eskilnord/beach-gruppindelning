@@ -17,8 +17,13 @@ describe("HelpTip", () => {
     const user = userEvent.setup();
     renderWithProviders(<HelpTip label="Förklaring: Vikt">Vikten styr hur tungt regeln väger.</HelpTip>);
 
-    await user.click(screen.getByRole("button", { name: "Förklaring: Vikt" }));
+    const trigger = screen.getByRole("button", { name: "Förklaring: Vikt" });
+    await user.click(trigger);
     expect(await screen.findByText("Vikten styr hur tungt regeln väger.")).toBeInTheDocument();
+    // A real click also hovers the trigger - unhover here so the (separate, v0.6.0 audit-fix A9)
+    // hover preview's own openDelay doesn't fire and reintroduce the same text once the popover
+    // itself has closed below.
+    await user.unhover(trigger);
 
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByText("Vikten styr hur tungt regeln väger.")).not.toBeInTheDocument());
@@ -51,13 +56,18 @@ describe("HelpTip", () => {
       </Modal>,
     );
 
-    await user.click(screen.getByRole("button", { name: "Förklaring: Vikt" }));
+    const trigger = screen.getByRole("button", { name: "Förklaring: Vikt" });
+    await user.click(trigger);
     const helpText = await screen.findByText("Hjälptext.");
     // trapFocus moves focus into the dropdown asynchronously (setTimeout in use-focus-trap) - the
     // Escape below must actually land there, as it would for a real keyboard user.
     await waitFor(() => {
       expect(helpText.closest('[role="dialog"]')).toContainElement(document.activeElement as HTMLElement);
     });
+    // A real click also hovers the trigger - unhover here so the (separate, v0.6.0 audit-fix A9)
+    // hover preview's own openDelay doesn't fire and reintroduce the same text once the popover
+    // itself has closed below.
+    await user.unhover(trigger);
 
     await user.keyboard("{Escape}");
 
@@ -83,5 +93,28 @@ describe("HelpTip", () => {
     await user.keyboard("{Escape}");
 
     expect(onModalClose).toHaveBeenCalled();
+  });
+
+  // v0.6.0 audit-fix A9 (walkthrough finding: the icon was click-only, easy to miss/ignore): a
+  // hover Tooltip now previews the same explanation, in addition to the click popover.
+  it("previews the explanation on hover, in addition to the click popover", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<HelpTip label="Förklaring: Vikt">Vikten styr hur tungt regeln väger.</HelpTip>);
+
+    await user.hover(screen.getByRole("button", { name: "Förklaring: Vikt" }));
+    expect(await screen.findByText("Vikten styr hur tungt regeln väger.")).toBeInTheDocument();
+  });
+
+  // The hover preview and the click popover show the same explanation text - they must never both
+  // be mounted at once (would make the text ambiguous to assistive tech and to any test/locator
+  // scoped by that text alone).
+  it("suppresses the hover preview while the click popover is open (never both showing the same text)", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<HelpTip label="Förklaring: Vikt">Vikten styr hur tungt regeln väger.</HelpTip>);
+
+    await user.click(screen.getByRole("button", { name: "Förklaring: Vikt" }));
+    await screen.findByText("Vikten styr hur tungt regeln väger.");
+
+    expect(screen.getAllByText("Vikten styr hur tungt regeln väger.")).toHaveLength(1);
   });
 });

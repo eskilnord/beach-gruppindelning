@@ -1,9 +1,25 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Group, Text } from "@mantine/core";
 import { sv } from "../../i18n/sv";
-import { useIsSimpleMode, useUiMode } from "../../lib/uiMode/useUiMode";
+import { useIsSimpleMode } from "../../lib/uiMode/useUiMode";
 import { hasSeenUiModeIntro, markUiModeIntroSeen } from "../../lib/uiMode/uiModeIntroSeen";
 import { useUiModeStore } from "../../lib/uiMode/uiModeStore";
+import { useConfirmedAdvancedMode } from "./useConfirmedAdvancedMode";
+
+interface UiModeIntroBannerProps {
+  /** v0.6.0 audit-fix A2: this must NEVER show on a fresh install (nobody's used the app yet, so
+   *  there's nothing to contrast "the simpler mode" against) - gated on evidence of prior use, i.e.
+   *  at least one season already existing. Threaded in from StartPage's own already-fetched
+   *  `useSeasons()` query (not a second one here) - `undefined` while that query hasn't resolved
+   *  yet, treated the same as "no evidence yet" (don't show). */
+  hasSeasons: boolean | undefined;
+  /** v0.6.0 audit-fix A2(d): true when StartPage's TutorialBanner is ALSO about to show this same
+   *  render (both are one-time Startvy notices - showing both at once is noisy, and the tutorial
+   *  offer is the more foundational of the two). Deliberately DEFERS rather than burning the
+   *  `gp.uiMode.introSeen` flag - see StartPage.tsx's doc comment on how this is computed race-free
+   *  (independent of TutorialBanner's own internal effect timing). */
+  deferForTutorial: boolean;
+}
 
 /**
  * v0.6.0 F6 (M-S6): Startvy's one-time "the app now has a simpler mode" notice - shown at most once
@@ -12,9 +28,12 @@ import { useUiModeStore } from "../../lib/uiMode/uiModeStore";
  * already-advanced user needs no introduction to a mode they're not in - if they later switch down
  * to SIMPLE for the first time, they get the intro then).
  *
- * "Behåll avancerat läge" is a deliberate, explicit opt-out: it flips the mode straight to ADVANCED
- * WITHOUT UiModeSwitch's confirm modal - choosing this labeled action from this banner already IS
- * the confirmation UiModeSwitch's modal would otherwise ask for.
+ * v0.6.0 audit-fix A2: (a) additionally gated on `hasSeasons` (never shown on a fresh install - see
+ * that prop's own doc comment); (b) reworded to name what's actually different instead of just
+ * announcing a mode exists; (c) "Visa alla inställningar (avancerat läge)" now routes through the
+ * SAME confirm modal as UiModeSwitch/AdvancedRouteGate (useConfirmedAdvancedMode) instead of
+ * flipping the mode directly - choosing it from this banner is no longer treated as its own
+ * confirmation; (d) deferred (not shown, flag not burned) while TutorialBanner is also showing.
  *
  * v0.6.0 F6 review fix (FIX 3, MAJOR): both showing the banner AND burning the `introSeen` flag are
  * deferred until UiModeSync's backend reconcile has settled (`useUiModeStore`'s `reconciled`, set by
@@ -26,51 +45,60 @@ import { useUiModeStore } from "../../lib/uiMode/uiModeStore";
  * re-checks `isSimple` on every render (not just inside the one-time effect) so a mode flip away from
  * SIMPLE - the reconcile itself, or the admin's own toggle - hides an already-visible banner live.
  */
-export function UiModeIntroBanner() {
+export function UiModeIntroBanner({ hasSeasons, deferForTutorial }: UiModeIntroBannerProps) {
   const isSimple = useIsSimpleMode();
   const reconciled = useUiModeStore((state) => state.reconciled);
-  const { setMode } = useUiMode();
+  const { requestAdvancedMode, confirmModal } = useConfirmedAdvancedMode();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    if (reconciled && isSimple && !hasSeenUiModeIntro()) {
+    if (deferForTutorial) {
+      return;
+    }
+    if (reconciled && isSimple && hasSeasons && !hasSeenUiModeIntro()) {
       markUiModeIntroSeen();
       setVisible(true);
     }
-  }, [reconciled, isSimple]);
+  }, [reconciled, isSimple, hasSeasons, deferForTutorial]);
 
-  if (!visible || !isSimple) {
-    return null;
-  }
+  // v0.6.0 audit-fix A2(c): `confirmModal` is rendered unconditionally below (NOT inside this
+  // early-return's gate) - dismissing the banner (`setVisible(false)`) must not unmount the confirm
+  // modal instance out from under a click that just opened it via `requestAdvancedMode()`.
+  const showAlert = visible && isSimple;
 
   return (
-    <Alert
-      color="blue"
-      variant="light"
-      title={sv.uiMode.intro.title}
-      withCloseButton
-      onClose={() => setVisible(false)}
-      data-testid="ui-mode-intro-banner"
-    >
-      <Text size="sm" mb="sm">
-        {sv.uiMode.intro.body}
-      </Text>
-      <Group gap="xs">
-        <Button size="xs" onClick={() => setVisible(false)} data-testid="ui-mode-intro-ok">
-          {sv.uiMode.intro.okButton}
-        </Button>
-        <Button
-          size="xs"
-          variant="default"
-          data-testid="ui-mode-intro-keep-advanced"
-          onClick={() => {
-            setMode("ADVANCED");
-            setVisible(false);
-          }}
+    <>
+      {showAlert && (
+        <Alert
+          color="blue"
+          variant="light"
+          title={sv.uiMode.intro.title}
+          withCloseButton
+          onClose={() => setVisible(false)}
+          data-testid="ui-mode-intro-banner"
         >
-          {sv.uiMode.intro.keepAdvancedButton}
-        </Button>
-      </Group>
-    </Alert>
+          <Text size="sm" mb="sm">
+            {sv.uiMode.intro.body}
+          </Text>
+          <Group gap="xs">
+            <Button size="xs" onClick={() => setVisible(false)} data-testid="ui-mode-intro-ok">
+              {sv.uiMode.intro.okButton}
+            </Button>
+            <Button
+              size="xs"
+              variant="default"
+              data-testid="ui-mode-intro-keep-advanced"
+              onClick={() => {
+                setVisible(false);
+                requestAdvancedMode();
+              }}
+            >
+              {sv.uiMode.intro.keepAdvancedButton}
+            </Button>
+          </Group>
+        </Alert>
+      )}
+      {confirmModal}
+    </>
   );
 }

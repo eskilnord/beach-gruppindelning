@@ -16,7 +16,8 @@ export function hasSeenUiModeIntro(): boolean {
 }
 
 /** Marks the intro as shown. Called the moment UiModeIntroBanner actually renders it (not on
- *  dismiss/"Behåll avancerat läge") - "shown at most once" means shown once, not acted on once. */
+ *  dismiss/"Visa alla inställningar (avancerat läge)") - "shown at most once" means shown once, not
+ *  acted on once. */
 export function markUiModeIntroSeen(): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, "1");

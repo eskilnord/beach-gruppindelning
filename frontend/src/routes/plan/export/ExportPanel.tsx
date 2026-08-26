@@ -9,7 +9,7 @@ import type { ExportFormat, ExportLayout } from "../../../api/types";
 import { AdvancedOnly, SimpleOnly } from "../../../components/uimode/AdvancedOnly";
 import { HelpTip } from "../../../components/HelpTip";
 import { sv } from "../../../i18n/sv";
-import { isGroupedLayoutDisabled, normalizeLayoutForFormat, showCommentsWarning } from "./exportForm";
+import { describeExportResult, isGroupedLayoutDisabled, normalizeLayoutForFormat, showCommentsWarning } from "./exportForm";
 import { SimpleSaveExportCard } from "./SimpleSaveExportCard";
 
 function showError(error: unknown, fallback: string) {
@@ -75,10 +75,14 @@ function ExportPanelAdvanced() {
     exportPlan.mutate(
       { format, layout, includeComments },
       {
-        onSuccess: (saved) => {
-          if (saved) {
-            notifications.show({ color: "green", message: sv.export.exportSuccess });
-          }
+        onSuccess: (result) => {
+          const notification = describeExportResult(result, {
+            downloaded: sv.export.exportSuccess,
+            savedGeneric: sv.export.exportSaved,
+            savedWithFilename: sv.export.exportSavedToDisk,
+            cancelled: sv.export.exportCancelled,
+          });
+          notifications.show({ color: notification.color, message: notification.message });
         },
         onError: (error) => showError(error, sv.export.exportFailed),
       },
@@ -87,10 +91,14 @@ function ExportPanelAdvanced() {
 
   const handleExportAnonymized = () => {
     exportAnonymized.mutate(anonymizedFormat, {
-      onSuccess: (saved) => {
-        if (saved) {
-          notifications.show({ color: "green", message: sv.export.anonymized.exportSuccess });
-        }
+      onSuccess: (result) => {
+        const notification = describeExportResult(result, {
+          downloaded: sv.export.anonymized.exportSuccess,
+          savedGeneric: sv.export.anonymized.exportSaved,
+          savedWithFilename: sv.export.anonymized.exportSavedToDisk,
+          cancelled: sv.export.exportCancelled,
+        });
+        notifications.show({ color: notification.color, message: notification.message });
       },
       onError: (error) => showError(error, sv.export.anonymized.exportFailed),
     });

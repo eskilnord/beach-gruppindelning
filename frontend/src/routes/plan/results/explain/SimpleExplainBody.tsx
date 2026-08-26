@@ -36,6 +36,33 @@ function isCoachFactor(factor: FactorView): boolean {
   return COACH_FACTOR_PATTERN.test(factor.messageSv);
 }
 
+/** v0.6.0 audit-fix batch C (C10, P1): the backend's `addLevelMatchFactor` (ExplanationService.java)
+ *  adds a RAW-NUMBERS sibling right behind its lay in-band sentence ("«Namn»s nivåscore 640,0 matchar
+ *  «Grupp»s nivåspann 600,0–690,0") - kept for ADVANCED (which renders the same `positiveFactors`
+ *  list in full), but SIMPLE must never show raw score numbers. No `key`/family field exists on
+ *  `FactorView` to filter this on DATA (same backend gap `isCoachFactor` above already documents),
+ *  so this is the same text-sniff fallback, matched against the one literal token every numeric
+ *  level-match sentence contains ("nivåscore" - never appears in any other factor's wording). */
+const LEVEL_NUMERIC_FACTOR_PATTERN = /nivåscore/;
+
+function isLevelNumericFactor(factor: FactorView): boolean {
+  return LEVEL_NUMERIC_FACTOR_PATTERN.test(factor.messageSv);
+}
+
+/** v0.6.0 audit-fix batch C (C12, P1): a defensive, DATA-independent backstop - even after the
+ *  backend's own C11 coach-genericization, some unmet-wish `primaryReasonSv` sentence could still
+ *  end up mentioning "tränar..." (e.g. a future OTHER-family narrative path this component can't
+ *  anticipate). Substituted with an honest, still-true generic sentence rather than silently hidden
+ *  (silence would misrepresent "we know why but won't say" as "we don't know why" - see truthfulness
+ *  rule) or shown verbatim (which could leak a coach name into SIMPLE). Backend follow-up noted: a
+ *  structured coach-flag on `UnmetWishView` would let this filter on data instead of text, same as
+ *  the `nonCoachUnmetWishes` filter below already does via `wishId`. */
+const TRAINER_MENTION_PATTERN = /tränar/i;
+
+function primaryReasonSvForSimple(wish: UnmetWishView): string {
+  return TRAINER_MENTION_PATTERN.test(wish.primaryReasonSv) ? sv.results.explain.simple.trainerReasonSubstitute : wish.primaryReasonSv;
+}
+
 interface SimpleExplainBodyProps {
   planId: string;
   data: PersonExplanationResponse;
@@ -73,8 +100,17 @@ export function SimpleExplainBody({ planId, data, allGroups, onTestMove }: Simpl
   // whose sentence is one of the backend's coach-wish templates (see isCoachFactor's own doc comment
   // above) before slicing for the "Visa fler" collapse.
   const nonCoachPositive = data.positiveFactors.filter((f) => !isCoachFactor(f));
-  const visiblePositive = showAllPositive ? nonCoachPositive : nonCoachPositive.slice(0, POSITIVE_FACTORS_COLLAPSE_AT);
-  const hasMorePositive = !showAllPositive && nonCoachPositive.length > POSITIVE_FACTORS_COLLAPSE_AT;
+  // v0.6.0 audit-fix batch C (C10, P1): `positiveFactors[0]` is, by construction of the backend's
+  // `placementSummarySv` (ExplanationService#placementSummarySv is built directly FROM it), always
+  // the exact fact already stated one sentence above in the "Därför hamnade hen här" summary -
+  // dropped here so it isn't repeated a second time in this list. When that lead fact is the in-band
+  // level-match, its raw-numbers sibling (kept for ADVANCED only, see isLevelNumericFactor's doc
+  // comment) lands right behind it - filtered out below regardless of position, so SIMPLE never
+  // shows a "triple repetition" (summary sentence, lay factor, numeric factor) of the same fact.
+  const afterSummaryFactors = selectedGroup && nonCoachPositive.length > 0 ? nonCoachPositive.slice(1) : nonCoachPositive;
+  const simplePositive = afterSummaryFactors.filter((f) => !isLevelNumericFactor(f));
+  const visiblePositive = showAllPositive ? simplePositive : simplePositive.slice(0, POSITIVE_FACTORS_COLLAPSE_AT);
+  const hasMorePositive = !showAllPositive && simplePositive.length > POSITIVE_FACTORS_COLLAPSE_AT;
 
   // v0.6.0 F5 review fix (FIX 1, BLOCKER): unmetWishes DOES carry a real, honest key to filter on -
   // CausalNarrator#wishId prefixes every COACH wish "COACH:<coachPersonSolverId>" (backend
@@ -123,7 +159,7 @@ export function SimpleExplainBody({ planId, data, allGroups, onTestMove }: Simpl
         // v0.6.0 F5 review fix (minor, waitlist heading level): WaitlistNarrative substitutes for
         // the headline (order 4) above in this branch - pass headingOrder={4} so its own section
         // heading matches, instead of the order-5 it defaults to as an embedded ADVANCED section.
-        data.waitlist && <WaitlistNarrative waitlist={data.waitlist} headingOrder={4} />
+        data.waitlist && <WaitlistNarrative waitlist={data.waitlist} name={data.name} headingOrder={4} />
       )}
 
       <div data-testid="explain-unmet-wishes">
@@ -141,6 +177,11 @@ export function SimpleExplainBody({ planId, data, allGroups, onTestMove }: Simpl
                 knownGroupIds={knownGroupIds}
                 onTestMove={handleTestMove}
                 onChangePriorityOrder={handleChangePriorityOrder}
+                // v0.6.0 audit-fix batch C (C14, P2): with exactly one unmet wish, there's no
+                // "which one first?" ambiguity a collapsed accordion would otherwise force an extra
+                // click through - open it by default so the answer to "what would it take?" is
+                // visible immediately.
+                defaultOpen={nonCoachUnmetWishes.length === 1}
               />
             ))}
           </Stack>
@@ -157,9 +198,12 @@ interface UnmetWishRowProps {
   knownGroupIds: Set<string>;
   onTestMove: (targetGroupId: string) => void;
   onChangePriorityOrder: () => void;
+  /** v0.6.0 audit-fix batch C (C14, P2): open the "Vad skulle krävas?" accordion without requiring a
+   *  click, when this is the ONLY unmet wish being shown (see SimpleExplainBody's call site). */
+  defaultOpen: boolean;
 }
 
-function UnmetWishRow({ wish, knownGroupIds, onTestMove, onChangePriorityOrder }: UnmetWishRowProps) {
+function UnmetWishRow({ wish, knownGroupIds, onTestMove, onChangePriorityOrder, defaultOpen }: UnmetWishRowProps) {
   const sensitivity = wish.prioritySensitivity;
   // v0.6.0 F5 review fix (FIX 2, MAJOR): "Ändra prioritetsordning" claims reordering priorities
   // would flip this outcome - offering that CTA without ALSO showing the caution that goes with it
@@ -175,56 +219,65 @@ function UnmetWishRow({ wish, knownGroupIds, onTestMove, onChangePriorityOrder }
       <Text size="sm" fw={600}>
         {wish.wishSv}
       </Text>
-      <Text size="sm">{wish.primaryReasonSv}</Text>
+      <Text size="sm">{primaryReasonSvForSimple(wish)}</Text>
       {wish.hedgeSv && (
-        <Text size="xs" c="dimmed">
+        // v0.6.0 audit-fix batch C (C13, P2): bumped from `size="xs"` to `size="sm"` - parity with
+        // primaryReasonSv above, which the hedge directly qualifies (a caveat on the main answer
+        // shouldn't read as a smaller-print footnote than the answer itself).
+        <Text size="sm" c="dimmed">
           {wish.hedgeSv}
         </Text>
       )}
-      <Accordion variant="separated" mt={4}>
-        <Accordion.Item value="sensitivity">
-          <Accordion.Control>{sv.results.explain.simple.whatWouldItTakeHeading}</Accordion.Control>
-          <Accordion.Panel>
-            {sensitivity?.available ? (
-              sensitivity.summarySv ? (
-                <Stack gap={4}>
-                  <Text size="sm">{sensitivity.summarySv}</Text>
-                  {/* v0.6.0 F5 review fix (FIX 2, MAJOR): rendered at the SAME size/weight as
-                   *  summarySv above (was `size="xs" c="dimmed"`, easy to miss) - a caution
-                   *  qualifying the answer just given deserves the same visual weight as that
-                   *  answer, not a footnote. */}
-                  {sensitivity.cautionSv && <Text size="sm">{sensitivity.cautionSv}</Text>}
-                  {(reorderHelps || canTestMove) && (
-                    <Group gap="xs" mt={4}>
-                      {reorderHelps && (
-                        <Button size="compact-xs" variant="light" onClick={onChangePriorityOrder}>
-                          {sv.results.explain.simple.changePriorityOrderButton}
-                        </Button>
-                      )}
-                      {canTestMove && (
-                        <Button size="compact-xs" variant="light" onClick={() => onTestMove(wish.bestCandidateGroupId!)}>
-                          {sv.results.explain.simple.testMoveButton}
-                        </Button>
-                      )}
-                    </Group>
-                  )}
-                </Stack>
+      {/* v0.6.0 audit-fix batch C (C14, P2, FIX-3 regression): `prioritySensitivity` absent/null
+       *  entirely (as opposed to present-but-`available:false`, which DOES still render below with
+       *  its own honest `unavailableReasonSv`) means the backend has nothing to say here at all - no
+       *  accordion control at all, rather than a control that opens onto an empty/broken panel. */}
+      {sensitivity != null && (
+        <Accordion variant="separated" mt={4} defaultValue={defaultOpen ? "sensitivity" : null}>
+          <Accordion.Item value="sensitivity">
+            <Accordion.Control>{sv.results.explain.simple.whatWouldItTakeHeading}</Accordion.Control>
+            <Accordion.Panel>
+              {sensitivity.available ? (
+                sensitivity.summarySv ? (
+                  <Stack gap={4}>
+                    <Text size="sm">{sensitivity.summarySv}</Text>
+                    {/* v0.6.0 F5 review fix (FIX 2, MAJOR): rendered at the SAME size/weight as
+                     *  summarySv above (was `size="xs" c="dimmed"`, easy to miss) - a caution
+                     *  qualifying the answer just given deserves the same visual weight as that
+                     *  answer, not a footnote. */}
+                    {sensitivity.cautionSv && <Text size="sm">{sensitivity.cautionSv}</Text>}
+                    {(reorderHelps || canTestMove) && (
+                      <Group gap="xs" mt={4}>
+                        {reorderHelps && (
+                          <Button size="compact-xs" variant="light" onClick={onChangePriorityOrder}>
+                            {sv.results.explain.simple.changePriorityOrderButton}
+                          </Button>
+                        )}
+                        {canTestMove && (
+                          <Button size="compact-xs" variant="light" onClick={() => onTestMove(wish.bestCandidateGroupId!)}>
+                            {sv.results.explain.simple.testMoveButton}
+                          </Button>
+                        )}
+                      </Group>
+                    )}
+                  </Stack>
+                ) : (
+                  // v0.6.0 F5 review fix (FIX 3, MAJOR): available === true but no summarySv (a
+                  // backend classification this component can't further explain) previously rendered
+                  // a blank panel - a neutral dimmed sentence instead of silence.
+                  <Text size="sm" c="dimmed">
+                    {sv.results.explain.simple.sensitivityUnknown}
+                  </Text>
+                )
               ) : (
-                // v0.6.0 F5 review fix (FIX 3, MAJOR): available === true but no summarySv (a
-                // backend classification this component can't further explain) previously rendered
-                // a blank panel - a neutral dimmed sentence instead of silence.
                 <Text size="sm" c="dimmed">
-                  {sv.results.explain.simple.sensitivityUnknown}
+                  {sensitivity.unavailableReasonSv}
                 </Text>
-              )
-            ) : (
-              <Text size="sm" c="dimmed">
-                {sensitivity?.unavailableReasonSv}
-              </Text>
-            )}
-          </Accordion.Panel>
-        </Accordion.Item>
-      </Accordion>
+              )}
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
+      )}
     </div>
   );
 }

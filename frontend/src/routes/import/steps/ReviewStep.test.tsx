@@ -57,7 +57,7 @@ describe("ReviewStep", () => {
     mockAnalysis(READY_ANALYSIS);
 
     renderWithProviders(
-      <ReviewStep planId={PLAN_ID} sessionId={SESSION_ID} onAdjust={() => {}} onExpired={() => {}} />,
+      <ReviewStep planId={PLAN_ID} sessionId={SESSION_ID} onAdjust={() => {}} onRestart={() => {}} onExpired={() => {}} />,
     );
 
     expect(await screen.findByRole("heading", { name: sv.importWizard.review.heading, level: 4 })).toBeInTheDocument();
@@ -75,7 +75,7 @@ describe("ReviewStep", () => {
 
     const onExpired = vi.fn();
     renderWithProviders(
-      <ReviewStep planId={PLAN_ID} sessionId={SESSION_ID} onAdjust={() => {}} onExpired={onExpired} />,
+      <ReviewStep planId={PLAN_ID} sessionId={SESSION_ID} onAdjust={() => {}} onRestart={() => {}} onExpired={onExpired} />,
     );
 
     expect(await screen.findByText(sv.importWizard.sessionExpired.title)).toBeInTheDocument();
@@ -93,7 +93,7 @@ describe("ReviewStep", () => {
 
     const user = userEvent.setup();
     renderWithProviders(
-      <ReviewStep planId={PLAN_ID} sessionId={SESSION_ID} onAdjust={() => {}} onExpired={() => {}} />,
+      <ReviewStep planId={PLAN_ID} sessionId={SESSION_ID} onAdjust={() => {}} onRestart={() => {}} onExpired={() => {}} />,
     );
 
     await user.click(await screen.findByRole("button", { name: sv.importWizard.review.importButton }));
@@ -111,7 +111,7 @@ describe("ReviewStep", () => {
 
     const user = userEvent.setup();
     renderWithProviders(
-      <ReviewStep planId={PLAN_ID} sessionId={SESSION_ID} onAdjust={() => {}} onExpired={() => {}} />,
+      <ReviewStep planId={PLAN_ID} sessionId={SESSION_ID} onAdjust={() => {}} onRestart={() => {}} onExpired={() => {}} />,
     );
 
     await user.click(await screen.findByRole("button", { name: sv.importWizard.review.importButton }));
@@ -124,7 +124,7 @@ describe("ReviewStep", () => {
 
     const onAdjust = vi.fn();
     renderWithProviders(
-      <ReviewStep planId={PLAN_ID} sessionId={SESSION_ID} onAdjust={onAdjust} onExpired={() => {}} />,
+      <ReviewStep planId={PLAN_ID} sessionId={SESSION_ID} onAdjust={onAdjust} onRestart={() => {}} onExpired={() => {}} />,
     );
 
     await waitFor(() => expect(onAdjust).toHaveBeenCalledTimes(1));

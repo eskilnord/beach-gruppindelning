@@ -267,6 +267,81 @@ describe("ResultsPanel SIMPLE mode - misplaced-hint search button", () => {
   });
 });
 
+// v0.6.0 audit-fix batch C (C5, P1, persona audit "Gunilla" - "groups first"): SIMPLE renders the
+// group-cards grid immediately after the summary strip, THEN ImprovementSuggestions/the
+// misplaced-hint card - previously the reverse. Asserted via DOM order (not presence alone) since
+// both blocks were already always mounted together; only their ORDER is new.
+describe("ResultsPanel SIMPLE mode - group cards render before suggestions (C5)", () => {
+  it("places the group card ahead of the improvement-suggestions card in the DOM", async () => {
+    mockEndpoints();
+    renderAtRoute(`/plans/${PLAN_ID}/resultat`);
+
+    const groupCard = await screen.findByTestId("group-card");
+    const suggestionsCard = await screen.findByTestId("improvement-suggestions");
+
+    // eslint-disable-next-line no-bitwise -- Node.compareDocumentPosition is bitmask-based by design.
+    expect(groupCard.compareDocumentPosition(suggestionsCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+// v0.6.0 audit-fix batch C (C7, P2, persona audit "Gunilla" - "Kölista card explains"): the plan
+// explanation's `waitlist[].reasonSv` (already fetched for this screen, see ResultsPanel.tsx's
+// `waitlistReasonByParticipantId`) is rendered directly on the waitlisted player's card row.
+describe("ResultsPanel - waitlist row shows reasonSv from the plan explanation (C7)", () => {
+  const WAITLISTED_PARTICIPANT_ID = "participant-waitlisted";
+  const WAITLISTED_PERSON: Person = {
+    id: "person-waitlisted",
+    firstName: "Erik",
+    lastName: "Eriksson",
+    displayName: "Erik Eriksson",
+    canBeParticipant: true,
+    canBeCoach: false,
+  };
+  const WAITLISTED_PARTICIPANT: ParticipantProfile = {
+    id: WAITLISTED_PARTICIPANT_ID,
+    personId: WAITLISTED_PERSON.id,
+    activityPlanId: PLAN_ID,
+    manualReviewFlag: false,
+    waitlisted: true,
+    reviewedDone: false,
+  };
+  const REASON_SV = "Ingen grupp hade en ledig plats som matchade Eriks önskade tid.";
+
+  function mockEndpointsWithWaitlistedPlayer() {
+    mockEndpoints();
+    server.use(
+      http.get(`/api/plans/${PLAN_ID}/participants`, () => HttpResponse.json([PARTICIPANT, WAITLISTED_PARTICIPANT])),
+      http.get("/api/persons", () => HttpResponse.json([PERSON, WAITLISTED_PERSON])),
+      http.get(`/api/plans/${PLAN_ID}/assignments`, () =>
+        HttpResponse.json<AssignmentsView>({
+          players: [
+            { id: "pa-1", participantProfileId: PARTICIPANT_ID, groupId: GROUP.id, locked: false, source: "solver" },
+            { id: "pa-2", participantProfileId: WAITLISTED_PARTICIPANT_ID, groupId: undefined, locked: false, source: "solver" },
+          ],
+          coaches: [],
+        }),
+      ),
+      http.get(`/api/plans/${PLAN_ID}/runs/${RUN_ID}/explanations/plan`, () =>
+        HttpResponse.json<PlanExplanationResponse>({
+          ...PLAN_EXPLANATION,
+          waitlist: [
+            { participantProfileId: WAITLISTED_PARTICIPANT_ID, name: WAITLISTED_PERSON.displayName!, priority: 1, reasonSv: REASON_SV },
+          ],
+        }),
+      ),
+    );
+  }
+
+  it("renders the waitlisted player's reasonSv on their card row, without any extra per-person fetch", async () => {
+    mockEndpointsWithWaitlistedPlayer();
+    renderAtRoute(`/plans/${PLAN_ID}/resultat`);
+
+    const waitlistCard = await screen.findByTestId("waitlist-card");
+    expect(within(waitlistCard).getByText(WAITLISTED_PERSON.displayName!)).toBeInTheDocument();
+    expect(within(waitlistCard).getByText(REASON_SV)).toBeInTheDocument();
+  });
+});
+
 // v0.6.0 F6 (M-S6) loose-ends fix, regression net: the v0.2.0 coach-less "note" (RunResultSummary
 // .note, e.g. "Inga tränare registrerade — grupperna optimerades utan tränartilldelning") is a coach
 // string - it must never render in SIMPLE mode (same rule as GroupCard's coach chip/rows,

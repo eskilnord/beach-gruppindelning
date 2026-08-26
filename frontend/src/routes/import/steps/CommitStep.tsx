@@ -10,6 +10,7 @@ import { ImportResultView } from "../ImportResultView";
 interface CommitStepProps {
   planId: string;
   sessionId: string;
+  onBack: () => void;
   onExpired: () => void;
 }
 
@@ -17,7 +18,7 @@ interface CommitStepProps {
  *  mall" name, commit button, then a result screen with counts + a link to the Deltagare tab. The
  *  backend deletes the session as part of a successful commit (ImportController#commit), so this
  *  step's own local `result` state — not the session — drives the result view afterwards. */
-export function CommitStep({ planId, sessionId, onExpired }: CommitStepProps) {
+export function CommitStep({ planId, sessionId, onBack, onExpired }: CommitStepProps) {
   const validation = useImportValidation(planId, sessionId);
   const commit = useCommitImport(planId, sessionId);
   const [templateName, setTemplateName] = useState("");
@@ -67,6 +68,9 @@ export function CommitStep({ planId, sessionId, onExpired }: CommitStepProps) {
         w={360}
       />
       <Group justify="flex-end">
+        <Button variant="default" onClick={onBack} disabled={commit.isPending}>
+          {sv.common.back}
+        </Button>
         <Button onClick={handleCommit} loading={commit.isPending}>
           {commit.isPending ? sv.importWizard.commit.committing : sv.importWizard.commit.submit}
         </Button>

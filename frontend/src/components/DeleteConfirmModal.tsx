@@ -15,6 +15,16 @@ interface DeleteConfirmModalProps {
    *  the "here's what this action does" explanation with the error text instead of showing both.
    *  Optional/omittable so every other caller (season/plan delete, WhatIfDialog, etc.) is unaffected. */
   errorMessage?: string | null;
+  /** v0.6.0 audit-fix A11 (additive): an optional extra line naming what actually gets deleted
+   *  along with the record itself - e.g. "12 deltagare, 3 grupper och 2 sparade versioner tas
+   *  bort." (PlanLayout.tsx) or the static "Alla planer i säsongen tas bort." (SeasonPage.tsx).
+   *  Omitted entirely when there's nothing more specific to say than `message` already does. */
+  detailsSv?: string;
+  /** v0.6.0 audit-fix B7 (import wizard's cancel dialog): overrides the close button's default
+   *  `sv.common.cancel` label - e.g. "Fortsätt importen" reads far less ambiguously than a bare
+   *  "Avbryt" next to a red "Kasta importen" confirm button. Every other caller is unaffected
+   *  (defaults to the previous behavior). */
+  cancelLabel?: string;
 }
 
 /** Generic Ta bort-confirmation dialog, reused for season and activity-plan deletion. */
@@ -27,6 +37,8 @@ export function DeleteConfirmModal({
   onConfirm,
   onClose,
   errorMessage,
+  detailsSv,
+  cancelLabel,
 }: DeleteConfirmModalProps) {
   return (
     <Modal opened={opened} onClose={onClose} title={title} centered>
@@ -35,10 +47,15 @@ export function DeleteConfirmModal({
           {errorMessage}
         </Alert>
       )}
-      <Text mb="lg">{message}</Text>
+      <Text mb={detailsSv ? 4 : "lg"}>{message}</Text>
+      {detailsSv && (
+        <Text size="sm" c="dimmed" mb="lg">
+          {detailsSv}
+        </Text>
+      )}
       <Group justify="flex-end">
         <Button variant="default" onClick={onClose} disabled={loading}>
-          {sv.common.cancel}
+          {cancelLabel ?? sv.common.cancel}
         </Button>
         <Button color="red" onClick={onConfirm} loading={loading}>
           {confirmLabel}

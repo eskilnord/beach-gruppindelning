@@ -11,8 +11,9 @@ export interface ExportPlanRequest {
 
 /** "Exportera" (spec §20): downloads the plan's export file and hands it to platform.ts's
  *  saveFile (anchor download in browser, native save dialog in Tauri). Not a `useQuery` - each click
- *  is a one-shot download, nothing to cache/invalidate. Resolves to whether the file was actually
- *  written (false if the user cancelled the Tauri save dialog). */
+ *  is a one-shot download, nothing to cache/invalidate. Resolves to saveFile's own SaveFileResult
+ *  (saved/isTauriSave/filename - see platform.ts's doc comment) so callers can show truthful,
+ *  mode-aware feedback instead of a single unconditional "success" message. */
 export function useExportPlan(planId: string) {
   return useMutation({
     mutationFn: async ({ format, layout, includeComments }: ExportPlanRequest) => {

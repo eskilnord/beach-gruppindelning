@@ -1,10 +1,11 @@
-import { Button, Group, Modal, Stack, TextInput } from "@mantine/core";
+import { Button, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import dayjs from "dayjs";
 import { useCreateSeason } from "../../api/seasons";
-import { ApiError } from "../../api/client";
+import { userErrorText, technicalErrorDetail } from "../../lib/errorText";
+import { AdvancedOnly } from "../../components/uimode/AdvancedOnly";
 import { sv } from "../../i18n/sv";
 
 interface CreateSeasonModalProps {
@@ -47,10 +48,20 @@ export function CreateSeasonModal({ opened, onClose, onCreated }: CreateSeasonMo
       form.reset();
       onCreated(created.id);
     } catch (error) {
+      const technical = technicalErrorDetail(error);
       notifications.show({
         color: "red",
         title: sv.common.error,
-        message: error instanceof ApiError ? error.message : sv.createSeasonModal.createFailed,
+        message: (
+          <Stack gap={2}>
+            <Text size="sm">{userErrorText(error, sv.createSeasonModal.createFailed)}</Text>
+            {technical && (
+              <Text size="xs" c="dimmed">
+                {sv.common.technicalInfo(technical)}
+              </Text>
+            )}
+          </Stack>
+        ),
       });
     }
   });
@@ -66,18 +77,22 @@ export function CreateSeasonModal({ opened, onClose, onCreated }: CreateSeasonMo
             data-autofocus
             {...form.getInputProps("name")}
           />
-          <DateInput
-            label={sv.createSeasonModal.startDateLabel}
-            valueFormat="YYYY-MM-DD"
-            clearable
-            {...form.getInputProps("startDate")}
-          />
-          <DateInput
-            label={sv.createSeasonModal.endDateLabel}
-            valueFormat="YYYY-MM-DD"
-            clearable
-            {...form.getInputProps("endDate")}
-          />
+          {/* v0.6.0 audit-fix A12: the backend accepts an absent start/end date - SIMPLE mode hides
+              these two optional fields entirely, keeping the form to just the required name. */}
+          <AdvancedOnly>
+            <DateInput
+              label={sv.createSeasonModal.startDateLabel}
+              valueFormat="YYYY-MM-DD"
+              clearable
+              {...form.getInputProps("startDate")}
+            />
+            <DateInput
+              label={sv.createSeasonModal.endDateLabel}
+              valueFormat="YYYY-MM-DD"
+              clearable
+              {...form.getInputProps("endDate")}
+            />
+          </AdvancedOnly>
           <Group justify="flex-end" mt="md">
             <Button variant="default" onClick={handleClose}>
               {sv.common.cancel}

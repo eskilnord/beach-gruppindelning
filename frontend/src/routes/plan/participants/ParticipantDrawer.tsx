@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { MutableRefObject } from "react";
 import {
   Alert,
   Badge,
@@ -7,8 +8,8 @@ import {
   Drawer,
   Group,
   Loader,
+  Modal,
   NumberInput,
-  ScrollArea,
   SimpleGrid,
   Stack,
   Switch,
@@ -49,10 +50,20 @@ interface ParticipantDrawerProps {
  * rendered by field type.
  */
 export function ParticipantDrawer({ planId, participant, allParticipants, onClose }: ParticipantDrawerProps) {
+  // B17 (v0.6.0 audit-fix batch B, P1): Mantine's Drawer calls `onClose` for BOTH an overlay click
+  // and Escape, same as the "Stäng" button below calling it directly - all three need to go through
+  // the SAME unsaved-changes guard. That guard's state (isDirty, handleSave, discard) lives inside
+  // ParticipantDrawerBody (only mounted while a participant is selected), so this is a "latest ref"
+  // (same pattern as Body's own customDraftRef/originalCustomRef): Body keeps it pointed at its
+  // current `attemptClose` every render; the Drawer just calls through it. The no-op default is only
+  // ever reachable before a participant is first selected (Drawer isn't open yet, so its onClose
+  // can't fire) or during the unmount tick right after Body itself has already called onClose.
+  const requestCloseRef: MutableRefObject<() => void> = useRef(() => {});
+
   return (
     <Drawer
       opened={participant !== null}
-      onClose={onClose}
+      onClose={() => requestCloseRef.current()}
       position="right"
       size="xl"
       title={
@@ -78,6 +89,7 @@ export function ParticipantDrawer({ planId, participant, allParticipants, onClos
           participant={participant}
           allParticipants={allParticipants}
           onClose={onClose}
+          requestCloseRef={requestCloseRef}
         />
       )}
     </Drawer>
@@ -119,9 +131,12 @@ interface ParticipantDrawerBodyProps {
   participant: ParticipantRow;
   allParticipants: ParticipantRow[];
   onClose: () => void;
+  /** B17: the outer ParticipantDrawer's "latest ref" the Drawer's own overlay-click/Escape onClose
+   *  calls through - see its doc comment above. */
+  requestCloseRef: MutableRefObject<() => void>;
 }
 
-function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }: ParticipantDrawerBodyProps) {
+function ParticipantDrawerBody({ planId, participant, allParticipants, onClose, requestCloseRef }: ParticipantDrawerBodyProps) {
   const fieldDefinitions = useFieldDefinitions(planId);
   const fieldValues = useParticipantFieldValues(planId, participant.id);
   const updateParticipant = useUpdateParticipant(planId);
@@ -191,9 +206,15 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
   const structuredChanges = diff(structuredDraft, originalStructured);
   const customChanges = diff(customDraft, originalCustom);
   const isDirty = Object.keys(structuredChanges).length > 0 || Object.keys(customChanges).length > 0;
+  // B18.8 (v0.6.0 audit-fix batch B): whether previousGroupName specifically has an unsaved edit -
+  // previousGroupOrderParsed below is always computed from the SAVED value, so it can silently
+  // diverge from what's currently typed while this is true.
+  const previousGroupNameDirty = Object.prototype.hasOwnProperty.call(structuredChanges, "previousGroupName");
 
   const hasComment = Boolean(participant.importedComment && participant.importedComment.trim().length > 0);
   const hasInternalNoteOriginally = Boolean(participant.internalNote && participant.internalNote.trim().length > 0);
+
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
 
   /**
    * WP3 ("Spara och markera som färdig"): `doneOverride` is applied AFTER the normal save chain
@@ -203,8 +224,11 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
    * "Klarmarkerad": the flag only flips once everything else the button also saved is confirmed
    * persisted. That trailing PATCH is itself revision-bump-exempt (see ParticipantProfileController).
    * Plain "Spara" (no override) never touches the flag - sticky done.
+   *
+   * B17: returns whether the save actually succeeded, so the unsaved-changes-close guard's own
+   * "Spara" action (handleConfirmSave below) knows whether it's safe to also close the drawer.
    */
-  const handleSave = async (doneOverride?: boolean) => {
+  const handleSave = async (doneOverride?: boolean): Promise<boolean> => {
     setSaving(true);
     try {
       if (Object.keys(structuredChanges).length > 0) {
@@ -219,15 +243,51 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
       setOriginalStructured(structuredDraft);
       setOriginalCustom(customDraft);
       notifications.show({ color: "green", message: sv.participants.drawer.saveSuccess });
+      return true;
     } catch (error) {
       notifications.show({
         color: "red",
         title: sv.common.error,
         message: error instanceof ApiError ? error.message : sv.participants.drawer.saveFailed,
       });
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  /**
+   * B17 (v0.6.0 audit-fix batch B, P1): the single gate every close attempt (the "Stäng" button, an
+   * overlay click, and Escape - see requestCloseRef's doc comment on the outer ParticipantDrawer)
+   * funnels through. Closes immediately when there's nothing unsaved; otherwise shows the three-way
+   * confirmation instead of closing.
+   */
+  const attemptClose = () => {
+    if (isDirty) {
+      setConfirmCloseOpen(true);
+      return;
+    }
+    onClose();
+  };
+  // Latest-ref pattern (same as customDraftRef/originalCustomRef above): isDirty changes on every
+  // keystroke, so this is re-pointed every render rather than captured once.
+  requestCloseRef.current = attemptClose;
+
+  const handleConfirmSave = async () => {
+    const success = await handleSave();
+    setConfirmCloseOpen(false);
+    if (success) {
+      onClose();
+    }
+    // On failure the save's own red notification already explains why; leave the drawer open (still
+    // dirty) so the admin can retry rather than silently discarding their edits.
+  };
+
+  const handleConfirmDiscard = () => {
+    setStructuredDraft(originalStructured);
+    setCustomDraft(originalCustom);
+    setConfirmCloseOpen(false);
+    onClose();
   };
 
   const handleDeleteComments = () => {
@@ -255,9 +315,13 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
         <Stack gap="sm">
           <Group justify="space-between">
             <Title order={5}>{sv.participants.drawer.commentsHeading}</Title>
-            <Badge color="orange" variant="light">
-              {sv.participants.drawer.sensitiveBadge}
-            </Badge>
+            {/* B18.9 (v0.6.0 audit-fix batch B): only meaningful when there's actually a comment to
+                flag as sensitive - previously rendered unconditionally, even with none. */}
+            {hasComment && (
+              <Badge color="orange" variant="light">
+                {sv.participants.drawer.sensitiveBadge}
+              </Badge>
+            )}
           </Group>
 
           <div>
@@ -275,7 +339,14 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
             autosize
             minRows={3}
             value={structuredDraft.internalNote}
-            onChange={(event) => setStructuredDraft((prev) => ({ ...prev, internalNote: event.currentTarget.value }))}
+            onChange={(event) => {
+              // Read the primitive out of the event BEFORE calling setState: React's dev-mode
+              // functional-updater purity check can invoke this updater a second time on a later
+              // render, by which point the SyntheticEvent's own fields (currentTarget included) have
+              // already been released - reading it inside the updater closure crashes intermittently.
+              const value = event.currentTarget.value;
+              setStructuredDraft((prev) => ({ ...prev, internalNote: value }));
+            }}
           />
 
           <Button
@@ -305,6 +376,7 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
 
           <NumberInput
             label={sv.participants.drawer.manualLevelScoreLabel}
+            description={sv.participants.drawer.manualLevelScoreDescription}
             value={structuredDraft.manualLevelScore ?? ""}
             onChange={(value) =>
               setStructuredDraft((prev) => ({ ...prev, manualLevelScore: value === "" ? null : Number(value) }))
@@ -313,12 +385,12 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
           <TextInput
             label={sv.participants.drawer.previousGroupNameLabel}
             value={structuredDraft.previousGroupName ?? ""}
-            onChange={(event) =>
-              setStructuredDraft((prev) => ({
-                ...prev,
-                previousGroupName: event.currentTarget.value === "" ? null : event.currentTarget.value,
-              }))
-            }
+            onChange={(event) => {
+              // See internalNoteLabel's Textarea above for why the value is read out here, not
+              // inside the updater closure.
+              const value = event.currentTarget.value;
+              setStructuredDraft((prev) => ({ ...prev, previousGroupName: value === "" ? null : value }));
+            }}
           />
           {/* v0.6.0 F4 (M-S4): the solver's own trailing-integer parse of previousGroupName, when the
               backend exposes it (see api/types.ts's ParticipantProfile doc - additive/nullable ahead
@@ -328,6 +400,9 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
           {participant.previousGroupOrder != null && (
             <Text size="xs" c="dimmed" data-testid="previous-group-order-hint">
               {sv.participants.drawer.previousGroupOrderParsed(participant.previousGroupOrder)}
+              {/* B18.8: only while previousGroupName has an unsaved edit - otherwise the hint's own
+                  "parsed from the saved value" framing is implicit and this would be noise. */}
+              {previousGroupNameDirty && ` ${sv.participants.drawer.previousGroupSavedValueNote}`}
             </Text>
           )}
           {participant.previousGroupParseWarning && (
@@ -344,15 +419,23 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
           />
           <Switch
             label={sv.participants.drawer.waitlistedLabel}
+            description={sv.participants.drawer.waitlistedDescription}
             checked={structuredDraft.waitlisted}
-            onChange={(event) => setStructuredDraft((prev) => ({ ...prev, waitlisted: event.currentTarget.checked }))}
+            onChange={(event) => {
+              // See internalNoteLabel's Textarea above for why the value is read out here, not
+              // inside the updater closure.
+              const checked = event.currentTarget.checked;
+              setStructuredDraft((prev) => ({ ...prev, waitlisted: checked }));
+            }}
           />
           <Switch
             label={sv.participants.drawer.manualReviewFlagLabel}
+            description={sv.participants.drawer.manualReviewFlagDescription}
             checked={structuredDraft.manualReviewFlag}
-            onChange={(event) =>
-              setStructuredDraft((prev) => ({ ...prev, manualReviewFlag: event.currentTarget.checked }))
-            }
+            onChange={(event) => {
+              const checked = event.currentTarget.checked;
+              setStructuredDraft((prev) => ({ ...prev, manualReviewFlag: checked }));
+            }}
           />
         </Stack>
       </SimpleGrid>
@@ -370,28 +453,30 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
 
       {/* Wait for time slots too: rendering a timeRelation editor before the slot list arrives
           would momentarily show valid stored values as "invalid" (filtered + dimmed note). */}
+      {/* B18.10 (v0.6.0 audit-fix batch B): this used to be wrapped in a ScrollArea.Autosize with a
+          fixed mah={320}, which clipped its own inner region separately from the drawer's outer
+          scroll - a walkthrough-proven overlap bug. No inner scroll region anymore; the whole
+          Drawer.Body (Mantine's own overflow-y: auto) scrolls as one. */}
       {fieldValues.data && !timeSlots.isLoading && (
-        <ScrollArea.Autosize mah={320}>
-          <SimpleGrid cols={2} spacing="md">
-            {fieldValues.data.map((fv) => (
-              <CustomFieldEditor
-                key={fv.key}
-                fieldValue={fv}
-                definition={fieldDefinitions.data?.find((def) => def.id === fv.fieldDefinitionId)}
-                value={customDraft[fv.key] ?? null}
-                onChange={(value) => setCustomDraft((prev) => ({ ...prev, [fv.key]: value }))}
-                participants={allParticipants}
-                coaches={coachOptions}
-                timeSlots={timeSlots.data ?? []}
-                selfId={participant.id}
-              />
-            ))}
-          </SimpleGrid>
-        </ScrollArea.Autosize>
+        <SimpleGrid cols={2} spacing="md">
+          {fieldValues.data.map((fv) => (
+            <CustomFieldEditor
+              key={fv.key}
+              fieldValue={fv}
+              definition={fieldDefinitions.data?.find((def) => def.id === fv.fieldDefinitionId)}
+              value={customDraft[fv.key] ?? null}
+              onChange={(value) => setCustomDraft((prev) => ({ ...prev, [fv.key]: value }))}
+              participants={allParticipants}
+              coaches={coachOptions}
+              timeSlots={timeSlots.data ?? []}
+              selfId={participant.id}
+            />
+          ))}
+        </SimpleGrid>
       )}
 
       <Group justify="flex-end">
-        <Button variant="default" onClick={onClose}>
+        <Button variant="default" onClick={attemptClose}>
           {sv.participants.drawer.closeButton}
         </Button>
         <Button onClick={() => handleSave()} disabled={!isDirty} loading={saving}>
@@ -417,6 +502,30 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
         onClose={() => setDeleteCommentsOpen(false)}
         onConfirm={handleDeleteComments}
       />
+
+      {/* B17 (v0.6.0 audit-fix batch B, P1): the unsaved-changes close guard - see attemptClose's own
+          doc comment above for what funnels into this. Three actions, not the usual confirm/cancel
+          pair: Spara (save then close), Släng ändringar (discard then close), Fortsätt redigera
+          (cancel - stays open, no data change). */}
+      <Modal
+        opened={confirmCloseOpen}
+        onClose={() => setConfirmCloseOpen(false)}
+        title={sv.participants.drawer.unsavedChangesModal.title}
+        centered
+      >
+        <Text mb="lg">{sv.participants.drawer.unsavedChangesModal.message}</Text>
+        <Group justify="flex-end">
+          <Button variant="default" onClick={() => setConfirmCloseOpen(false)}>
+            {sv.participants.drawer.unsavedChangesModal.continueEditing}
+          </Button>
+          <Button color="red" variant="outline" onClick={handleConfirmDiscard}>
+            {sv.participants.drawer.unsavedChangesModal.discard}
+          </Button>
+          <Button onClick={() => void handleConfirmSave()} loading={saving}>
+            {sv.participants.drawer.unsavedChangesModal.save}
+          </Button>
+        </Group>
+      </Modal>
     </Stack>
   );
 }

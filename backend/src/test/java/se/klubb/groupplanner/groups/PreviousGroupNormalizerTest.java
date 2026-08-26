@@ -212,6 +212,7 @@ class PreviousGroupNormalizerTest {
     @Test
     void parseWarningSvNamesTheUnparsableValueInSwedish() {
         assertThat(PreviousGroupNormalizer.parseWarningSv("Nybörjargrupp")).isEqualTo(
-                "Tidigare grupp \"Nybörjargrupp\" kunde inte tolkas till en gruppnivå – kontinuitet används inte för denna rad");
+                "Tidigare grupp \"Nybörjargrupp\" kunde inte tolkas som en grupp — den här deltagaren får ingen "
+                        + "fördel av sin tidigare grupp. Du kan fylla i det för hand under Deltagare.");
     }
 }

@@ -464,7 +464,8 @@ class ParticipantProfileControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.previousGroupOrder").doesNotExist())
                 .andExpect(jsonPath("$.previousGroupParseWarning").value(
-                        "Tidigare grupp \"Nybörjargrupp\" kunde inte tolkas till en gruppnivå – kontinuitet används inte för denna rad"));
+                        "Tidigare grupp \"Nybörjargrupp\" kunde inte tolkas som en grupp — den här deltagaren får "
+                                + "ingen fördel av sin tidigare grupp. Du kan fylla i det för hand under Deltagare."));
 
         // FIX4: a pipe-separated history string is stored VERBATIM (no write-side collapsing) - but
         // previousGroupOrder is still derived from the NEWEST segment, since PreviousGroupNormalizer

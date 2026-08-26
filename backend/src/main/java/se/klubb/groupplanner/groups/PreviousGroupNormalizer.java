@@ -212,7 +212,11 @@ public final class PreviousGroupNormalizer {
         if (ref != null && ref.groupOrder() != null) {
             return null;
         }
-        return "Tidigare grupp \"" + raw + "\" kunde inte tolkas till en gruppnivå – kontinuitet används inte för denna rad";
+        // v0.6.0 audit-fix B8: names the concrete consequence (no continuity benefit) instead of the
+        // more abstract "kontinuitet används inte", and tells the admin exactly where to fix it by
+        // hand (Deltagare) rather than leaving a dead end.
+        return "Tidigare grupp \"" + raw + "\" kunde inte tolkas som en grupp — den här deltagaren får ingen "
+                + "fördel av sin tidigare grupp. Du kan fylla i det för hand under Deltagare.";
     }
 
     /**

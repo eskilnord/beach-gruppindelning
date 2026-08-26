@@ -182,6 +182,53 @@ describe("PriorityRankList", () => {
     });
   });
 
+  // v0.6.0 audit batch D (D3): the static, per-POSITION sentence rendered under each row.
+  it("renders sv.simple.priorities.rankMeaning[index] under each row, keyed by POSITION not priority", () => {
+    renderList();
+
+    sv.simple.priorities.rankMeaning.forEach((sentence, index) => {
+      expect(within(rowAt(index)).getByTestId("priority-rank-meaning")).toHaveTextContent(sentence);
+    });
+  });
+
+  it("the per-position sentence moves WITH the row when it changes position", () => {
+    const { rerender } = render(
+      <MantineProvider>
+        <PriorityRankList order={ORDER} priorities={PRIORITIES} onMove={vi.fn()} onReorder={vi.fn()} />
+      </MantineProvider>,
+    );
+
+    // LEVEL starts at index 3 (rank 4) - "Vägs in sist."
+    expect(within(rowAt(3)).getByTestId("priority-rank-meaning")).toHaveTextContent(sv.simple.priorities.rankMeaning[3]);
+
+    const reordered: PriorityKey[] = ["LEVEL", "TRAIN_TOGETHER", "PREVIOUS_GROUP", "PREFERRED_TIME"];
+    rerender(
+      <MantineProvider>
+        <PriorityRankList order={reordered} priorities={PRIORITIES} onMove={vi.fn()} onReorder={vi.fn()} />
+      </MantineProvider>,
+    );
+
+    // LEVEL is now at index 0 (rank 1) - the sentence describes the POSITION, so it's now
+    // rankMeaning[0] ("Väger tyngst av allt."), not the rankMeaning[3] it had before the move.
+    const levelRow = rowAt(0);
+    expect(levelRow).toHaveAttribute("data-priority-key", "LEVEL");
+    expect(within(levelRow).getByTestId("priority-rank-meaning")).toHaveTextContent(sv.simple.priorities.rankMeaning[0]);
+  });
+
+  // v0.6.0 audit batch D (D4): the arrow buttons get tooltips (not just aria-label).
+  it("shows a tooltip on the up-arrow matching its accessible name", async () => {
+    const user = userEvent.setup();
+    renderList();
+
+    const firstRow = rowAt(1);
+    const upButton = within(firstRow).getByRole("button", {
+      name: sv.simple.priorities.moveUpAriaLabel("Fortsätta i samma grupp"),
+    });
+    await user.hover(upButton);
+
+    expect(await screen.findAllByText(sv.simple.priorities.moveUpAriaLabel("Fortsätta i samma grupp"))).not.toHaveLength(0);
+  });
+
   // v0.6.0 F3 review fix (a11y, FIX 10 MINOR): clicking the up-arrow on the row that becomes rank 1
   // disables that very button - focus must hand off to the sibling (down) arrow rather than being
   // dropped to <body>.

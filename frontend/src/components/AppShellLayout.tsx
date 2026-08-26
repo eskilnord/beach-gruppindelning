@@ -48,12 +48,15 @@ export function AppShellLayout() {
           </Group>
           <Group gap="xs">
             {isAdvanced && (
+              // v0.6.0 audit-fix A7: variant="outline" (not the pill-like "light") so this reads as
+              // a clickable button, not a passive status label - text now names the action it
+              // performs ("Till enkelt läge"), matching. aria-label unchanged.
               <Tooltip label={sv.uiMode.backToSimpleTooltip}>
                 <Badge
                   component="button"
                   type="button"
                   size="sm"
-                  variant="light"
+                  variant="outline"
                   color="gray"
                   style={{ cursor: "pointer" }}
                   onClick={() => setMode("SIMPLE")}

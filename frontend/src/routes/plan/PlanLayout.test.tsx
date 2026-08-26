@@ -63,21 +63,27 @@ function renderPlanLayout(initialPath: string, uiMode: UiMode) {
   );
 }
 
+/** v0.6.0 audit-fix A11: PlanLayout itself now fires participants/groups/saved-plans GETs
+ *  unconditionally (in both modes) to build the delete-plan confirm's "N deltagare, M grupper och K
+ *  sparade versioner tas bort." line - mocked here so every test in this file has them covered,
+ *  same as plan/season already were. */
 function mockPlan() {
   server.use(
     http.get(`/api/plans/${PLAN_ID}`, () => HttpResponse.json(PLAN)),
     http.get(`/api/seasons/${SEASON_ID}`, () => HttpResponse.json(SEASON)),
+    http.get(`/api/plans/${PLAN_ID}/participants`, () => HttpResponse.json([])),
+    http.get(`/api/plans/${PLAN_ID}/groups`, () => HttpResponse.json([])),
+    http.get(`/api/plans/${PLAN_ID}/saved-plans`, () => HttpResponse.json([])),
   );
 }
 
-/** Simple-mode-only chrome (PlanSimpleStepper) fires these four cheap GETs - see
- *  PlanSimpleStepper.tsx's doc comment. */
+/** Simple-mode-only chrome (PlanSimpleStepper) fires these cheap GETs - see PlanSimpleStepper.tsx's
+ *  doc comment. `training-blocks` (v0.6.0 audit-fix A8) replaced `time-slots` as the Tider step's
+ *  source (active COURT count, not slot count). */
 function mockSimpleStepData() {
   server.use(
-    http.get(`/api/plans/${PLAN_ID}/participants`, () => HttpResponse.json([])),
-    http.get(`/api/plans/${PLAN_ID}/time-slots`, () => HttpResponse.json([])),
+    http.get(`/api/plans/${PLAN_ID}/training-blocks`, () => HttpResponse.json([])),
     http.get(`/api/plans/${PLAN_ID}/runs`, () => HttpResponse.json([])),
-    http.get(`/api/plans/${PLAN_ID}/saved-plans`, () => HttpResponse.json([])),
   );
 }
 
@@ -101,6 +107,26 @@ describe("PlanLayout - ADVANCED mode (unchanged)", () => {
     expect(screen.getByRole("button", { name: sv.plan.deleteButton })).toBeInTheDocument();
     expect(screen.getByText(PLAN.status)).toBeInTheDocument();
     expect(screen.queryByTestId("plan-header-menu-button")).not.toBeInTheDocument();
+  });
+
+  // v0.6.0 audit-fix A11: the delete-plan confirm now names what actually gets deleted, joined from
+  // whichever of participants/groups/saved-plans are already loaded.
+  it("delete-plan confirm names the cargo (participants, groups, saved plans)", async () => {
+    server.use(
+      http.get(`/api/plans/${PLAN_ID}`, () => HttpResponse.json(PLAN)),
+      http.get(`/api/seasons/${SEASON_ID}`, () => HttpResponse.json(SEASON)),
+      http.get(`/api/plans/${PLAN_ID}/participants`, () => HttpResponse.json([{ id: "p1" }, { id: "p2" }, { id: "p3" }])),
+      http.get(`/api/plans/${PLAN_ID}/groups`, () => HttpResponse.json([{ id: "g1" }, { id: "g2" }])),
+      http.get(`/api/plans/${PLAN_ID}/saved-plans`, () => HttpResponse.json([{ id: "sp1" }])),
+    );
+    const user = userEvent.setup();
+    renderPlanLayout(`/plans/${PLAN_ID}/deltagare`, "ADVANCED");
+
+    await user.click(await screen.findByRole("button", { name: sv.plan.deleteButton }));
+
+    expect(
+      await screen.findByText(sv.deletePlanModal.detailsSuffix("3 deltagare, 2 grupper och 1 sparad version")),
+    ).toBeInTheDocument();
   });
 });
 
@@ -167,5 +193,36 @@ describe("PlanLayout - SIMPLE mode", () => {
     expect(await screen.findByText("export-outlet")).toBeInTheDocument();
     expect(screen.getByTestId("simple-step-back")).toBeInTheDocument();
     expect(screen.queryByTestId("simple-step-next")).not.toBeInTheDocument();
+  });
+
+  // v0.6.0 audit-fix A1 (walkthrough-proven: the sticky footer used to overlay and swallow clicks
+  // on the last content row of every step): the Outlet wrapper reserves the footer's own height as
+  // bottom padding whenever the footer actually renders, and drops it again the instant it doesn't.
+  it("reserves the sticky footer's height as bottom padding on a step route, and not on a non-step route", async () => {
+    mockPlan();
+    mockSimpleStepData();
+    renderPlanLayout(`/plans/${PLAN_ID}/deltagare`, "SIMPLE");
+
+    const stepOutlet = await screen.findByText("deltagare-outlet");
+    expect(stepOutlet.parentElement).toHaveStyle({ paddingBottom: "84px" });
+  });
+
+  it("does not reserve bottom padding on a non-step route (falt), matching the footer's own absence", async () => {
+    mockPlan();
+    mockSimpleStepData();
+    renderPlanLayout(`/plans/${PLAN_ID}/falt`, "SIMPLE");
+
+    const nonStepOutlet = await screen.findByText("falt-outlet");
+    expect(nonStepOutlet.parentElement).not.toHaveStyle({ paddingBottom: "84px" });
+  });
+
+  // v0.6.0 audit-fix A1: "Nästa" demoted from the filled primary button to variant="default" -
+  // Mantine's `data-variant` attribute on the rendered <button> pins this.
+  it("'Nästa' renders as a default (not filled/primary) button", async () => {
+    mockPlan();
+    mockSimpleStepData();
+    renderPlanLayout(`/plans/${PLAN_ID}/deltagare`, "SIMPLE");
+
+    expect(await screen.findByTestId("simple-step-next")).toHaveAttribute("data-variant", "default");
   });
 });

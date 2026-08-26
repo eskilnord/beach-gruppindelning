@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { Alert, Anchor, Button, Card, Group, List, Loader, Progress, Stack, Text, Title, Tooltip } from "@mantine/core";
+import { Alert, Anchor, Button, Card, Group, List, Loader, Modal, Progress, Stack, Text, Title, Tooltip } from "@mantine/core";
 import { IconAlertCircle, IconCircleCheck } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { ApiError } from "../../../api/client";
@@ -97,6 +97,10 @@ export function OptimizePanelSimple() {
   const liveSolution = useLiveSolution(planId, running);
 
   const [starting, setStarting] = useState(false);
+  // v0.6.0 audit fix C2 (walkthrough-proven "outcome invisibility"): shown BEFORE handleCreateGroups
+  // actually fires, only when there's a previous run AND the groups are stale - see the button's
+  // onClick below.
+  const [confirmRerunOpen, setConfirmRerunOpen] = useState(false);
 
   // v0.6.0 F4 review fix (FIX 1, minor "lastRun framing"): true once THIS mount has actually kicked
   // off a solve - drives whether the outcome card below leads with "Senast körd: …" (a run from a
@@ -120,6 +124,22 @@ export function OptimizePanelSimple() {
     }
     previousStatusRef.current = current;
   }, [status?.status, planId, queryClient]);
+
+  // v0.6.0 audit fix C2 (walkthrough-proven "outcome invisibility + re-run trap"): scrolls the
+  // outcome card into view exactly ONCE per settled run, the moment `running` flips false and a run
+  // is present (every settled run - failed/cancelled/infeasible/waitlisted/success - gets an
+  // outcomeColor, so this condition is equivalent to "the outcome card is about to render"). Keyed
+  // on the run's own id (not a plain boolean) so a brand-new run settling later scrolls again, but a
+  // re-render of an ALREADY-scrolled-to run never does.
+  const settledRunId = !running ? runs.data?.[0]?.id : undefined;
+  const scrolledRunIdRef = useRef<string | null>(null);
+  const outcomeCardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (settledRunId && scrolledRunIdRef.current !== settledRunId) {
+      scrolledRunIdRef.current = settledRunId;
+      outcomeCardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [settledRunId]);
 
   if (!planId) {
     return null;
@@ -229,10 +249,32 @@ export function OptimizePanelSimple() {
   const latestRun = runs.data?.[0];
   const latestSummary = latestRun ? parseResultSummary(latestRun) : null;
 
+  // v0.6.0 audit fix C2: the button's own onClick - only interposes the confirm modal when there IS
+  // a previous run (a re-run) AND the groups are actually stale (re-running would regenerate/discard
+  // manual placements); a first-time "Skapa grupper" click on an empty plan never shows this modal.
+  const handleButtonClick = () => {
+    if (latestRun && !running && syncStatus.data?.stale) {
+      setConfirmRerunOpen(true);
+      return;
+    }
+    void handleCreateGroups();
+  };
+
+  const handleConfirmRerun = () => {
+    setConfirmRerunOpen(false);
+    void handleCreateGroups();
+  };
+
   // v0.6.0 F4 review fix (FIX 1, BLOCKER): honest post-solve outcomes, gated on a run actually
   // existing (not on a parsed summary, which is null for e.g. a FAILED run that never reached
   // finishRun) and switched on the run's terminal state - a solve that failed or was cancelled must
   // never be painted with the same green "Klart!" success alert a genuinely feasible result gets.
+  //
+  // v0.6.0 audit fix C1 (BLOCKER, "the green lie about waitlisted kids"): a feasible, zero-hard-
+  // violation run that STILL left participants unassigned (`unassignedCount > 0`) is no longer
+  // painted green - that used to be indistinguishable from full success, which is exactly the "why
+  // did my kid end up on the waitlist and nobody told me" gap the persona audit flagged. Green is now
+  // reserved for the case where every participant genuinely got placed.
   let outcomeColor: "red" | "gray" | "yellow" | "green" | null = null;
   let outcomeText = "";
   let outcomeShowViewGroups = false;
@@ -240,6 +282,8 @@ export function OptimizePanelSimple() {
     const failed = latestRun.status === "FAILED" || !latestSummary;
     const cancelled = !failed && latestRun.status === "CANCELLED";
     const infeasible = !failed && !cancelled && (!latestSummary!.feasible || latestSummary!.hard !== 0);
+    const unassignedCount = latestSummary?.unassignedCount ?? 0;
+    const waitlisted = !failed && !cancelled && !infeasible && unassignedCount > 0;
     if (failed) {
       outcomeColor = "red";
       outcomeText = sv.simple.optimize.failedAlert;
@@ -252,9 +296,17 @@ export function OptimizePanelSimple() {
       outcomeColor = "yellow";
       outcomeText = sv.simple.optimize.infeasibleAlert;
       outcomeShowViewGroups = true;
+    } else if (waitlisted) {
+      outcomeColor = "yellow";
+      outcomeText = sv.simple.optimize.waitlistAlert(unassignedCount);
+      outcomeShowViewGroups = true;
     } else {
       outcomeColor = "green";
-      outcomeText = sv.simple.optimize.successAlert(groups.data?.length ?? 0);
+      // N is participants actually placed: the plan's current participant count minus anyone
+      // waitlisted by this run (0 here, since the `waitlisted` branch above already caught
+      // unassignedCount > 0) - never the group count, which says nothing about whether every
+      // participant got a seat.
+      outcomeText = sv.simple.optimize.successAlert(Math.max(0, participantsCount - unassignedCount));
       outcomeShowViewGroups = true;
     }
   }
@@ -270,6 +322,14 @@ export function OptimizePanelSimple() {
         <Text c="dimmed" size="sm" mb="md">
           {sv.simple.optimize.intro}
         </Text>
+
+        {/* v0.6.0 audit fix C4: passive/informational (no click needed to see it) - distinct from the
+            C2 confirmRerun modal, which only appears actively, gated on a "Kör igen" click. */}
+        {!running && latestRun && syncStatus.data?.stale && (
+          <Alert color="yellow" mb="md" data-testid="simple-optimize-stale-banner">
+            {sv.simple.optimize.staleBanner}
+          </Alert>
+        )}
 
         {anyError ? (
           <Alert color="red" data-testid="simple-optimize-load-error">
@@ -301,7 +361,12 @@ export function OptimizePanelSimple() {
                 ready={resourcesReady}
                 loading={blocksByPlan.isLoading}
                 label={sv.simple.optimize.readiness.resources(slotsCount, courtsCount)}
-                missingLabel={sv.simple.optimize.missingLabel.resources}
+                // v0.6.0 audit fix C4: two distinct not-ready causes, not one generic CTA - zero
+                // training slots at all needs "Lägg till träningstider"; slots existing but zero
+                // ACTIVE courts within them needs "Ange antal banor" instead.
+                missingLabel={
+                  slotsCount === 0 ? sv.simple.optimize.missingLabel.resourcesNoSlots : sv.simple.optimize.missingLabel.resourcesNoCourts
+                }
                 onGo={() => navigate(`/plans/${planId}/resurser`)}
               />
             </List>
@@ -312,16 +377,22 @@ export function OptimizePanelSimple() {
               </Text>
             )}
 
-            <Tooltip label={sv.simple.optimize.notReadyTooltip} disabled={allReady}>
+            {/* v0.6.0 audit fix C4: while prerequisite queries are still loading, the tooltip must not
+                claim anything is "missing" yet (nothing has been confirmed missing - it just hasn't
+                loaded) - "Läser in…" instead, the real missing-things text only once loaded. */}
+            <Tooltip label={anyLoading ? sv.simple.optimize.notReadyTooltipLoading : sv.simple.optimize.notReadyTooltip} disabled={allReady}>
               <div style={{ display: "inline-block" }}>
                 <Button
                   size="lg"
                   data-testid="simple-optimize-button"
                   loading={creating}
                   disabled={buttonDisabled}
-                  onClick={() => void handleCreateGroups()}
+                  onClick={handleButtonClick}
                 >
-                  {sv.simple.optimize.createButton}
+                  {/* v0.6.0 audit fix C2: relabels to "Kör igen" once a previous run already exists and
+                      nothing is currently running - a re-run reads very differently from the first
+                      "Skapa grupper" click. */}
+                  {latestRun && !running ? sv.simple.optimize.rerunButton : sv.simple.optimize.createButton}
                 </Button>
               </div>
             </Tooltip>
@@ -339,7 +410,10 @@ export function OptimizePanelSimple() {
       {running && (
         <Card withBorder padding="md" data-testid="solve-progress">
           <Group justify="space-between" mb="xs">
-            <Text fw={600}>{sv.optimize.progress.heading}</Text>
+            {/* v0.6.0 audit fix C3: SIMPLE-scoped heading override ("Skapar grupper…") - the shared
+                sv.optimize.progress.heading advanced string is untouched (OptimizePanel.tsx still
+                uses it verbatim). */}
+            <Text fw={600}>{sv.simple.optimize.progressHeading}</Text>
             <Button size="xs" color="red" variant="outline" loading={cancelSolve.isPending} onClick={handleCancel}>
               {sv.optimize.cancelButton}
             </Button>
@@ -360,13 +434,19 @@ export function OptimizePanelSimple() {
           <Text c="dimmed" data-testid="simple-optimize-working">
             {sv.simple.optimize.working}
           </Text>
+          {/* v0.6.0 audit fix C3: makes explicit that cancelling doesn't throw away work already done. */}
+          <Text size="xs" c="dimmed" mt={4} data-testid="simple-optimize-cancel-hint">
+            {sv.simple.optimize.cancelHint}
+          </Text>
         </Card>
       )}
 
-      {liveSolution.data && <LiveSolveView planId={planId} snapshot={liveSolution.data} running={running} />}
-
+      {/* v0.6.0 audit fix C2: moved ABOVE LiveSolveView (was below it) - the outcome is the headline
+          the admin came back for; the live grid is supporting detail. `aria-live="polite"` + the
+          scroll-into-view effect above (`outcomeCardRef`/`settledRunId`) mean a settled result is
+          actually noticed, not silently rendered off-screen below a still-visible progress card. */}
       {!running && latestRun && outcomeColor && (
-        <Card withBorder padding="md" data-testid="simple-optimize-result">
+        <Card withBorder padding="md" data-testid="simple-optimize-result" ref={outcomeCardRef} aria-live="polite">
           {!startedThisSessionRef.current && (
             <Text size="sm" c="dimmed" mb="xs" data-testid="simple-optimize-lastrun-lead">
               {lastRunWhenText}
@@ -375,6 +455,20 @@ export function OptimizePanelSimple() {
           <Alert color={outcomeColor} data-testid="simple-optimize-outcome">
             {outcomeText}
           </Alert>
+          {/* v0.6.0 audit fix C2: a failed run must carry a PERSISTENT retry action here, not just the
+              transient toast handleCreateGroups's catch already fires (kept - it's a fine immediate
+              notice, but this is the one that's still there if the admin looks a minute later). */}
+          {outcomeColor === "red" && (
+            <Button
+              mt="sm"
+              color="red"
+              variant="light"
+              onClick={() => void handleCreateGroups()}
+              data-testid="simple-optimize-retry-button"
+            >
+              {sv.simple.optimize.retryButton}
+            </Button>
+          )}
           {outcomeShowViewGroups && (
             <Button mt="sm" onClick={() => navigate(`/plans/${planId}/resultat`)} data-testid="simple-optimize-view-groups-button">
               {sv.simple.optimize.viewGroupsButton}
@@ -396,6 +490,25 @@ export function OptimizePanelSimple() {
           )}
         </Card>
       )}
+
+      {/* v0.6.0 audit fix C2: now rendered AFTER the outcome card (was before it) - see the comment
+          above the outcome card. */}
+      {liveSolution.data && <LiveSolveView planId={planId} snapshot={liveSolution.data} running={running} simple />}
+
+      {/* v0.6.0 audit fix C2: gated on `latestRun && syncStatus.data?.stale` (via handleButtonClick) -
+          only interposed before a RE-run that would regenerate/discard manual placements, never on
+          the first "Skapa grupper" click. */}
+      <Modal opened={confirmRerunOpen} onClose={() => setConfirmRerunOpen(false)} title={sv.simple.optimize.rerunButton} centered>
+        <Text mb="lg">{sv.simple.optimize.confirmRerun.message}</Text>
+        <Group justify="flex-end">
+          <Button variant="default" onClick={() => setConfirmRerunOpen(false)}>
+            {sv.common.cancel}
+          </Button>
+          <Button onClick={handleConfirmRerun} data-testid="simple-optimize-confirm-rerun-button">
+            {sv.simple.optimize.confirmRerun.confirmLabel}
+          </Button>
+        </Group>
+      </Modal>
     </Stack>
   );
 }

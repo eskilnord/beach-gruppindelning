@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { spotlight } from "@mantine/spotlight";
+import { useMediaQuery } from "@mantine/hooks";
 import { Alert, Button, Card, Group, Loader, SegmentedControl, SimpleGrid, Stack, Text, Title } from "@mantine/core";
 import { IconTrophy } from "@tabler/icons-react";
 import { useAssignments } from "../../../api/assignments";
@@ -52,6 +53,12 @@ export function ResultsPanel() {
   const navigate = useNavigate();
   const isSimple = useIsSimpleMode();
   const [view, setView] = useState<ResultView>("cards");
+  // v0.6.0 audit-fix batch C (C5, P1): the group-cards grid's own 2-column breakpoint (1100px) - see
+  // the `viewContent` javadoc below for why this isn't done via SimpleGrid's `cols` breakpoint
+  // object. `useMediaQuery` defaults to `false` for the very first render (no `window.matchMedia`
+  // result yet), same as every other Mantine responsive hook - a one-frame single-column layout on
+  // load is an acceptable trade-off for never guessing wrong about the real viewport.
+  const isWideEnoughForTwoColumns = useMediaQuery("(min-width: 1100px)");
 
   // Ctrl/Cmd+F player search (PlayerSearchSpotlight.tsx) navigates here with `?highlight=<id>` -
   // force the Kort view (only it renders per-member rows to scroll to/flash) and jump to the row
@@ -288,7 +295,8 @@ export function ResultsPanel() {
 
   // Top-3 groups (by penaltySum, only those > 0) from the plan explanation's problematicGroups
   // ranking - fed into each matching GroupCard's `penaltySum` prop so groupQuality.ts can surface a
-  // "Störst poängavdrag i planen" warn signal for exactly those groups, never invented for the rest.
+  // "Störst kompromisser i planen" warn signal (v0.6.0 audit-fix batch C, C6: reworded from
+  // "poängavdrag") for exactly those groups, never invented for the rest.
   const problematicGroupPenaltyByGroupId = new Map(
     [...(planExplanation.data?.problematicGroups ?? [])]
       .filter((g) => g.penaltySum > 0)
@@ -297,77 +305,33 @@ export function ResultsPanel() {
       .map((g) => [g.groupId, g.penaltySum]),
   );
 
-  return (
-    <Stack gap="md">
-      <Card withBorder padding="lg">
-        <Title order={4} mb="md">
-          {sv.results.heading}
-        </Title>
-        <SegmentedControl
-          value={view}
-          onChange={(value) => setView(value as ResultView)}
-          data={[
-            { label: sv.results.viewToggle.cards, value: "cards" },
-            { label: sv.results.viewToggle.schedule, value: "schedule" },
-          ]}
-        />
-        {/* v0.6.0 F6 (M-S6) loose-ends fix: this backend-supplied note (RunResultSummary.note) is
-            free text - two possible values exist in this checkout today (OptimizationRunService.java):
-            NOTE_NO_COACHES ("Inga tränare registrerade — grupperna optimerades utan
-            tränartilldelning") is a coach string and must stay ADVANCED-only, same as every other
-            coach surface on this screen (GroupCard's coach chip/rows, ImprovementSuggestions'
-            COACH_ rows, ResultsSummary's coachCoverage); the OTHER note ("avbruten innan lösaren hann
-            starta", a generic solve-was-cancelled diagnostic) has nothing to do with coaches and must
-            stay visible in SIMPLE too.
-            v0.6.0 F6 review fix (FIX 4, MAJOR): the previous version of this gate was `!isSimple &&
-            latestRunNote`, which hid ANY note (coach or not) in SIMPLE - suppressing that second,
-            genuinely useful diagnostic for no reason. There's no structured discriminator on
-            RunResultSummary.note (it's a plain string from the backend), so this narrows the gate to
-            the one substring both known coach-note values share instead of blanket-hiding every note. */}
-        {latestRunNote && (!isSimple || !/tränar/i.test(latestRunNote)) && (
-          <Alert color="blue" mt="sm" data-testid="results-note">
-            {latestRunNote}
-          </Alert>
-        )}
-      </Card>
+  // v0.6.0 audit-fix batch C (C7, P2, persona audit "Gunilla"): the plan explanation is already
+  // fetched once above (`planExplanation`, same request problematicGroupPenaltyByGroupId reads) and
+  // its `waitlist[]` (PlanExplanationResponse.waitlist, WaitlistEntryView[]) carries a per-person
+  // `reasonSv` sentence - so WaitlistCard's rows can show WHY each waitlisted player has no group
+  // without any extra per-person request. Keyed by participantProfileId to join onto `model.waitlist`
+  // (built from `assignments`, a different fetch) below.
+  const waitlistReasonByParticipantId = new Map(
+    (planExplanation.data?.waitlist ?? []).map((w) => [w.participantProfileId, w.reasonSv]),
+  );
 
-      {/* "Are these groups good?" (user feedback v0.4 #5): the quality summary strip, including the
-       *  explain-based-on timestamp (moved in from the header Card above - same data-testid/text,
-       *  just relocated) - self-hides when there's no run yet. */}
-      {planId && (
-        <ResultsSummary
-          planId={planId}
-          runId={latestRunId}
-          runStartedAtLabel={runStartedAtLabel}
-          runSummary={latestRunSummary}
-          coachCoverage={isSimple ? null : coachCoverage}
-        />
-      )}
-
-      {/* v0.6.0 F5 (M-S5): SIMPLE-only entry point into the per-person explain drawer - the
-       *  Kort/Schema views' own [Förklara] buttons stay ADVANCED-and-SIMPLE both (they're on a
-       *  specific member's row, not a general prompt), but a council member scanning the whole plan
-       *  for a misplaced friend needs a way in that doesn't require finding their card first. */}
-      {isSimple && latestRunId && (
-        <Card withBorder padding="lg" data-testid="results-misplaced-hint">
-          <Group justify="space-between" wrap="wrap" gap="sm">
-            <Text size="sm">{sv.results.misplacedHint.text}</Text>
-            <Button variant="default" onClick={() => spotlight.open()}>
-              {sv.results.misplacedHint.searchButton}
-            </Button>
-          </Group>
-        </Card>
-      )}
-
-      {/* WI-D "Förbättringsförslag" (user feedback v0.4 #2): only meaningful once a run exists -
-       *  self-contained (owns its own fetch/loading/error/empty/stale states), so mounting it is the
-       *  only integration point needed here. Deliberately NOT nested inside the cards/schedule view
-       *  toggle below - it's relevant regardless of which sub-view the user is looking at. */}
-      {planId && latestRunId && <ImprovementSuggestions planId={planId} runId={latestRunId} />}
-
+  // v0.6.0 audit-fix batch C (C5, P1, persona audit "Gunilla" - "groups first"): SIMPLE puts the
+  // group cards (or the Schema sub-view, whichever `view` is active) IMMEDIATELY after the summary
+  // strip, with ImprovementSuggestions/the misplaced-hint card moved AFTER it - a council member's
+  // first question is "where's my kid", not "what could I improve". ADVANCED keeps today's order
+  // (suggestions/hint above the view content) unchanged - these are the exact same elements in both
+  // modes, just reordered, so nothing here needs a second copy of either block.
+  const viewContent = (
+    <>
       {view === "cards" && planId && (
         <>
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 2 }}>
+          {/* v0.6.0 audit-fix batch C (C5, P1): 2 columns from 1100px (Mantine's own breakpoint
+              tokens jump from sm=48em/768px straight to lg=75em/1200px, and `SimpleGrid`'s default
+              (`type="media"`) responsive `cols` only resolves keys that match a theme breakpoint name
+              - an arbitrary em/px key is silently ignored there, see SimpleGridVariables.mjs - so the
+              1100px cutoff the finding asks for is applied with `useMediaQuery` instead of a `cols`
+              breakpoint object). */}
+          <SimpleGrid cols={isWideEnoughForTwoColumns ? 2 : 1}>
             {model.sortedGroups.map((group) => {
               const members = (model.playersByGroupId.get(group.id) ?? [])
                 .map((pa) => {
@@ -408,7 +372,10 @@ export function ResultsPanel() {
             })}
           </SimpleGrid>
           <WaitlistCard
-            entries={model.waitlist}
+            entries={model.waitlist.map((entry) => ({
+              ...entry,
+              reasonSv: waitlistReasonByParticipantId.get(entry.participantProfileId) ?? null,
+            }))}
             runId={latestRunId}
             highlightedParticipantId={highlightedParticipantId}
             onExplain={(id, name) => setExplainTarget({ id, name })}
@@ -427,6 +394,104 @@ export function ResultsPanel() {
             coachNameByGroupId={isSimple ? {} : model.coachNameByGroupId}
           />
         </Card>
+      )}
+    </>
+  );
+
+  // "Are these groups good?" (user feedback v0.4 #5): the plan explanation's `problematicGroups`
+  // ranking feeds ImprovementSuggestions elsewhere; this block is just the misplaced-hint card + the
+  // ImprovementSuggestions mount, grouped together since C5 moves them as one unit in SIMPLE.
+  const suggestionsAndHint = (
+    <>
+      {/* v0.6.0 F5 (M-S5): SIMPLE-only entry point into the per-person explain drawer - the
+       *  Kort/Schema views' own [Förklara] buttons stay ADVANCED-and-SIMPLE both (they're on a
+       *  specific member's row, not a general prompt), but a council member scanning the whole plan
+       *  for a misplaced friend needs a way in that doesn't require finding their card first. */}
+      {isSimple && latestRunId && (
+        <Card withBorder padding="lg" data-testid="results-misplaced-hint">
+          <Group justify="space-between" wrap="wrap" gap="sm">
+            <Text size="sm">{sv.results.misplacedHint.text}</Text>
+            <Button variant="default" onClick={() => spotlight.open()}>
+              {sv.results.misplacedHint.searchButton}
+            </Button>
+          </Group>
+        </Card>
+      )}
+
+      {/* WI-D "Förbättringsförslag" (user feedback v0.4 #2): only meaningful once a run exists -
+       *  self-contained (owns its own fetch/loading/error/empty/stale states), so mounting it is the
+       *  only integration point needed here. Deliberately NOT nested inside the cards/schedule view
+       *  toggle above - it's relevant regardless of which sub-view the user is looking at. */}
+      {planId && latestRunId && <ImprovementSuggestions planId={planId} runId={latestRunId} />}
+    </>
+  );
+
+  return (
+    <Stack gap="md">
+      <Card withBorder padding="lg">
+        <Title order={4} mb="md">
+          {sv.results.heading}
+        </Title>
+        <SegmentedControl
+          value={view}
+          onChange={(value) => setView(value as ResultView)}
+          data={[
+            { label: sv.results.viewToggle.cards, value: "cards" },
+            { label: sv.results.viewToggle.schedule, value: "schedule" },
+          ]}
+        />
+        {/* v0.6.0 F6 (M-S6) loose-ends fix: this backend-supplied note (RunResultSummary.note) is
+            free text - two possible values exist in this checkout today (OptimizationRunService.java):
+            NOTE_NO_COACHES ("Inga tränare registrerade — grupperna optimerades utan
+            tränartilldelning") is a coach string and must stay ADVANCED-only, same as every other
+            coach surface on this screen (GroupCard's coach chip/rows, ImprovementSuggestions'
+            COACH_ rows, ResultsSummary's coachCoverage); the OTHER note ("avbruten innan lösaren hann
+            starta", a generic solve-was-cancelled diagnostic) has nothing to do with coaches and must
+            stay visible in SIMPLE too.
+            v0.6.0 F6 review fix (FIX 4, MAJOR): the previous version of this gate was `!isSimple &&
+            latestRunNote`, which hid ANY note (coach or not) in SIMPLE - suppressing that second,
+            genuinely useful diagnostic for no reason. There's no structured discriminator on
+            RunResultSummary.note (it's a plain string from the backend), so this narrows the gate to
+            the one substring both known coach-note values share instead of blanket-hiding every note. */}
+        {latestRunNote && (!isSimple || !/tränar/i.test(latestRunNote)) && (
+          <Alert color="blue" mt="sm" data-testid="results-note">
+            {latestRunNote}
+          </Alert>
+        )}
+      </Card>
+
+      {/* "Are these groups good?" (user feedback v0.4 #5): the quality summary strip, including the
+       *  explain-based-on timestamp (moved in from the header Card above - same data-testid/text,
+       *  just relocated) - self-hides when there's no run yet. v0.6.0 audit-fix batch C (C5, P1):
+       *  `compact` shrinks the strip's padding/badge size in SIMPLE only (see ResultsSummary.tsx's
+       *  own doc comment) - the strip still leads the page in both modes, just with less visual
+       *  weight in SIMPLE so the group cards below feel like the main event. */}
+      {planId && (
+        <ResultsSummary
+          planId={planId}
+          runId={latestRunId}
+          runStartedAtLabel={runStartedAtLabel}
+          runSummary={latestRunSummary}
+          coachCoverage={isSimple ? null : coachCoverage}
+          compact={isSimple}
+        />
+      )}
+
+      {/* v0.6.0 audit-fix batch C (C5, P1, persona audit "Gunilla" - "groups first"): SIMPLE shows
+       *  the group cards (or Schema view) right after the summary strip, THEN the improvement
+       *  suggestions/misplaced-hint card - a council member's first question is "where's my kid",
+       *  not "what could I improve". ADVANCED keeps the pre-existing order (suggestions/hint above
+       *  the view content). */}
+      {isSimple ? (
+        <>
+          {viewContent}
+          {suggestionsAndHint}
+        </>
+      ) : (
+        <>
+          {suggestionsAndHint}
+          {viewContent}
+        </>
       )}
 
       {planId && (

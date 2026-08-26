@@ -170,7 +170,10 @@ test("GREEDY solve (ADVANCED) → switch to SIMPLE → Ctrl/Cmd+F → Enter → 
   const accordionControl = wishRow.getByRole("button", { name: sv.results.explain.simple.whatWouldItTakeHeading });
   await expect(accordionControl).toBeVisible();
   const accordionPanel = wishRow.getByRole("region");
-  await accordionControl.click();
+  // v0.6.0 audit-fix batch C (C14, P2): with exactly ONE unmet wish (this spec's fixture, asserted
+  // above), the accordion now opens BY DEFAULT - no click needed. Asserting `aria-expanded` up front
+  // proves that behavior directly, rather than a click silently masking whichever state it started in.
+  await expect(accordionControl).toHaveAttribute("aria-expanded", "true");
   await expect(accordionPanel).toBeVisible();
   // Never blank (FIX 3) - some sentence (summary+caution, unavailableReasonSv, or the
   // sensitivityUnknown fallback) is always present once expanded.

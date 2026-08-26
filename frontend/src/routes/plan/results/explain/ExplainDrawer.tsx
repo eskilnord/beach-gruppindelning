@@ -203,7 +203,7 @@ function ExplainDrawerBody({
           )}
         </div>
       ) : (
-        data.waitlist && <WaitlistNarrative waitlist={data.waitlist} />
+        data.waitlist && <WaitlistNarrative waitlist={data.waitlist} name={data.name} />
       )}
 
       <Divider />

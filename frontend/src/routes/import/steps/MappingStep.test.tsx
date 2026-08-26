@@ -57,7 +57,7 @@ describe("MappingStep", () => {
     mockColumnsAndFields();
 
     renderWithProviders(
-      <MappingStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onExpired={() => {}} />,
+      <MappingStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onBack={() => {}} onExpired={() => {}} />,
     );
 
     const firstNameSelect = await screen.findByRole("textbox", { name: "Mappning för kolumn Förnamn" });
@@ -94,7 +94,7 @@ describe("MappingStep", () => {
     );
 
     renderWithProviders(
-      <MappingStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onExpired={() => {}} />,
+      <MappingStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onBack={() => {}} onExpired={() => {}} />,
     );
 
     await screen.findByRole("textbox", { name: "Mappning för kolumn Förnamn" });
@@ -125,6 +125,7 @@ describe("MappingStep", () => {
         onNext={() => {
           nextCalled = true;
         }}
+        onBack={() => {}}
         onExpired={() => {}}
       />,
     );
@@ -174,7 +175,7 @@ describe("MappingStep", () => {
 
     const user = userEvent.setup();
     renderWithProviders(
-      <MappingStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onExpired={() => {}} />,
+      <MappingStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onBack={() => {}} onExpired={() => {}} />,
     );
 
     const unknownSelect = await screen.findByRole("textbox", { name: "Mappning för kolumn Mystisk kolumn" });

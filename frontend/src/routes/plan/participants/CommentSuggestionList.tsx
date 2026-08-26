@@ -9,6 +9,7 @@ import type { CommentSuggestion, FieldValueView } from "../../../api/types";
 import { HelpTip } from "../../../components/HelpTip";
 import { sv } from "../../../i18n/sv";
 import { useIsSimpleMode } from "../../../lib/uiMode/useUiMode";
+import { addDismissedSuggestion, readDismissedSuggestions, suggestionDismissalId } from "./dismissedSuggestionsStorage";
 
 /** What changed on successful apply, so the drawer can keep its OWN draft state consistent without
  *  losing unrelated unsaved edits (review fix MAJOR 5) - see {@link CommentSuggestionListProps
@@ -87,14 +88,17 @@ function descriptionFor(suggestion: CommentSuggestion, chosenName: string | null
  * suggestion is non-binding: nothing is written until the council clicks "Lägg till", which goes
  * straight through the EXISTING field-values PUT / participant PATCH hooks (never a bespoke write
  * path) — see backend {@code CommentSuggestionService}'s class javadoc for the full privacy
- * contract. Dismissals are session-local React state, reset whenever the drawer is reopened for a
- * different participant (this component remounts per participant via the drawer's `key={participant.id}`).
+ * contract. B18.3 (v0.6.0 audit-fix batch B): dismissals persist per plan+suggestion in localStorage
+ * (dismissedSuggestionsStorage.ts, fail-safe try/catch throughout) so a dismissed suggestion doesn't
+ * resurrect every time the drawer is reopened - previously this was session-local React state only,
+ * reset on every remount (this component still remounts per participant via the drawer's
+ * `key={participant.id}`, which is why the persisted set is re-read from storage on mount).
  */
 export function CommentSuggestionList({ planId, participantId, fieldValues, fieldValuesFetching, onApplied }: CommentSuggestionListProps) {
   const suggestionsQuery = useCommentSuggestions(planId, participantId);
   const updateFieldValues = useUpdateParticipantFieldValues(planId, participantId);
   const updateParticipant = useUpdateParticipant(planId);
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [dismissed, setDismissed] = useState<Set<string>>(() => readDismissedSuggestions(planId));
   const [chosenByFingerprint, setChosenByFingerprint] = useState<Record<string, string>>({});
   const isSimple = useIsSimpleMode();
 
@@ -104,7 +108,7 @@ export function CommentSuggestionList({ planId, participantId, fieldValues, fiel
 
   const allowedKinds = new Set(visibleSuggestionKinds((suggestionsQuery.data?.suggestions ?? []).map((s) => s.kind), isSimple));
   const suggestions = (suggestionsQuery.data?.suggestions ?? []).filter(
-    (s) => !dismissed.has(s.fingerprint) && allowedKinds.has(s.kind),
+    (s) => !dismissed.has(suggestionDismissalId(participantId, s.fingerprint)) && allowedKinds.has(s.kind),
   );
   if (suggestions.length === 0) {
     return null;
@@ -130,23 +134,31 @@ export function CommentSuggestionList({ planId, participantId, fieldValues, fiel
       return;
     }
     try {
+      // B18.2 (v0.6.0 audit-fix batch B): every real-write branch below flips this to true and gets
+      // the same "Tillagd ✓" confirmation toast - the defensive fallback (empty targets) is an
+      // error, not a success, and must never show it.
+      let applied = false;
       if (suggestion.kind === "LEVEL_CHANGE" || suggestion.kind === "INJURY_NOTE") {
         await updateParticipant.mutateAsync({ id: participantId, body: { manualReviewFlag: true } });
         onApplied({ kind: "flag" });
+        applied = true;
       } else if (suggestion.kind === "NEW_TO_CLUB") {
         const fieldKey = suggestion.fieldKey as string;
         await updateFieldValues.mutateAsync({ [fieldKey]: true });
         onApplied({ kind: "field", fieldKey, value: true });
+        applied = true;
       } else if (suggestion.kind === "TIME_CANNOT" || suggestion.kind === "TIME_PREFER") {
         const fieldKey = suggestion.fieldKey as string;
         const merged = Array.from(new Set([...currentArray(fieldValues, fieldKey), ...suggestion.timeSlotIds]));
         await updateFieldValues.mutateAsync({ [fieldKey]: merged });
         onApplied({ kind: "field", fieldKey, value: merged });
+        applied = true;
       } else if (chosenId) {
         const fieldKey = suggestion.fieldKey as string;
         const merged = Array.from(new Set([...currentArray(fieldValues, fieldKey), chosenId]));
         await updateFieldValues.mutateAsync({ [fieldKey]: merged });
         onApplied({ kind: "field", fieldKey, value: merged });
+        applied = true;
       } else {
         // Defensive: a target-based suggestion with a single HIGH candidate always has chosenId set
         // below; only an unexpected empty-targets response could reach here.
@@ -155,6 +167,9 @@ export function CommentSuggestionList({ planId, participantId, fieldValues, fiel
           title: sv.common.error,
           message: sv.participants.suggestions.applyFailed,
         });
+      }
+      if (applied) {
+        notifications.show({ color: "green", message: sv.participants.suggestions.applySuccess });
       }
     } catch (error) {
       notifications.show({
@@ -204,7 +219,15 @@ export function CommentSuggestionList({ planId, participantId, fieldValues, fiel
                 />
               )}
               <Group gap="xs" justify="flex-end">
-                <Button size="xs" variant="subtle" onClick={() => setDismissed((prev) => new Set(prev).add(suggestion.fingerprint))}>
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  onClick={() => {
+                    const dismissalId = suggestionDismissalId(participantId, suggestion.fingerprint);
+                    addDismissedSuggestion(planId, dismissalId);
+                    setDismissed((prev) => new Set(prev).add(dismissalId));
+                  }}
+                >
                   {sv.participants.suggestions.dismissButton}
                 </Button>
                 <Button

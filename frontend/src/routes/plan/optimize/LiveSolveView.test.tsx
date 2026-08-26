@@ -123,4 +123,29 @@ describe("LiveSolveView", () => {
 
     expect(screen.queryByText(sv.optimize.live.finishedHint)).not.toBeInTheDocument();
   });
+
+  describe("simple mode (v0.6.0 audit fix C3)", () => {
+    it("hides the fluctuating 'Förbättring #N' pulse and 'Kölista: N' count, but keeps group boxes AND waitlist chips", () => {
+      renderWithProviders(<LiveSolveView planId="plan-1" snapshot={snapshot()} running simple />);
+
+      expect(screen.queryByText(sv.optimize.live.improvementNumber(1))).not.toBeInTheDocument();
+      expect(screen.queryByText(sv.optimize.live.waitlistLabel(1))).not.toBeInTheDocument();
+      // A static, non-fluctuating heading replaces the count-bearing one.
+      expect(within(screen.getByTestId("live-waitlist")).getByText(sv.simple.optimize.liveWaitlistHeading)).toBeInTheDocument();
+
+      // Group boxes are unaffected.
+      const groupBoxes = screen.getAllByTestId("live-group");
+      expect(groupBoxes).toHaveLength(2);
+      expect(within(groupBoxes[0]).getByText("Alice")).toBeInTheDocument();
+      // The waitlist's own player chips are unaffected too - only the fluctuating COUNT is hidden.
+      expect(within(screen.getByTestId("live-waitlist")).getByText("Carla")).toBeInTheDocument();
+    });
+
+    it("advanced (default/simple=false) usage is unaffected - still shows the pulse and the count", () => {
+      renderWithProviders(<LiveSolveView planId="plan-1" snapshot={snapshot()} running />);
+
+      expect(screen.getByText(sv.optimize.live.improvementNumber(1))).toBeInTheDocument();
+      expect(within(screen.getByTestId("live-waitlist")).getByText(sv.optimize.live.waitlistLabel(1))).toBeInTheDocument();
+    });
+  });
 });

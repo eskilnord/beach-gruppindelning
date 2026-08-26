@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
+import { notifications } from "@mantine/notifications";
 import { server } from "../../../test/server";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { sv } from "../../../i18n/sv";
@@ -11,6 +12,24 @@ import type { CommentSuggestion, FieldValueView, ParticipantCommentSuggestions, 
 const SUGGESTIONS_URL = "/api/plans/plan-1/participants/participant-1/comment-suggestions";
 const FIELD_VALUES_URL = "/api/plans/plan-1/participants/participant-1/field-values";
 const PARTICIPANT_URL = "/api/participants/participant-1";
+
+// B18.3 (v0.6.0 audit-fix batch B): dismissals now persist in localStorage (keyed per plan) - several
+// tests below reuse the same planId/participantId/fingerprint combo, so a leftover dismissal from one
+// test would silently make an UNRELATED later test's suggestion disappear too. Cleared before every
+// test in this file, same fail-safe spirit as dismissedSuggestionsStorage.ts itself.
+//
+// notifications.clean(): Mantine's notifications queue is a module-level singleton, not scoped to
+// the <Notifications/> instance renderWithProviders mounts per test - without this, a "Tillagd ✓"
+// toast shown by one test (B18.2) is still in the store (and re-rendered) when a LATER test's
+// <Notifications/> mounts, breaking that later test's own text queries with a duplicate match.
+beforeEach(() => {
+  try {
+    window.localStorage.clear();
+  } catch {
+    // best-effort only
+  }
+  notifications.clean();
+});
 
 function target(overrides: Partial<TargetCandidate> = {}): TargetCandidate {
   return { id: "anna-1", displayName: "Anna Svensson", score: 1.0, applied: false, ...overrides };
@@ -85,6 +104,19 @@ describe("CommentSuggestionList", () => {
     expect(onApplied).toHaveBeenCalledWith({ kind: "field", fieldKey: "playWith", value: body.playWith });
   });
 
+  // B18.2 (v0.6.0 audit-fix batch B): a successful apply now shows a confirmation toast.
+  it("shows the 'Tillagd ✓' success toast after a successful apply", async () => {
+    server.use(http.get(SUGGESTIONS_URL, () => HttpResponse.json(response([playWithSuggestion()]))));
+    server.use(http.put(FIELD_VALUES_URL, () => HttpResponse.json([])));
+
+    const user = userEvent.setup();
+    renderList();
+
+    await user.click(await screen.findByRole("button", { name: sv.participants.suggestions.applyButton }));
+
+    expect(await screen.findByText(sv.participants.suggestions.applySuccess)).toBeInTheDocument();
+  });
+
   it("shows a candidate picker for an UNCERTAIN suggestion and disables apply until one is chosen", async () => {
     const uncertain = playWithSuggestion({
       confidence: "UNCERTAIN",
@@ -156,6 +188,43 @@ describe("CommentSuggestionList", () => {
 
     await waitFor(() => expect(screen.queryByText(sv.participants.suggestions.templates.PLAY_WITH("Anna Svensson"))).not.toBeInTheDocument());
     expect(putSpy).not.toHaveBeenCalled();
+  });
+
+  // B18.3 (v0.6.0 audit-fix batch B): a dismissal must survive the component remounting for the SAME
+  // participant (e.g. reopening the drawer) - previously dismissed was session-local React state only
+  // (`useState(new Set())`), which reset to empty on every remount.
+  it("a dismissal persists across a remount (drawer reopened for the same participant)", async () => {
+    server.use(http.get(SUGGESTIONS_URL, () => HttpResponse.json(response([playWithSuggestion()]))));
+
+    const user = userEvent.setup();
+    const { unmount } = renderList();
+
+    await screen.findByText(sv.participants.suggestions.templates.PLAY_WITH("Anna Svensson"));
+    await user.click(screen.getByRole("button", { name: sv.participants.suggestions.dismissButton }));
+    await waitFor(() =>
+      expect(screen.queryByText(sv.participants.suggestions.templates.PLAY_WITH("Anna Svensson"))).not.toBeInTheDocument(),
+    );
+
+    // Simulates the drawer closing and reopening for the same participant (ParticipantDrawer.tsx
+    // remounts CommentSuggestionList per participant via `key={participant.id}`).
+    unmount();
+    server.use(http.get(SUGGESTIONS_URL, () => HttpResponse.json(response([playWithSuggestion()]))));
+    renderList();
+
+    // The whole list (including its own heading) stays gone - never resurrected.
+    await waitFor(() => expect(screen.queryByText(sv.participants.suggestions.heading)).not.toBeInTheDocument());
+    expect(screen.queryByText(sv.participants.suggestions.templates.PLAY_WITH("Anna Svensson"))).not.toBeInTheDocument();
+  });
+
+  // B18.3: a corrupt/unreadable localStorage value must never crash the component - fail-safe, same
+  // as dismissedSuggestionsStorage.ts's own try/catch contract.
+  it("tolerates corrupt localStorage for the dismissed-suggestions key without crashing", async () => {
+    window.localStorage.setItem("gp.dismissedSuggestions.plan-1", "{not valid json");
+    server.use(http.get(SUGGESTIONS_URL, () => HttpResponse.json(response([playWithSuggestion()]))));
+
+    renderList();
+
+    expect(await screen.findByText(sv.participants.suggestions.templates.PLAY_WITH("Anna Svensson"))).toBeInTheDocument();
   });
 
   it("alreadyApplied disables the apply button and shows the alternate label", async () => {

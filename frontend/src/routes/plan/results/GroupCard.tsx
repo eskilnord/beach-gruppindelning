@@ -5,6 +5,7 @@ import { useLockPlayerAssignment, useUnlockPlayerAssignment } from "../../../api
 import { useLockGroupBlock, useLockGroupCoach, useUnlockGroupBlock, useUnlockGroupCoach } from "../../../api/groups";
 import type { TrainingGroup } from "../../../api/types";
 import { sv } from "../../../i18n/sv";
+import { useIsSimpleMode } from "../../../lib/uiMode/useUiMode";
 import { computeLevelStats } from "./groupMetrics";
 import { computeGroupQuality, formatBandBoundary, severityColor, type QualitySignal } from "./groupQuality";
 
@@ -43,7 +44,8 @@ interface GroupCardProps {
   highlightedParticipantId?: string | null;
   /** This group's `problematicGroups[].penaltySum` from the plan explanation (M7's Planeringsnivå),
    *  passed only for the top-3 (penaltySum > 0) groups ResultsPanel identifies - see its own javadoc.
-   *  Feeds groupQuality.ts's "Störst poängavdrag i planen" warn signal (user feedback v0.4 #5). */
+   *  Feeds groupQuality.ts's "Störst kompromisser i planen" warn signal (user feedback v0.4 #5;
+   *  reworded from "poängavdrag" jargon in v0.6.0 audit-fix batch C, C6). */
   penaltySum?: number;
   onExplain: (participantProfileId: string, name: string) => void;
   onTestMove: (participantProfileId: string, name: string) => void;
@@ -83,6 +85,13 @@ export function GroupCard({
   onTestMove,
   onExplainGroup,
 }: GroupCardProps) {
+  // v0.6.0 audit-fix batch C (C6, P2, persona audit "Gunilla"): drives every SIMPLE-only
+  // simplification below (hidden source badge/band chip, "Nivå ≈ X" level chip, Förklara promoted
+  // to the primary action) - GroupCard reads this itself (same self-contained pattern
+  // ImprovementSuggestions.tsx already uses) rather than threading yet another prop through
+  // ResultsPanel, since every one of these is a pure display simplification with no data dependency.
+  const isSimple = useIsSimpleMode();
+
   const lockBlock = useLockGroupBlock(planId);
   const unlockBlock = useUnlockGroupBlock(planId);
   const lockCoach = useLockGroupCoach(planId);
@@ -193,13 +202,27 @@ export function GroupCard({
             }
             multiline
             w={260}
+            // v0.6.0 audit-fix batch C (C6, P2, persona audit "Gunilla"): the dot's tooltip content
+            // must also be reachable via keyboard - Mantine's Tooltip only shows on hover by default
+            // (`events.focus` is false), which left a keyboard user with no way to trigger it even
+            // once the dot itself became focusable below.
+            events={{ hover: true, focus: true, touch: false }}
           >
-            {/* Decorative supplement to the chips row below (which always spells the same signals
-                out as visible text) - aria-hidden rather than a redundant announcement. */}
+            {/* Was aria-hidden + unreachable by keyboard - the same signals the tooltip spells out
+                are now also the dot's own accessible name (`aria-label`), and `tabIndex={0}` puts it
+                in the tab order, so a screen-reader/keyboard user gets the "why this color" content
+                the chips row below already gives sighted mouse users. */}
             <Box
+              component="span"
+              tabIndex={0}
+              role="img"
+              aria-label={
+                quality.signals.length > 0
+                  ? quality.signals.map((signal) => signal.textSv).join(". ")
+                  : sv.results.quality.noSignals
+              }
               w={10}
               h={10}
-              aria-hidden="true"
               style={{ borderRadius: "50%", backgroundColor: `var(--mantine-color-${statusColor}-6)`, flexShrink: 0 }}
             />
           </Tooltip>
@@ -227,10 +250,19 @@ export function GroupCard({
         )}
         {levelStats.mean != null && (
           <Badge size="sm" variant="light" color={levelChipColor}>
-            {sv.results.quality.chips.levelLabel(levelStats.mean, levelStats.spread ?? 0)}
+            {/* v0.6.0 audit-fix batch C (C6, P2): SIMPLE drops the "±spread" precision - "Nivå ≈ X"
+                communicates "roughly this level" without a spread figure that reads as more exact
+                than it is to a non-technical council member. */}
+            {isSimple
+              ? sv.results.quality.chips.levelLabelSimple(levelStats.mean)
+              : sv.results.quality.chips.levelLabel(levelStats.mean, levelStats.spread ?? 0)}
           </Badge>
         )}
-        {group.levelMin != null && group.levelMax != null && (
+        {/* v0.6.0 audit-fix batch C (C6, P2): the configured level "band" is a solver-facing
+            planning constraint (kravspec §7's "never hard" informational band) - hidden in SIMPLE
+            alongside the source badge/coach chip, same rationale as every other advanced-only detail
+            on this card. */}
+        {!isSimple && group.levelMin != null && group.levelMax != null && (
           <Text size="xs" c="dimmed">
             {sv.results.quality.chips.bandSuffix(formatBandBoundary(group.levelMin), formatBandBoundary(group.levelMax))}
           </Text>
@@ -319,12 +351,19 @@ export function GroupCard({
               >
                 <Table.Td>{member.name}</Table.Td>
                 <Table.Td>{member.level != null ? Math.round(member.level) : "—"}</Table.Td>
-                <Table.Td>
-                  <Badge size="xs" variant="light">
-                    {sv.results.groupCard.sourceBadge[member.source as keyof typeof sv.results.groupCard.sourceBadge] ??
-                      member.source}
-                  </Badge>
-                </Table.Td>
+                {/* v0.6.0 audit-fix batch C (C6, P2, persona audit "Gunilla"): "Optimerad"/
+                    "Importerad"/"Manuell" names the SOURCE of the assignment (how the row got here),
+                    not the outcome itself - jargon a council member fielding "why did my kid end up
+                    there?" has no use for. Locked already has its own visible affordance (the Lås/Lås
+                    upp button), so nothing is lost by hiding this column outright in SIMPLE. */}
+                {!isSimple && (
+                  <Table.Td>
+                    <Badge size="xs" variant="light">
+                      {sv.results.groupCard.sourceBadge[member.source as keyof typeof sv.results.groupCard.sourceBadge] ??
+                        member.source}
+                    </Badge>
+                  </Table.Td>
+                )}
                 <Table.Td>
                   <Group gap={4} wrap="nowrap">
                     <Button
@@ -337,10 +376,16 @@ export function GroupCard({
                     >
                       {member.locked ? sv.results.groupCard.unlockButton : sv.results.groupCard.lockButton}
                     </Button>
+                    {/* v0.6.0 audit-fix batch C (C6, P2, persona audit "Gunilla"): all three actions
+                        rendered as equally-weighted "subtle" buttons gave a first-time SIMPLE user no
+                        visual cue for which one actually answers "why did my kid end up there?" -
+                        Förklara is now the visually PRIMARY action (filled) of the three, Lås/Testa
+                        flytt demoted to subtle/light. ADVANCED keeps every button "subtle" (unchanged
+                        - its users already know these actions). */}
                     <Tooltip label={sv.results.noRunTooltip} disabled={runId !== undefined}>
                       <Button
                         size="compact-xs"
-                        variant="subtle"
+                        variant={isSimple ? "filled" : "subtle"}
                         px={6}
                         disabled={runId === undefined}
                         onClick={() => onExplain(member.participantProfileId, member.name)}
@@ -351,7 +396,7 @@ export function GroupCard({
                     <Tooltip label={sv.results.noRunTooltip} disabled={runId !== undefined}>
                       <Button
                         size="compact-xs"
-                        variant="subtle"
+                        variant={isSimple ? "light" : "subtle"}
                         px={6}
                         disabled={runId === undefined}
                         onClick={() => onTestMove(member.participantProfileId, member.name)}

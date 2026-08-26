@@ -62,19 +62,30 @@ interface SlotRowProps {
 function SlotRow({ planId, entry, onEdit, onDelete }: SlotRowProps) {
   const setCourts = useSetCourts(planId);
   const updateBlockActive = useUpdateTrainingBlockActive(planId);
-  const [courtsDraft, setCourtsDraft] = useState<number | "">(entry.blocks.length);
+  const isSimple = useIsSimpleMode();
 
-  useEffect(() => setCourtsDraft(entry.blocks.length), [entry.blocks.length]);
+  // v0.6.0 audit-fix B10 (P1, real defect): this MUST be the count of ACTIVE blocks, not
+  // `entry.blocks.length` (active + inactive). The old code seeded/compared against the TOTAL, so
+  // after a shrink (e.g. 4 -> 2 courts, 2 blocks deactivated) the input kept showing "4" and,
+  // because `commitCourts` early-returned whenever the draft equalled the (unchanged) total, retyping
+  // "4" to reactivate the courts was a silent no-op - nothing was ever sent to the backend. Deriving
+  // this once, up top, and using it everywhere below (seed, effect dep, early-return comparison, the
+  // block-count text) is what actually fixes it.
+  const activeCount = entry.blocks.filter((block) => block.active).length;
+
+  const [courtsDraft, setCourtsDraft] = useState<number | "">(activeCount);
+
+  useEffect(() => setCourtsDraft(activeCount), [activeCount]);
 
   const commitCourts = () => {
-    if (courtsDraft === "" || courtsDraft === entry.blocks.length) {
+    if (courtsDraft === "" || courtsDraft === activeCount) {
       return;
     }
     setCourts.mutate(
       { slotId: entry.timeSlot.id, count: Number(courtsDraft) },
       {
         onError: (error) => {
-          setCourtsDraft(entry.blocks.length);
+          setCourtsDraft(activeCount);
           notifications.show({
             color: "red",
             title: sv.common.error,
@@ -100,16 +111,18 @@ function SlotRow({ planId, entry, onEdit, onDelete }: SlotRowProps) {
     );
   };
 
-  const activeCount = entry.blocks.filter((block) => block.active).length;
-
   return (
     <Card withBorder padding="md" data-testid="time-slot-row">
       <Group justify="space-between" align="flex-start" wrap="wrap">
         <div>
           <Text fw={600}>{entry.timeSlot.label}</Text>
           <Text size="xs" c="dimmed">
-            {sv.resources.blocksCount(activeCount)}
-            {activeCount !== entry.blocks.length ? ` (${entry.blocks.length} totalt)` : ""}
+            {/* v0.6.0 audit-fix B11 ("Gunilla" persona, "block" jargon): SIMPLE mode reads "N banor
+                aktiva (M totalt)" (a physical resource an admin books) instead of the ADVANCED-only
+                "N block (M totalt)" solver-jargon line, which stays exactly as-is here. */}
+            {isSimple
+              ? sv.simple.resources.courtsSummary(activeCount, entry.blocks.length)
+              : `${sv.resources.blocksCount(activeCount)}${activeCount !== entry.blocks.length ? ` (${entry.blocks.length} totalt)` : ""}`}
           </Text>
         </div>
         <Group gap="xs">
@@ -121,6 +134,14 @@ function SlotRow({ planId, entry, onEdit, onDelete }: SlotRowProps) {
           </Button>
         </Group>
       </Group>
+
+      {/* v0.6.0 audit-fix B9 (P1): always visible (never collapsible/dismissable) - a 0-court slot
+          can never seat a single group, in either ui mode. */}
+      {activeCount === 0 && (
+        <Alert color="orange" mt="xs" data-testid="zero-courts-warning">
+          {sv.resources.zeroCourtsWarning}
+        </Alert>
+      )}
 
       <Group mt="sm" gap="xs" align="flex-end">
         <NumberInput
@@ -276,7 +297,16 @@ export function ResourcesPanel() {
       <DeleteConfirmModal
         opened={deletingSlot !== null}
         title={sv.resources.deleteModal.title}
-        message={deletingSlot ? sv.resources.deleteModal.message(deletingSlot.label) : ""}
+        message={
+          // v0.6.0 audit-fix B14 ("Gunilla" persona): names the ACTIVE court count that disappears
+          // with this time - looked up from `entries` (the same grouped view SlotRow renders from)
+          // rather than carried on TimeSlot itself, which has no court/block data of its own.
+          deletingSlot
+            ? sv.resources.deleteModal.message(
+                entries.find((e) => e.timeSlot.id === deletingSlot.id)?.blocks.filter((b) => b.active).length ?? 0,
+              )
+            : ""
+        }
         confirmLabel={sv.resources.deleteModal.confirm}
         loading={deleteSlot.isPending}
         onClose={() => setDeletingSlot(null)}

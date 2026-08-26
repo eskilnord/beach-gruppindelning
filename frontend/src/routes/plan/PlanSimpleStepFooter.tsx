@@ -13,6 +13,14 @@ interface PlanSimpleStepFooterProps {
  * disagree about step order. Renders nothing on a non-step route (resolveSimpleStepIndex -1) - e.g.
  * a gated tab (falt/tranare/kapacitet/planer) opened via deep link while in SIMPLE mode, where
  * "Tillbaka"/"Nästa" wouldn't have a sensible target anyway.
+ *
+ * v0.6.0 audit-fix A1 (walkthrough-proven: this footer used to overlay and swallow clicks on the
+ * last content row of every step): PlanLayout.tsx now reserves this footer's own height as bottom
+ * padding on the Outlet wrapper whenever it renders (mirroring this component's own null-render
+ * condition exactly), so the footer can never sit on top of interactive content again. "Nästa" is
+ * also demoted from the teal filled primary button to `variant="default"` (matching "Tillbaka") -
+ * each STEP's own primary action (e.g. "Importera", "Skapa grupper") should be the visually dominant
+ * button on screen, not this cross-cutting nav chrome.
  */
 export function PlanSimpleStepFooter({ planId }: PlanSimpleStepFooterProps) {
   const navigate = useNavigate();
@@ -42,6 +50,7 @@ export function PlanSimpleStepFooter({ planId }: PlanSimpleStepFooterProps) {
         )}
         {nextStep && (
           <Button
+            variant="default"
             onClick={() => navigate(`/plans/${planId}/${nextStep.path}`)}
             data-testid="simple-step-next"
           >

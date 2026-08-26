@@ -128,8 +128,9 @@ describe("CreatePlanModal", () => {
     expect(requestReceived).toBe(false);
   });
 
-  // v0.3.0 WI-3 smoke test: the Kategori field gained a HelpTip via its `description` slot (its
-  // `label` stays exactly "Kategori" - untested by e2e, but kept untouched for consistency anyway).
+  // v0.3.0 WI-3 smoke test, v0.6.0 audit-fix A9: the Kategori field's HelpTip now sits as a plain
+  // sibling above the input (not the input's `description` slot) - its accessible name stays
+  // exactly "Kategori" via an explicit `aria-label`, independent of the visible label markup.
   it("renders a HelpTip for the Kategori field (v0.3.0 WI-3)", () => {
     renderWithProviders(<CreatePlanModal opened seasonId={SEASON_ID} onClose={() => {}} onCreated={() => {}} />);
 
@@ -166,13 +167,37 @@ describe("CreatePlanModal", () => {
     );
 
     expect(screen.getByLabelText(sv.createPlanModal.nameLabel, { exact: false })).toBeInTheDocument();
-    // exact (not exact: false): the Kategori HelpTip's ActionIcon has aria-label "Förklaring:
-    // Kategori", which substring-matches "Kategori" too.
-    expect(screen.getByLabelText(sv.createPlanModal.categoryLabel)).toBeInTheDocument();
+    // v0.6.0 audit-fix A10: SIMPLE calls the field "Grupptyp", not "Kategori".
+    expect(screen.getByLabelText(sv.createPlanModal.categoryLabelSimple)).toBeInTheDocument();
+    expect(screen.getByText(sv.createPlanModal.categoryDescriptionSimple)).toBeInTheDocument();
     expect(screen.queryByText(sv.planDefaults.heading)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(sv.planDefaults.targetLabel)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(sv.planDefaults.minLabel)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(sv.planDefaults.maxLabel)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(sv.planDefaults.levelMinLabel)).not.toBeInTheDocument();
+  });
+
+  // v0.6.0 audit-fix A10: SIMPLE's category field gets a plainer label/placeholder and a persistent
+  // visible description; ADVANCED keeps "Kategori" unchanged (pinned above/elsewhere in this file).
+  it("SIMPLE mode: Grupptyp label, narrower placeholder, visible description", () => {
+    renderWithProviders(
+      <CreatePlanModal opened seasonId={SEASON_ID} onClose={() => {}} onCreated={() => {}} />,
+      { uiMode: "SIMPLE" },
+    );
+
+    const category = screen.getByLabelText(sv.createPlanModal.categoryLabelSimple);
+    expect(category).toHaveAttribute("placeholder", sv.createPlanModal.categoryPlaceholderSimple);
+
+    const name = screen.getByLabelText(sv.createPlanModal.nameLabel, { exact: false });
+    expect(name).toHaveAttribute("placeholder", sv.createPlanModal.namePlaceholderSimple);
+  });
+
+  it("ADVANCED mode: keeps the Kategori label/placeholder unchanged", () => {
+    renderWithProviders(<CreatePlanModal opened seasonId={SEASON_ID} onClose={() => {}} onCreated={() => {}} />);
+
+    const category = screen.getByLabelText(sv.createPlanModal.categoryLabel);
+    expect(category).toHaveAttribute("placeholder", sv.createPlanModal.categoryPlaceholder);
+    const name = screen.getByLabelText(sv.createPlanModal.nameLabel, { exact: false });
+    expect(name).toHaveAttribute("placeholder", sv.createPlanModal.namePlaceholder);
   });
 });

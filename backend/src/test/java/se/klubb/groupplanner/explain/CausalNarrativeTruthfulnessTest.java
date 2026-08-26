@@ -136,12 +136,12 @@ class CausalNarrativeTruthfulnessTest {
         assertThat(friend.primaryReasonSv()).isEqualTo(
                 "Kalle Karlsson är låst till Grupp A (Torsdag 18.00-19.30). Optimeringen fick inte flytta Kalle Karlsson, "
                         + "så önskemålet kunde inte prövas. Lås upp placeringen och kör om optimeringen om du vill att det ska testas.");
-        // M-E2 review fix (MAJOR): LOCKED/NO_CANDIDATE now also carry the standard hedge sentence.
-        assertThat(friend.hedgeSv()).isEqualTo("Jämförelsen gäller att flytta Kalle Karlsson ensam, med planen i övrigt oförändrad.");
+        // C13 (audit-fix batch C): LOCKED/NO_CANDIDATE now carry a SCOPE sentence, not the
+        // move-comparison hedge (no real move comparison happens for either outcome).
+        assertThat(friend.hedgeSv()).isEqualTo("Bedömningen gäller den nuvarande planen.");
         assertThat(response.lockedNoticeSv()).isEqualTo(
                 "Kalle Karlsson är låst till Grupp A (Torsdag 18.00-19.30). Optimeringen fick inte flytta Kalle Karlsson till "
-                        + "någon annan grupp, så alternativen nedan visar bara vad ett byte SKULLE innebära – inte vad optimeringen "
-                        + "övervägde.");
+                        + "någon annan grupp. Så länge Kalle Karlsson är låst visar förklaringen bara vad ett byte skulle innebära.");
     }
 
     /** {@code FRIEND:{id}} embeds the SOLVER-internal long id, which this test cannot predict from
@@ -178,8 +178,9 @@ class CausalNarrativeTruthfulnessTest {
                         + "utan att schemat görs om.");
         assertThat(time.candidateGroupIds()).isEmpty();
         assertThat(time.bestCandidateGroupId()).isNull();
-        // M-E2 review fix (MAJOR): LOCKED/NO_CANDIDATE now also carry the standard hedge sentence.
-        assertThat(time.hedgeSv()).isEqualTo("Jämförelsen gäller att flytta Kalle Karlsson ensam, med planen i övrigt oförändrad.");
+        // C13 (audit-fix batch C): LOCKED/NO_CANDIDATE now carry a SCOPE sentence, not the
+        // move-comparison hedge (no real move comparison happens for either outcome).
+        assertThat(time.hedgeSv()).isEqualTo("Bedömningen gäller den nuvarande planen.");
     }
 
     @Test
@@ -352,10 +353,13 @@ class CausalNarrativeTruthfulnessTest {
 
         UnmetWishView coach = response.unmetWishes().stream().filter(w -> w.wishId().startsWith("COACH:")).findFirst().orElseThrow();
         assertThat(coach.outcome()).isEqualTo("NO_CANDIDATE");
-        assertThat(coach.primaryReasonSv()).isEqualTo(
-                "Ingen grupp har tränaren Anna Andersson i den nuvarande tränarfördelningen, så tränarönskemålet kunde inte "
-                        + "uppfyllas utan att tränarfördelningen görs om.");
-        assertThat(coach.hedgeSv()).isEqualTo("Jämförelsen gäller att flytta Kalle Karlsson ensam, med planen i övrigt oförändrad.");
+        // C11(a) (audit-fix batch C): never names the coach in this general-facing text - role-only,
+        // "handled in advanced mode" instead.
+        assertThat(coach.primaryReasonSv()).isEqualTo("Ett tränarvillkor blockerar flytten – hanteras i avancerat läge.");
+        assertThat(coach.primaryReasonSv()).doesNotContain("Anna").doesNotContain("Andersson");
+        // C13 (audit-fix batch C): LOCKED/NO_CANDIDATE now carry a SCOPE sentence, not the
+        // move-comparison hedge (no real move comparison happens for either outcome).
+        assertThat(coach.hedgeSv()).isEqualTo("Bedömningen gäller den nuvarande planen.");
     }
 
     private void setCanTimes(String participantId, String timeSlotId) {

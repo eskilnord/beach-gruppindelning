@@ -11,13 +11,19 @@ interface SheetStepProps {
   planId: string;
   sessionId: string;
   onNext: (sheet: string) => void;
+  onBack: () => void;
   onExpired: () => void;
+  /** v0.6.0 audit-fix B3: true only on the FIRST arrival here right after a non-confident one-click
+   *  upload (ImportWizardPage.handleUploaded routing to step="sheet") - never when the user reached
+   *  this step via "Justera" from the confident review card, and cleared again once the user
+   *  proceeds past this step (see ImportWizardPage's onNext wiring). */
+  showAnalysisFailedNotice?: boolean;
 }
 
 /** Wizard step 2 (spec §8.3): choose a sheet, preview ~30 rows, confirm/override the detected header
  *  row. Confirming (even leaving the detected default) calls PUT .../header, which is also what
  *  registers "the selected sheet" server-side for every later step (see ImportSession javadoc). */
-export function SheetStep({ planId, sessionId, onNext, onExpired }: SheetStepProps) {
+export function SheetStep({ planId, sessionId, onNext, onBack, onExpired, showAnalysisFailedNotice }: SheetStepProps) {
   const sheets = useMemo(() => readCachedImportSheets(sessionId), [sessionId]);
   const analysis = useImportAnalysis(planId, sessionId);
   const [selectedSheet, setSelectedSheet] = useState<string | null>(null);
@@ -95,6 +101,8 @@ export function SheetStep({ planId, sessionId, onNext, onExpired }: SheetStepPro
     <Stack gap="md">
       <Title order={4}>{sv.importWizard.sheet.heading}</Title>
 
+      {showAnalysisFailedNotice && <Alert color="blue">{sv.importWizard.sheet.analysisFailedNotice}</Alert>}
+
       {sheets.length > 1 && (
         <Tabs value={selectedSheet} onChange={setSelectedSheet}>
           <Tabs.List>
@@ -118,13 +126,17 @@ export function SheetStep({ planId, sessionId, onNext, onExpired }: SheetStepPro
 
       {preview.data && (
         <>
+          {/* v0.6.0 audit-fix B2: displayed/entered as the 1-based Excel row number (matching the
+              headerRowHint's "samma radnummer som i Excel" promise) while `effectiveHeaderRow`/
+              `headerRowOverride` stay 0-based internally - that's the shape PUT .../header (and
+              `preview.data.headerRowIndex`) actually expects. */}
           <NumberInput
             label={sv.importWizard.sheet.headerRowLabel}
             description={sv.importWizard.sheet.headerRowHint}
-            min={0}
-            max={Math.max(0, preview.data.rowCount - 1)}
-            value={effectiveHeaderRow}
-            onChange={(value) => setHeaderRowOverride(Number(value) || 0)}
+            min={1}
+            max={Math.max(1, preview.data.rowCount)}
+            value={effectiveHeaderRow + 1}
+            onChange={(value) => setHeaderRowOverride(Math.max(0, (Number(value) || 1) - 1))}
             w={220}
           />
 
@@ -134,7 +146,7 @@ export function SheetStep({ planId, sessionId, onNext, onExpired }: SheetStepPro
                 {preview.data.rows.map((row, rowIndex) => (
                   <Table.Tr key={rowIndex} bg={rowIndex === effectiveHeaderRow ? "blue.1" : undefined}>
                     <Table.Td>
-                      {rowIndex}
+                      {rowIndex + 1}
                       {rowIndex === effectiveHeaderRow && (
                         <Text span size="xs" c="blue" ml={4}>
                           ({sv.importWizard.sheet.headerRowLabel})
@@ -153,6 +165,9 @@ export function SheetStep({ planId, sessionId, onNext, onExpired }: SheetStepPro
       )}
 
       <Group justify="flex-end">
+        <Button variant="default" onClick={onBack}>
+          {sv.common.back}
+        </Button>
         <Button onClick={handleNext} loading={setHeader.isPending} disabled={!selectedSheet || !preview.data}>
           {sv.importWizard.sheet.nextButton}
         </Button>

@@ -23,6 +23,12 @@ interface ResultsSummaryProps {
    *  (ResultsPanel) passes `null` under the exact same condition the coach-less `results-note` Alert
    *  already uses (a plan with zero coach profiles has nothing meaningful to report here). */
   coachCoverage: CoachCoverage | null;
+  /** v0.6.0 audit-fix batch C (C5, P1, persona audit "Gunilla" - "groups first"): shrinks the
+   *  strip's padding and badge size - the strip still leads the Resultat tab in every mode and still
+   *  carries every one of its chips/lines (nothing is removed, see this component's own javadoc),
+   *  just with less visual weight so SIMPLE's group cards (now rendered immediately below it, see
+   *  ResultsPanel.tsx) read as the main content. Defaults to `false` (today's ADVANCED look). */
+  compact?: boolean;
 }
 
 /**
@@ -34,42 +40,55 @@ interface ResultsSummaryProps {
  * data-testid/text, just relocated).
  *
  * The hard-violations count prefers the plan explanation's own `hardViolations` list (a true
- * per-violation count) once it has loaded, falling back to the run summary's raw score magnitude
- * (the same `Math.abs(hard)` convention the Optimeringsvy already uses for its own "N hårda brott")
- * while the explanation is still loading or failed to load - the rest of the strip never blocks on
- * that one extra request.
+ * per-violation count) once it has loaded. v0.6.0 audit-fix batch C (C8, P2, persona audit
+ * "Gunilla"): it no longer falls back to the run summary's raw `Math.abs(hard)` score magnitude
+ * while the explanation is still loading/failed - that value is a WEIGHTED SCORE (any magnitude,
+ * not a per-violation count) and displaying it labeled "N måste-krav bryts" fabricated a count this
+ * app has no real basis for yet. The chip instead shows a neutral "Kontrollerar hårda krav…" phrase
+ * until the true count resolves - the rest of the strip never blocks on that one extra request.
  */
-export function ResultsSummary({ planId, runId, runStartedAtLabel, runSummary, coachCoverage }: ResultsSummaryProps) {
+export function ResultsSummary({ planId, runId, runStartedAtLabel, runSummary, coachCoverage, compact = false }: ResultsSummaryProps) {
   const explanation = usePlanExplanation(planId, runId);
 
   if (!runId || !runSummary) {
     return null;
   }
 
-  const hardCount = explanation.data ? explanation.data.hardViolations.length : Math.abs(runSummary.hard);
-  const hardOk = hardCount === 0;
+  const trueHardCount = explanation.data ? explanation.data.hardViolations.length : null;
+  const hardOk = trueHardCount === 0;
   const waitlistOk = runSummary.unassignedCount === 0;
+  const badgeSize = compact ? "sm" : "lg";
 
   return (
-    <Card padding="lg" data-testid="results-quality-summary" aria-label={sv.results.quality.regionLabel}>
+    <Card
+      padding={compact ? "sm" : "lg"}
+      data-testid="results-quality-summary"
+      aria-label={sv.results.quality.regionLabel}
+    >
       <Text size="xs" c="dimmed" mb="xs" data-testid="explain-based-on">
         {sv.results.explainBasedOn(runStartedAtLabel ?? "")}
       </Text>
 
       <Group gap="sm" wrap="wrap">
-        <Badge
-          size="lg"
-          variant="light"
-          color={hardOk ? "teal" : "red"}
-          leftSection={hardOk ? <IconCircleCheck size={14} /> : <IconAlertCircle size={14} />}
-        >
-          {hardOk ? sv.results.quality.hardViolations.ok : sv.results.quality.hardViolations.bad(hardCount)}
-        </Badge>
-        <Badge size="lg" variant="light" color={waitlistOk ? "teal" : "sand"}>
+        {trueHardCount == null ? (
+          <Badge size={badgeSize} variant="light" color="gray">
+            {sv.results.quality.hardViolations.checking}
+          </Badge>
+        ) : (
+          <Badge
+            size={badgeSize}
+            variant="light"
+            color={hardOk ? "teal" : "red"}
+            leftSection={hardOk ? <IconCircleCheck size={14} /> : <IconAlertCircle size={14} />}
+          >
+            {hardOk ? sv.results.quality.hardViolations.ok : sv.results.quality.hardViolations.bad(trueHardCount)}
+          </Badge>
+        )}
+        <Badge size={badgeSize} variant="light" color={waitlistOk ? "teal" : "sand"}>
           {waitlistOk ? sv.results.quality.waitlist.ok : sv.results.quality.waitlist.bad(runSummary.unassignedCount)}
         </Badge>
         {coachCoverage && (
-          <Badge size="lg" variant="light" color={coachCoverage.covered === coachCoverage.total ? "teal" : "yellow"}>
+          <Badge size={badgeSize} variant="light" color={coachCoverage.covered === coachCoverage.total ? "teal" : "yellow"}>
             {sv.results.quality.coachCoverage(coachCoverage.covered, coachCoverage.total)}
           </Badge>
         )}

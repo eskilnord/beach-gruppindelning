@@ -48,18 +48,23 @@ describe("completionFor", () => {
   const EMPTY = {
     participantsCount: undefined,
     timeSlotsCount: undefined,
+    activeCourtsCount: undefined,
     optimizationRunsCount: undefined,
+    latestRunFinished: undefined,
     priorityOrder: undefined,
     savedPlansCount: undefined,
   };
 
-  it("leaves the three live-count steps un-checked with no description when nothing has loaded yet", () => {
+  it("leaves the live-signal steps un-checked with no description when nothing has loaded yet", () => {
     const result = completionFor(EMPTY);
     expect(result).toHaveLength(SIMPLE_STEPS.length);
     [0, 1, 3].forEach((index) => {
       expect(result[index].completed).toBeUndefined();
       expect(result[index].description).toBeUndefined();
     });
+    // Resultat has no description signal of its own even once `latestRunFinished` resolves - see
+    // its own describe block below - but with NOTHING loaded it's un-checked too.
+    expect(result[4].completed).toBeUndefined();
   });
 
   it("Deltagare: completed + live count once participants are loaded", () => {
@@ -76,14 +81,31 @@ describe("completionFor", () => {
     });
   });
 
-  it("Tider (resurser step): singular/plural picked by count", () => {
-    expect(completionFor({ ...EMPTY, timeSlotsCount: 1 })[1]).toEqual({
-      completed: true,
-      description: "1 tid",
+  // v0.6.0 audit-fix A8: the checkmark now gates on ACTIVE COURT count, not the raw slot count - a
+  // plan can have slots configured with every court switched off (zero real capacity). The
+  // description still shows the slot count.
+  describe("Tider (resurser step)", () => {
+    it("singular/plural description picked by slot count", () => {
+      expect(completionFor({ ...EMPTY, timeSlotsCount: 1, activeCourtsCount: 2 })[1].description).toBe("1 tid");
+      expect(completionFor({ ...EMPTY, timeSlotsCount: 3, activeCourtsCount: 2 })[1].description).toBe("3 tider");
     });
-    expect(completionFor({ ...EMPTY, timeSlotsCount: 3 })[1]).toEqual({
-      completed: true,
-      description: "3 tider",
+
+    it("checked once at least one court is active", () => {
+      expect(completionFor({ ...EMPTY, timeSlotsCount: 1, activeCourtsCount: 2 })[1].completed).toBe(true);
+    });
+
+    it("NOT checked when slots exist but every court is inactive (0 real capacity)", () => {
+      expect(completionFor({ ...EMPTY, timeSlotsCount: 3, activeCourtsCount: 0 })[1]).toEqual({
+        completed: false,
+        description: "3 tider",
+      });
+    });
+
+    it("un-checked, no description while the slot count itself hasn't loaded", () => {
+      expect(completionFor({ ...EMPTY, activeCourtsCount: 2 })[1]).toEqual({
+        completed: undefined,
+        description: undefined,
+      });
     });
   });
 
@@ -91,7 +113,7 @@ describe("completionFor", () => {
   // from, but they DO get a static fallback description (sv.simple.stepDescriptions) so every step
   // in the stepper renders a description line - not just the ones with a cheap signal.
   it("Prioriteringar: no signal (query not loaded) - un-checked, static fallback description", () => {
-    const result = completionFor({ participantsCount: 260, timeSlotsCount: 3, optimizationRunsCount: 2, priorityOrder: undefined, savedPlansCount: undefined });
+    const result = completionFor({ ...EMPTY, participantsCount: 260, timeSlotsCount: 3, activeCourtsCount: 2, optimizationRunsCount: 2, latestRunFinished: true });
     expect(result[2]).toEqual({ completed: undefined, description: sv.simple.stepDescriptions.prioriteringar });
   });
 
@@ -103,61 +125,79 @@ describe("completionFor", () => {
   describe("Prioriteringar: once the priority-order query has resolved", () => {
     it("shows the top priority AND checks the step once the order has actually been saved (updatedAt set)", () => {
       const result = completionFor({
+        ...EMPTY,
         participantsCount: 260,
         timeSlotsCount: 3,
+        activeCourtsCount: 2,
         optimizationRunsCount: 2,
         priorityOrder: { customWeightsActive: false, topPriorityLabelSv: "Träna tillsammans", updatedAt: "2026-01-01T00:00:00Z" },
-        savedPlansCount: undefined,
       });
       expect(result[2]).toEqual({ completed: true, description: "Viktigast: Träna tillsammans" });
     });
 
     it("shows the top priority but does NOT check the step while the order has never been saved (updatedAt null)", () => {
       const result = completionFor({
+        ...EMPTY,
         participantsCount: 260,
         timeSlotsCount: 3,
+        activeCourtsCount: 2,
         optimizationRunsCount: 2,
         priorityOrder: { customWeightsActive: false, topPriorityLabelSv: "Träna tillsammans", updatedAt: null },
-        savedPlansCount: undefined,
       });
       expect(result[2]).toEqual({ completed: false, description: "Viktigast: Träna tillsammans" });
     });
 
     it("shows 'Anpassade vikter' when advanced-mode weight edits have moved the plan off the order ladder", () => {
       const result = completionFor({
+        ...EMPTY,
         participantsCount: 260,
         timeSlotsCount: 3,
+        activeCourtsCount: 2,
         optimizationRunsCount: 2,
         priorityOrder: { customWeightsActive: true, topPriorityLabelSv: "Träna tillsammans", updatedAt: "2026-01-01T00:00:00Z" },
-        savedPlansCount: undefined,
       });
       expect(result[2]).toEqual({ completed: true, description: sv.simple.stepDescriptions.prioritiesCustomWeights });
     });
   });
 
-  it("Optimera: completed + run count once runs are loaded", () => {
-    expect(completionFor({ ...EMPTY, optimizationRunsCount: 1 })[3]).toEqual({
-      completed: true,
-      description: "1 körning",
+  // v0.6.0 audit-fix A8: the checkmark now gates on the LATEST run's status, not merely on
+  // `runs.length > 0` - a run that's still solving (or was cancelled/failed) isn't "done".
+  describe("Optimera", () => {
+    it("description shows the total run count regardless of whether the latest one finished", () => {
+      expect(completionFor({ ...EMPTY, optimizationRunsCount: 1, latestRunFinished: false })[3].description).toBe("1 körning");
+      expect(completionFor({ ...EMPTY, optimizationRunsCount: 2, latestRunFinished: true })[3].description).toBe("2 körningar");
     });
-    expect(completionFor({ ...EMPTY, optimizationRunsCount: 2 })[3]).toEqual({
-      completed: true,
-      description: "2 körningar",
+
+    it("checked once the latest run has actually finished", () => {
+      expect(completionFor({ ...EMPTY, optimizationRunsCount: 2, latestRunFinished: true })[3].completed).toBe(true);
     });
-    expect(completionFor({ ...EMPTY, optimizationRunsCount: 0 })[3]).toEqual({
-      completed: false,
-      description: "0 körningar",
+
+    it("NOT checked while the latest run is still solving (or failed/cancelled)", () => {
+      expect(completionFor({ ...EMPTY, optimizationRunsCount: 1, latestRunFinished: false })[3].completed).toBe(false);
+    });
+
+    it("un-checked, no description while the run count itself hasn't loaded", () => {
+      expect(completionFor({ ...EMPTY, latestRunFinished: true })[3]).toEqual({ completed: undefined, description: undefined });
     });
   });
 
-  it("Resultat: always un-checked, static fallback description (no cheap distinct signal)", () => {
-    const result = completionFor({ ...EMPTY, participantsCount: 260, timeSlotsCount: 3, optimizationRunsCount: 2 });
-    expect(result[4]).toEqual({ completed: undefined, description: sv.simple.stepDescriptions.resultat });
+  // v0.6.0 audit-fix A8: Resultat used to be permanently un-checked (a "cheap distinct signal"
+  // objection that no longer holds - it reuses Optimera's own `latestRunFinished`, no extra call).
+  describe("Resultat", () => {
+    it("checked once the latest run has finished - same signal as Optimera, no extra call", () => {
+      const result = completionFor({ ...EMPTY, participantsCount: 260, timeSlotsCount: 3, activeCourtsCount: 2, optimizationRunsCount: 2, latestRunFinished: true });
+      expect(result[4]).toEqual({ completed: true, description: sv.simple.stepDescriptions.resultat });
+    });
+
+    it("NOT checked while the latest run hasn't finished", () => {
+      const result = completionFor({ ...EMPTY, participantsCount: 260, timeSlotsCount: 3, activeCourtsCount: 2, optimizationRunsCount: 1, latestRunFinished: false });
+      expect(result[4]).toEqual({ completed: false, description: sv.simple.stepDescriptions.resultat });
+    });
   });
 
   // v0.6.0 F6 (M-S6): restored (F2 review fix FIX 3's own TODO) - SimpleSaveExportCard now lands on
   // the export route, so a saved-plans count is real, cheap evidence again. Same singular/plural +
-  // "loaded but zero is not completed" shape as Deltagare/Tider/Optimera above.
+  // "loaded but zero is not completed" shape as Deltagare/Optimera above.
   it("Exportera: completed + saved-plans count once loaded", () => {
     expect(completionFor({ ...EMPTY, savedPlansCount: 1 })[5]).toEqual({
       completed: true,

@@ -59,11 +59,15 @@ describe("ValidateStep", () => {
   it("renders each row's status with a distinct color and shows its reasons", async () => {
     mockValidationAndPersons();
 
+    const user = userEvent.setup();
     renderWithProviders(
-      <ValidateStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onExpired={() => {}} />,
+      <ValidateStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={() => {}} onBack={() => {}} onExpired={() => {}} />,
     );
 
     expect(await screen.findByText(sv.importWizard.validate.summary(1, 1, 1))).toBeInTheDocument();
+
+    // v0.6.0 audit-fix B6: only WARN/SKIP rows show by default - "Visa alla" reveals the OK row too.
+    await user.click(await screen.findByRole("button", { name: sv.importWizard.validate.showAllButton(3) }));
 
     const okBadge = screen.getByText(sv.importWizard.validate.status.OK).parentElement as HTMLElement;
     const warnBadge = screen.getByText(sv.importWizard.validate.status.WARN).parentElement as HTMLElement;
@@ -97,10 +101,10 @@ describe("ValidateStep", () => {
     const onNext = vi.fn();
     const user = userEvent.setup();
     renderWithProviders(
-      <ValidateStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={onNext} onExpired={() => {}} />,
+      <ValidateStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={onNext} onBack={() => {}} onExpired={() => {}} />,
     );
 
-    const decisionSelect = await screen.findByRole("textbox", { name: "Beslut för rad 1" });
+    const decisionSelect = await screen.findByRole("textbox", { name: "Beslut för rad 2" });
     // Defaults to "Skapa ny" — never silently pre-selecting the matched person (mirrors the
     // backend's own commit-time default, ImportCommitService).
     expect(decisionSelect).toHaveValue(sv.importWizard.validate.decision.createNew);
@@ -136,10 +140,10 @@ describe("ValidateStep", () => {
     const onNext = vi.fn();
     const user = userEvent.setup();
     renderWithProviders(
-      <ValidateStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={onNext} onExpired={() => {}} />,
+      <ValidateStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={onNext} onBack={() => {}} onExpired={() => {}} />,
     );
 
-    await screen.findByRole("textbox", { name: "Beslut för rad 1" });
+    await screen.findByRole("textbox", { name: "Beslut för rad 2" });
     await user.click(screen.getByRole("button", { name: sv.importWizard.validate.nextButton }));
 
     await waitFor(() => expect(onNext).toHaveBeenCalledTimes(1));
@@ -157,10 +161,10 @@ describe("ValidateStep", () => {
     const onNext = vi.fn();
     const user = userEvent.setup();
     renderWithProviders(
-      <ValidateStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={onNext} onExpired={() => {}} />,
+      <ValidateStep planId={PLAN_ID} sessionId={SESSION_ID} onNext={onNext} onBack={() => {}} onExpired={() => {}} />,
     );
 
-    const decisionSelect = await screen.findByRole("textbox", { name: "Beslut för rad 2" });
+    const decisionSelect = await screen.findByRole("textbox", { name: "Beslut för rad 3" });
     await user.click(decisionSelect);
     const listboxId = decisionSelect.getAttribute("aria-controls");
     if (!listboxId) {
