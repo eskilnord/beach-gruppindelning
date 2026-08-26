@@ -425,7 +425,11 @@ public final class BlockStructureDetector {
         }
         int resolved = 0;
         for (ParsedCell cell : nonBlank) {
-            if (ColumnMappingSuggester.suggest(cell.rawString()).isPresent()) {
+            // Explicit IGNORE suggestions (personnummer, tid, informational columns) must not
+            // count — otherwise a data row that happens to carry such values looks like a
+            // repeated player-header and is silently dropped as STRUCTURE.
+            Optional<ColumnSuggestion> suggestion = ColumnMappingSuggester.suggestDetailed(cell.rawString());
+            if (suggestion.isPresent() && suggestion.get().kind() != MappingTargetKind.IGNORE) {
                 resolved++;
             }
         }

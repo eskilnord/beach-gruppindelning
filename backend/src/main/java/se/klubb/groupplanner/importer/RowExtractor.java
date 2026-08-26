@@ -58,9 +58,9 @@ public final class RowExtractor {
                 case DISPLAY_NAME -> displayName = raw;
                 case EMAIL -> email = raw;
                 case PHONE -> phone = raw;
-                case EXTERNAL_ID -> externalId = raw;
+                case EXTERNAL_ID -> externalId = ImportedValueNormalizer.externalId(raw);
                 case RANKING_POINTS -> rankingPointsCell = cell;
-                case PREVIOUS_GROUP_NAME -> previousGroupName = raw;
+                case PREVIOUS_GROUP_NAME -> previousGroupName = ImportedValueNormalizer.previousGroupName(raw);
                 case PREVIOUS_GROUP_LEVEL -> previousGroupLevelCell = cell;
                 case MANUAL_LEVEL_SCORE -> manualLevelScoreCell = cell;
                 case COMMENT -> comment = raw;

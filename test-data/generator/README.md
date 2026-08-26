@@ -70,6 +70,14 @@ drift from the code that generates them.
 - IDs (`p001`, `c01`, `t01`, ...) are synthetic sequence numbers with no relationship to any real
   membership/registration numbering.
 
+## Related import fixtures (Java)
+
+The council-style grouped Excel layout used by one-click import tests is built in-memory by
+`backend/.../importer/fixture/CouncilGroupedWorkbookBuilder.java` (two sheets, column-A metadata
+stack, float-formatted member ids, pipe-concatenated previous-group history). It is intentionally
+kept next to the importer tests rather than as a committed `.xlsx`, so the confidentiality gate
+never has to special-case a spreadsheet in `test-data/`.
+
 ## Schema reference
 
 All four CSVs per dataset are comma-separated, UTF-8, no BOM, LF line endings, header row first,

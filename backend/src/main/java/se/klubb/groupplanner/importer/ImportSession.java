@@ -42,6 +42,7 @@ public class ImportSession {
     private final Map<String, Optional<BlockStructureDetector.BlockStructure>> blockStructureBySheet = new HashMap<>();
     private volatile List<RowValidationResult> lastValidation;
     private volatile String selectedSheet;
+    private volatile ImportAnalysis analysis;
 
     public ImportSession(
             String id, String activityPlanId, String fileName, ParsedWorkbook workbook, Instant createdAt, Instant expiresAt) {
@@ -54,6 +55,14 @@ public class ImportSession {
     }
 
     public record TemplateMatch(String templateId, String templateName) {
+    }
+
+    public void setAnalysis(ImportAnalysis analysis) {
+        this.analysis = analysis;
+    }
+
+    public ImportAnalysis analysis() {
+        return analysis;
     }
 
     public String id() {

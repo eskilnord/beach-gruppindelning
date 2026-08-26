@@ -31,6 +31,7 @@ import se.klubb.groupplanner.domain.CoachProfile;
 import se.klubb.groupplanner.domain.ParticipantProfile;
 import se.klubb.groupplanner.domain.Person;
 import se.klubb.groupplanner.domain.SeasonPlan;
+import se.klubb.groupplanner.importer.fixture.CouncilGroupedWorkbookBuilder;
 import se.klubb.groupplanner.importer.fixture.MessyWorkbookBuilder;
 import se.klubb.groupplanner.repo.ActivityPlanRepository;
 import se.klubb.groupplanner.repo.CoachProfileRepository;
@@ -132,7 +133,7 @@ class ImportControllerIntegrationTest {
                 .andExpect(jsonPath("$.columns[1].suggestedTarget").value("firstName"))
                 .andExpect(jsonPath("$.columns[2].suggestedTarget").value("lastName"))
                 .andExpect(jsonPath("$.columns[5].suggestedTarget").value("email"))
-                .andExpect(jsonPath("$.columns[6].suggestedTarget").doesNotExist())
+                .andExpect(jsonPath("$.columns[6].suggestedTarget").value("ignore"))
                 .andExpect(jsonPath("$.columns[10].suggestedTarget").value("externalId"));
 
         // 5. Mappa kolumner.
@@ -638,6 +639,79 @@ class ImportControllerIntegrationTest {
         String planId = createPlan();
         mockMvc.perform(get("/api/plans/" + planId + "/import/sessions/does-not-exist/validate"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void oneClickAnalysisIsReadyForCouncilGroupedWorkbookAndCommits() throws Exception {
+        Instant now = Instant.now();
+        SeasonPlan season = seasonPlanRepository.insert(new SeasonPlan(Uuid7.generate(), "VT26", null, null, "active", now, now));
+        ActivityPlan plan = activityPlanRepository.insert(
+                new ActivityPlan(Uuid7.generate(), season.id(), "Herr torsdag", "Herr", "draft", null, null, null, null, now, now));
+        String planId = plan.id();
+        String base = "/api/plans/" + planId + "/import";
+
+        byte[] bytes = CouncilGroupedWorkbookBuilder.build();
+        String createResponse = mockMvc.perform(multipart(base + "/sessions")
+                        .file(fixtureFile(bytes))
+                        .header("X-GP-Token", VALID_TOKEN))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.analysis.readyToCommit").value(true))
+                .andExpect(jsonPath("$.analysis.selectedSheet").value("Herr"))
+                .andExpect(jsonPath("$.analysis.usedTemplate").value(false))
+                .andExpect(jsonPath("$.analysis.playerRowCount").value(6))
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode createJson = objectMapper.readTree(createResponse);
+        String sessionId = createJson.get("sessionId").asText();
+        JsonNode analysis = createJson.get("analysis");
+
+        boolean sawPersonnummerIgnore = false;
+        boolean sawTidIgnore = false;
+        for (JsonNode column : analysis.get("columns")) {
+            String header = column.get("headerText").asText();
+            String target = column.get("target").asText();
+            String reason = column.get("reason").asText();
+            if ("Personnummer".equals(header)) {
+                assertThat(target).isEqualTo("ignore");
+                assertThat(reason).containsIgnoringCase("integritet");
+                sawPersonnummerIgnore = true;
+            }
+            if ("Tid".equals(header)) {
+                assertThat(target).isEqualTo("ignore");
+                sawTidIgnore = true;
+            }
+            if ("Förnamn".equals(header)) {
+                assertThat(target).isEqualTo("firstName");
+            }
+            if ("GruppFöregåendeTermin".equals(header)) {
+                assertThat(target).isEqualTo("previousGroupName");
+            }
+        }
+        assertThat(sawPersonnummerIgnore).isTrue();
+        assertThat(sawTidIgnore).isTrue();
+
+        mockMvc.perform(get(base + "/sessions/" + sessionId + "/analysis")
+                        .header("X-GP-Token", VALID_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.readyToCommit").value(true));
+
+        String commitResponse = mockMvc.perform(post(base + "/sessions/" + sessionId + "/commit")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"saveAsTemplate\":true,\"templateName\":\"Council Herr\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imported").value(6))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(objectMapper.readTree(commitResponse).get("savedTemplateId").asText()).isNotBlank();
+
+        Person ada = findPersonByEmail("ada.andersson@example.se");
+        // Float-formatted Excel member id normalized to a clean integer string.
+        assertThat(ada.externalId()).isIn("1001", "21001");
+        ParticipantProfile adaProfile = participantProfileRepository
+                .findByPersonIdAndActivityPlanId(ada.id(), planId)
+                .orElseThrow();
+        assertThat(adaProfile.previousGroupName()).isEqualTo("Torsdag Herr 1 (Vårtermin 2025)");
     }
 
     private Person findPersonByEmail(String email) {

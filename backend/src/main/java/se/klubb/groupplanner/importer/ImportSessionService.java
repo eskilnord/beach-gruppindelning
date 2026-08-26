@@ -37,23 +37,29 @@ public class ImportSessionService {
 
     private final ConcurrentHashMap<String, ImportSession> sessions = new ConcurrentHashMap<>();
     private final ImportTemplateRepository importTemplateRepository;
+    private final ImportAnalysisService importAnalysisService;
     private final Clock clock;
 
     @Autowired
-    public ImportSessionService(ImportTemplateRepository importTemplateRepository) {
-        this(importTemplateRepository, Clock.systemUTC());
+    public ImportSessionService(
+            ImportTemplateRepository importTemplateRepository, ImportAnalysisService importAnalysisService) {
+        this(importTemplateRepository, importAnalysisService, Clock.systemUTC());
     }
 
     /** Package-private, for tests that need to simulate session expiry without sleeping. */
-    ImportSessionService(ImportTemplateRepository importTemplateRepository, Clock clock) {
+    ImportSessionService(
+            ImportTemplateRepository importTemplateRepository,
+            ImportAnalysisService importAnalysisService,
+            Clock clock) {
         this.importTemplateRepository = importTemplateRepository;
+        this.importAnalysisService = importAnalysisService;
         this.clock = clock;
     }
 
     public record SheetSummary(String name, int rowCount, String suggestedTemplateId, String suggestedTemplateName) {
     }
 
-    public record CreatedSession(String sessionId, List<SheetSummary> sheets) {
+    public record CreatedSession(String sessionId, List<SheetSummary> sheets, ImportAnalysis analysis) {
     }
 
     public CreatedSession createSession(String activityPlanId, String fileName, InputStream inputStream) {
@@ -84,7 +90,8 @@ public class ImportSessionService {
                 .toList();
 
         sessions.put(session.id(), session);
-        return new CreatedSession(session.id(), summaries);
+        ImportAnalysis analysis = importAnalysisService.analyzeAndPrepare(session, activityPlanId);
+        return new CreatedSession(session.id(), summaries, analysis);
     }
 
     private SheetSummary summarize(ImportSession session, ParsedSheet sheet) {

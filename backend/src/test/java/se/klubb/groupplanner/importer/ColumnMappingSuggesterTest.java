@@ -46,11 +46,31 @@ class ColumnMappingSuggesterTest {
 
     @Test
     void unrelatedHeaderTextYieldsNoSuggestion() {
-        // "Tid" (semi-structured reference column) and "Skonummer" (shoe size) don't resemble any
-        // synonym closely enough to fuzzy-match - they should stay unmapped ("ignore" by default).
-        assertThat(ColumnMappingSuggester.suggest("Tid")).isEmpty();
+        // "Skonummer" (shoe size) doesn't resemble any synonym closely enough to fuzzy-match -
+        // it should stay unmapped ("ignore" by default in the wizard).
         assertThat(ColumnMappingSuggester.suggest("Skonummer")).isEmpty();
         assertThat(ColumnMappingSuggester.suggest("xyz123")).isEmpty();
+    }
+
+    @Test
+    void explicitIgnoreColumnsCarrySwedishReasons() {
+        assertThat(ColumnMappingSuggester.suggest("Personnummer")).contains(MappingTargetKind.IGNORE);
+        assertThat(ColumnMappingSuggester.suggestDetailed("Personnummer"))
+                .get()
+                .extracting(ColumnSuggestion::reason)
+                .asString()
+                .contains("integritetsskydd");
+
+        assertThat(ColumnMappingSuggester.suggest("Tid")).contains(MappingTargetKind.IGNORE);
+        assertThat(ColumnMappingSuggester.suggestDetailed("Tid"))
+                .get()
+                .extracting(ColumnSuggestion::reason)
+                .asString()
+                .contains("spelarvyn");
+
+        assertThat(ColumnMappingSuggester.suggest("RankInfo")).contains(MappingTargetKind.IGNORE);
+        assertThat(ColumnMappingSuggester.suggest("AnmäldAktivitet")).contains(MappingTargetKind.IGNORE);
+        assertThat(ColumnMappingSuggester.suggest("Varningar")).contains(MappingTargetKind.IGNORE);
     }
 
     @Test

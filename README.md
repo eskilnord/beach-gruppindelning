@@ -20,6 +20,9 @@ se acceptansdokumentets 👤-markerade punkter).
 **Installation:** `docs/installation-mac.md` / `docs/installation-windows.md` — ingen
 Java, Node eller annat förinstallerat krävs, allt bundlas i appen.
 
+**Importera deltagare:** `docs/import-one-click.md` — ett-klicksimport med automatisk
+blad-/kolumnmappning och svensk granskningssida.
+
 **Release-process:** en tagg `vX.Y.Z` pushad till `main` triggar `.github/workflows/release.yml`,
 som bygger signerade ad-hoc-installerare för Mac (`.dmg`) och Windows (`.exe`/NSIS),
 installerar och röktestar de faktiska artefakterna på riktiga CI-maskiner (inte bara

@@ -28,6 +28,7 @@ import se.klubb.groupplanner.importer.ColumnMapping;
 import se.klubb.groupplanner.importer.ColumnMappingSuggester;
 import se.klubb.groupplanner.importer.CommitOptions;
 import se.klubb.groupplanner.importer.CommitResult;
+import se.klubb.groupplanner.importer.ImportAnalysis;
 import se.klubb.groupplanner.importer.ImportCommitService;
 import se.klubb.groupplanner.importer.ImportSession;
 import se.klubb.groupplanner.importer.ImportSessionService;
@@ -100,6 +101,17 @@ public class ImportController {
         }
     }
 
+    @GetMapping("/api/plans/{planId}/import/sessions/{sid}/analysis")
+    public ImportAnalysis analysis(@PathVariable String planId, @PathVariable String sid) {
+        requirePlanExists(planId);
+        ImportSession session = importSessionService.getForPlan(sid, planId);
+        ImportAnalysis analysis = session.analysis();
+        if (analysis == null) {
+            throw new NotFoundException("No analysis available for session: " + sid);
+        }
+        return analysis;
+    }
+
     @GetMapping("/api/plans/{planId}/import/sessions/{sid}/preview")
     public PreviewResponse preview(
             @PathVariable String planId,
@@ -162,7 +174,9 @@ public class ImportController {
             List<String> samples = sampleValues(sheet, headerRowIndex, col);
             String suggested = templateMapping.get(col);
             if (suggested == null) {
-                suggested = ColumnMappingSuggester.suggest(headerText).map(MappingTargetKind::wireName).orElse(null);
+                suggested = ColumnMappingSuggester.suggestDetailed(headerText)
+                        .map(s -> s.kind().wireName())
+                        .orElse(null);
             }
             if (MappingTargetKind.PREVIOUS_GROUP_NAME.wireName().equals(suggested)) {
                 anyRealColumnSuggestsPreviousGroup = true;

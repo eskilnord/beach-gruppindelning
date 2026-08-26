@@ -17,6 +17,11 @@ import se.klubb.groupplanner.importer.match.JaroWinkler;
  * {@link MappingTargetKind#IS_COACH}/{@link MappingTargetKind#COACH_NAME} beyond the synonym table
  * below. An empty result means "no confident suggestion" - the wizard UI defaults such columns to
  * {@link MappingTargetKind#IGNORE} and lets the user pick manually.
+ *
+ * <p>Some headers are deliberately suggested as {@link MappingTargetKind#IGNORE} with an explicit
+ * reason (personnummer, informational columns, time-wish columns that cannot be committed as
+ * structured time relations) so one-click import can show why they were skipped rather than
+ * silently dropping them.
  */
 public final class ColumnMappingSuggester {
 
@@ -26,18 +31,35 @@ public final class ColumnMappingSuggester {
     // exact lookups; for the fuzzy fallback every entry is considered and the best score wins.
     private static final Map<String, MappingTargetKind> SYNONYMS = buildSynonyms();
 
+    /** Exact-match IGNORE headers with a fixed Swedish reason (privacy / informational / unimportable). */
+    private static final Map<String, String> EXPLICIT_IGNORE_REASONS = buildExplicitIgnoreReasons();
+
     private ColumnMappingSuggester() {
     }
 
     public static Optional<MappingTargetKind> suggest(String headerText) {
+        return suggestDetailed(headerText).map(ColumnSuggestion::kind);
+    }
+
+    /**
+     * Like {@link #suggest}, but also returns a Swedish reason and a confidence score for the
+     * one-click review screen.
+     */
+    public static Optional<ColumnSuggestion> suggestDetailed(String headerText) {
         if (headerText == null || headerText.isBlank()) {
             return Optional.empty();
         }
         String normalized = normalize(headerText);
 
+        String ignoreReason = EXPLICIT_IGNORE_REASONS.get(normalized);
+        if (ignoreReason != null) {
+            return Optional.of(ColumnSuggestion.of(MappingTargetKind.IGNORE, ignoreReason, 1.0));
+        }
+
         MappingTargetKind exact = SYNONYMS.get(normalized);
         if (exact != null) {
-            return Optional.of(exact);
+            return Optional.of(ColumnSuggestion.of(
+                    exact, "Matchade rubriken \"" + headerText.strip() + "\"", 1.0));
         }
 
         String bestSynonym = null;
@@ -50,7 +72,12 @@ public final class ColumnMappingSuggester {
             }
         }
         if (bestSynonym != null && bestScore >= FUZZY_THRESHOLD) {
-            return Optional.of(SYNONYMS.get(bestSynonym));
+            MappingTargetKind kind = SYNONYMS.get(bestSynonym);
+            return Optional.of(ColumnSuggestion.of(
+                    kind,
+                    "Liknande rubrik \"" + bestSynonym + "\" (träffsäkerhet "
+                            + Math.round(bestScore * 100) + "%)",
+                    bestScore));
         }
         return Optional.empty();
     }
@@ -97,9 +124,32 @@ public final class ColumnMappingSuggester {
         return map;
     }
 
+    private static Map<String, String> buildExplicitIgnoreReasons() {
+        Map<String, String> map = new LinkedHashMap<>();
+        putIgnore(map, "Importeras aldrig (integritetsskydd)",
+                "personnummer", "person nr", "personnr", "pnr", "ssn", "national id");
+        putIgnore(map, "Informationskolumn – importeras inte",
+                "rankinfo", "rank info", "rankinginfo", "ranking info");
+        putIgnore(map, "Informationskolumn – importeras inte",
+                "anmäld aktivitet", "anmald aktivitet", "anmäldaktivitet", "anmaldaktivitet", "registered activity");
+        putIgnore(map, "Informationskolumn – importeras inte",
+                "varningar", "varning", "warnings", "warning");
+        // timeRelation custom fields cannot be committed from free-text Excel cells
+        // (ImportCommitService.TIME_RELATION_IMPORT_WARNING) — surface that as an explicit ignore.
+        putIgnore(map, "Tidsönskemål anges i spelarvyn efter importen",
+                "tid", "tidönskemål", "tidonskemal", "time wish", "önskad tid", "onskad tid");
+        return map;
+    }
+
     private static void putAll(Map<String, MappingTargetKind> map, MappingTargetKind kind, String... synonyms) {
         for (String synonym : synonyms) {
             map.put(normalize(synonym), kind);
+        }
+    }
+
+    private static void putIgnore(Map<String, String> map, String reason, String... synonyms) {
+        for (String synonym : synonyms) {
+            map.put(normalize(synonym), reason);
         }
     }
 }
