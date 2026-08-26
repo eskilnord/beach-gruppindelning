@@ -1,14 +1,14 @@
 {
   "small-10" : {
-    "solver" : "0hard/0medium/-83600soft",
-    "greedy" : "0hard/0medium/-88600soft"
+    "solver" : "0hard/0medium/-7480soft",
+    "greedy" : "0hard/0medium/-7480soft"
   },
   "coach-overlap-20" : {
-    "solver" : "0hard/0medium/-102800soft",
-    "greedy" : "-3hard/0medium/-93300soft"
+    "solver" : "0hard/0medium/-9247soft",
+    "greedy" : "-3hard/0medium/-7735soft"
   },
   "large-120" : {
-    "solver" : "0hard/-1600medium/-2338040soft",
-    "greedy" : "-17hard/0medium/-212140soft"
+    "solver" : "0hard/-800medium/-136227soft",
+    "greedy" : "-17hard/0medium/-136978soft"
   }
 }

@@ -266,3 +266,19 @@ an expected, explained result of this milestone, not a regression.
 - `backend/docs/m6b-notes.md` §"Weight reconciliation vs design §4" — the reconciliation this
   document supersedes (dated pointer added there, history not rewritten).
 - `docs/design/04-solver.md` §4 — the original per-constraint weight table (header note points here).
+
+**Milestone H re-check (2026-08-26, after B5)** — the "22 broken, unchanged" result above is
+SUPERSEDED. Re-measured on `large-120` at `stepCountLimit=20000`, old-weights-vs-new-weights on
+identical code: `WANT_SAME` broken records 23 → 15 (4 pairs newly united), continuity kept
+3/125 → 25/125 (85% at convergence), `timePreferenceSoft` misses 30 → 17, and no group left below
+`minSize` (the old weights drained one to 7). `large-120` is therefore no longer "the wrong
+instrument" — B5's continuity wiring made it sensitive to the weight change, and it now corroborates
+`PriorityOutcomeCalibrationTest` rather than being neutral. Two caveats stand: the A/B reverts
+WEIGHTS only (B6's `LevelMath.SPREAD_UNIT_SCALED` matchWeight change is in the provider and not
+revertible, so soft TOTALS are not comparable — only the outcome counts), and the remaining broken
+records are dominated by structurally-incompatible pairs. Golden step budget raised 20000 → 200000
+at the same gate (the old budget pinned a 0.7 s pre-convergence snapshot; see
+`SolverRegressionTest`'s javadoc). Known follow-up (separate ticket, pre-existing): the
+`groupOrderByLevel` ordinal-permutation plateau on `coach-overlap-20` — repairing a group-ordinal
+inversion needs a simultaneous membership permutation that single-entity change/swap moves cannot
+reach at any step budget; a move-selector tuning task.

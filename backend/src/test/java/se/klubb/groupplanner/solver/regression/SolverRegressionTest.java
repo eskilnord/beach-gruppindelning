@@ -68,11 +68,16 @@ import se.klubb.groupplanner.solver.run.GreedyBaselineService;
  * relatively rare block-reassignment/coach-reassignment moves needed to resolve the last few {@code
  * trainingBlockCapacity}/{@code timeAvailabilityHard} matches take many more steps to be sampled by
  * chance than for {@code small-10}/{@code coach-overlap-20} (which already converge well inside 2000
- * steps). {@code stepCountLimit=20000} (~25% headroom over the empirically observed 16000-step
- * convergence point) is used uniformly for all three datasets instead - same {@code PHASE_ASSERT} +
+ * steps). <b>v0.6.0 update (milestone H):</b> after the priority-order recalibration the old
+ * 20000-step budget became a ~0.7 s pre-convergence snapshot whose {@code large-120} SOFT score sat
+ * 2.6x away from what every interactive preset delivers (measured sweep: -359898@20000,
+ * -275762@50000, -170929@100000, plateau -136227@200000 = the score FAST/NORMAL converge to), with a
+ * scrambled level ladder and 20% continuity - behavior no user ever sees. {@code
+ * stepCountLimit=200000} (the measured plateau; ~11 s wall-clock per large-120 solve under
+ * PHASE_ASSERT) is therefore used uniformly for all three datasets - same {@code PHASE_ASSERT} +
  * {@code randomSeed=0} + step-count-only termination, so every determinism property this gate exists
- * to enforce is unchanged; it costs ~4 s wall-clock for {@code large-120} (measured), well inside the
- * CI job's 20-minute budget. Hand-tuning {@code solverConfig.xml}'s move selectors to fix the
+ * to enforce is unchanged, and small-10/coach-overlap-20 (already converged at 20000) pin identical
+ * scores. Hand-tuning {@code solverConfig.xml}'s move selectors to fix the
  * underlying throughput imbalance was deliberately NOT done - that is real solver tuning, out of this
  * "faithful implementation, not re-design" milestone's scope, and a legitimate M6b/M7 follow-up if
  * dataset sizes grow further.
@@ -84,7 +89,7 @@ import se.klubb.groupplanner.solver.run.GreedyBaselineService;
 class SolverRegressionTest {
 
     private static final List<String> DATASETS = List.of("small-10", "coach-overlap-20", "large-120");
-    private static final int STEP_COUNT_LIMIT = 20_000; // see class javadoc "Deviation" note
+    private static final int STEP_COUNT_LIMIT = 200_000; // see class javadoc "Deviation" + v0.6.0 notes
     private static final Path GOLDEN_FILE = Path.of("..", "test-data", "regression", "expected-scores.json");
 
     @TempDir
