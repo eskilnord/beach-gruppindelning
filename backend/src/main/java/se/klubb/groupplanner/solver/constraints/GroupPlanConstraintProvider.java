@@ -399,20 +399,32 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
     // ─────────────────────────────────────────────────────────────────────── §10.6
 
     Constraint levelBalance(ConstraintFactory f) {
+        // matchWeight is in spread units (LevelMath.SPREAD_UNIT_SCALED = 1000 scaled = 10 level
+        // points) so one band-move of level spread doesn't dwarf every other soft constraint; the justification
+        // below keeps carrying sadPoints (whole level points) so displayed "nivåspridning" numbers
+        // stay byte-identical to before this unit change.
         return f.forEach(PlayerAssignment.class)
                 .groupBy(PlayerAssignment::getGroup, ConstraintCollectors.toList(pa -> pa))
-                .penalize(HardMediumSoftLongScore.ofSoft(100), (group, members) -> sadPointsOf(members))
+                .penalize(HardMediumSoftLongScore.ofSoft(100), (group, members) -> spreadUnitsOf(members))
                 .justifyWith((group, members, score) -> new LevelSpreadJustification(
                         group.id(), sadPointsOf(members), LevelMath.floorMean(sumScaledOf(members), members.size())))
                 .asConstraint(ConstraintKeys.LEVEL_BALANCE);
     }
 
     private static int sadPointsOf(List<PlayerAssignment> members) {
+        return LevelMath.sadPoints(levelsScaledOf(members));
+    }
+
+    private static int spreadUnitsOf(List<PlayerAssignment> members) {
+        return LevelMath.spreadUnits(levelsScaledOf(members));
+    }
+
+    private static int[] levelsScaledOf(List<PlayerAssignment> members) {
         int[] levels = new int[members.size()];
         for (int i = 0; i < members.size(); i++) {
             levels[i] = members.get(i).getLevelScaled();
         }
-        return LevelMath.sadPoints(levels);
+        return levels;
     }
 
     private static long sumScaledOf(List<PlayerAssignment> members) {

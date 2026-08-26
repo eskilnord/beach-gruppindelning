@@ -345,6 +345,17 @@ describe("ConstraintWeightsTable WP4 pedagogical weights", () => {
     await screen.findByText("30 poäng – belönar sen tid för lägre grupper och straffar sen tid för toppgrupper");
   });
 
+  it("shows the 10-level-points sentence for levelBalance via the per-key override, not the generic PER_POINT one", async () => {
+    // levelBalance's matchWeight is spread units (LevelMath.SPREAD_UNIT_SCALED = 10 level points),
+    // not whole level points, since v0.6.0 milestone B2 - the generic PER_POINT_PENALIZE sentence
+    // ("per nivåpoäng") would overstate this row's effect by 10x, so it has its own override.
+    mockApis([DEFINITION], [WEIGHT_VIEW]);
+    renderWithProviders(<ConstraintWeightsTable planId="plan-1" />);
+
+    await screen.findByText("100 poäng straff per 10 nivåpoängs spridning i en grupp");
+    expect(screen.queryByText(/poäng straff per enhet avvikelse/)).not.toBeInTheDocument();
+  });
+
   it("hides the relative-importance bar when every SOFT row is disabled", async () => {
     mockApis([DEFINITION], [{ ...WEIGHT_VIEW, enabled: false, overridden: true }]);
     renderWithProviders(<ConstraintWeightsTable planId="plan-1" />);

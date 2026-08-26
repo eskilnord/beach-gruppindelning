@@ -234,9 +234,9 @@ class WeightSensitivityLinearityTest {
         assertThat(unitsByKey.get(ConstraintKeys.GROUP_SIZE_TARGET).units()).isEqualTo(-2L);
         assertThat(unitsByKey.get(ConstraintKeys.SAME_GROUP_SOFT).units()).isEqualTo(1L);
         assertThat(unitsByKey.get(ConstraintKeys.TIME_PREFERENCE_SOFT).units()).isEqualTo(1L);
-        assertThat(unitsByKey.get(ConstraintKeys.LEVEL_BALANCE).units()).isEqualTo(132L);
+        assertThat(unitsByKey.get(ConstraintKeys.LEVEL_BALANCE).units()).isEqualTo(12L);
         assertThat(unitsByKey.get(ConstraintKeys.GROUP_ORDER_BY_LEVEL).units()).isEqualTo(134L);
-        assertThat(diffDefault.score()).isEqualTo(HardMediumSoftLongScore.of(0, 0, -19_920));
+        assertThat(diffDefault.score()).isEqualTo(HardMediumSoftLongScore.of(0, 0, -7_920));
 
         // --- Step 2: predict Δscore for seven fixed weight vectors, verify against a real re-analyze ---
         List<Map<String, HardMediumSoftLongScore>> vectors = List.of(

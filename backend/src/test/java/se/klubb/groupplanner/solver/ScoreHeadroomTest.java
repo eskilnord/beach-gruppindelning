@@ -27,7 +27,9 @@ class ScoreHeadroomTest {
 
     @Test
     void analyticWorstCaseStaysWellBelowOneQuadrillion() {
-        long softLevelBalance = (long) MAX_GROUPS * 11_000L * MAX_UI_WEIGHT; // <= 1.32e9 (design: ~1.3e9)
+        // 1_100 = worst-case-per-group matchWeight in spread units (LevelMath.SPREAD_UNIT_SCALED =
+        // 1000, i.e. 10 level points/unit); was 11_000 whole level points pre-B2 unit change.
+        long softLevelBalance = (long) MAX_GROUPS * 1_100L * MAX_UI_WEIGHT; // <= 1.32e8 (design: ~1.3e9 pre-B2)
         long softPairWishes = 1_300L * MAX_UI_WEIGHT; // <= 1.3e7
         long softOrdering = 11L * 1_000L * MAX_UI_WEIGHT; // <= 1.1e8
         long softTotal = softLevelBalance + softPairWishes + softOrdering;
@@ -51,7 +53,8 @@ class ScoreHeadroomTest {
         // Sanity: even a single level's worst case alone is nowhere near Long.MAX_VALUE, so no
         // individual score-level accumulation (hard, medium, or soft summed separately across a
         // whole solve) can silently wrap around.
-        long singleLevelWorstCase = (long) MAX_GROUPS * 11_000L * MAX_UI_WEIGHT;
+        // 1_100 = worst-case-per-group matchWeight in spread units (LevelMath.SPREAD_UNIT_SCALED = 1000).
+        long singleLevelWorstCase = (long) MAX_GROUPS * 1_100L * MAX_UI_WEIGHT;
         assertThat(Long.MAX_VALUE - singleLevelWorstCase).isPositive();
         assertThat(singleLevelWorstCase).isLessThan(Long.MAX_VALUE / 1000);
     }

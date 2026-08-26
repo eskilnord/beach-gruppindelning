@@ -44,4 +44,69 @@ class LevelMathTest {
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> LevelMath.floorMean(100, 0))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    // ─────────────────────────────────────────────────────────────────────── spreadUnits
+
+    @Test
+    void spreadUnitsOfEmptyGroupIsZero() {
+        assertThat(LevelMath.spreadUnits(new int[0])).isZero();
+    }
+
+    @Test
+    void spreadUnitsOfSingleMemberGroupIsZero() {
+        assertThat(LevelMath.spreadUnits(new int[] {64200})).isZero();
+    }
+
+    @Test
+    void spreadUnitsExactWorkedExample() {
+        // Same fixture as sadPointsExactWorkedExample: SAD_scaled = 10666.
+        // spreadUnits = floorDiv(10666, SPREAD_UNIT_SCALED=1000) = 10.
+        int[] levelsScaled = {60000, 64000, 70000};
+        assertThat(LevelMath.spreadUnits(levelsScaled)).isEqualTo(10);
+    }
+
+    @Test
+    void spreadUnitsRoundsDownAtUnitBoundary() {
+        // A synthetic two-member group whose SAD_scaled is exactly 999 -> below one unit -> 0.
+        // mean = floorDiv(999, 2) = 499; SAD = |0-499| + |999-499| = 499 + 500 = 999.
+        assertThat(LevelMath.spreadUnits(new int[] {0, 999})).isZero();
+        // SAD_scaled exactly 1000 -> exactly one unit.
+        // mean = floorDiv(1000, 2) = 500; SAD = |0-500| + |1000-500| = 500 + 500 = 1000.
+        assertThat(LevelMath.spreadUnits(new int[] {0, 1000})).isEqualTo(1);
+    }
+
+    @Test
+    void spreadUnitsEqualsFloorDivOfSadScaledByUnitSize() {
+        // Property check across a few vectors: spreadUnits == floorDiv(rawSadScaled, 1000), where
+        // rawSadScaled is recomputed independently here (not via sadPoints, to avoid tautology).
+        int[][] vectors = {
+                {60000, 64000, 70000},
+                {0, 999},
+                {0, 1000},
+                {100, 200, 300, 400},
+                {64200},
+                {12345, 54321, 99999, 1},
+        };
+        for (int[] levelsScaled : vectors) {
+            long rawSad = rawSadScaled(levelsScaled);
+            int expected = Math.toIntExact(Math.floorDiv(rawSad, LevelMath.SPREAD_UNIT_SCALED));
+            assertThat(LevelMath.spreadUnits(levelsScaled)).isEqualTo(expected);
+        }
+    }
+
+    private static long rawSadScaled(int[] levelsScaled) {
+        if (levelsScaled.length == 0) {
+            return 0L;
+        }
+        long sum = 0L;
+        for (int level : levelsScaled) {
+            sum += level;
+        }
+        long mean = Math.floorDiv(sum, levelsScaled.length);
+        long sad = 0L;
+        for (int level : levelsScaled) {
+            sad += Math.abs((long) level - mean);
+        }
+        return sad;
+    }
 }

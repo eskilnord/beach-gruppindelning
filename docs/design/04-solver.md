@@ -315,13 +315,13 @@ SAD_g    = Σ |x_i − mean_g|            (sum of absolute deviations, scaled un
 penalty  = Math.floorDiv(SAD_g, 100)   (back to whole level points)
 ```
 
-`LevelMath.sadPoints(int[] levelsScaled)` is a pure static function; the same function feeds constraint matchWeight, group-level display ("nivåspridning 82") and what-if deltas ("82 → 141"), so numbers agree everywhere. The built-in `ConstraintCollectors.loadBalance` exists in 1.33 Community but its `LoadBalance.unfairness()` returns `BigDecimal` (verified) — rejected to keep the integer rule absolute and the metric explainable.
+`LevelMath.sadPoints(int[] levelsScaled)` and `LevelMath.spreadUnits(int[] levelsScaled)` are pure static functions sharing the same underlying SAD computation (§ `LevelMath` javadoc). Since v0.6.0 milestone B2, `levelBalance`'s constraint matchWeight uses `spreadUnits` (spread units, `SPREAD_UNIT_SCALED` = 1000 scaled = 10 level points/unit) while group-level display ("nivåspridning 82") and what-if deltas ("82 → 141") keep using `sadPoints` (whole level points) — the two no longer agree numerically, only structurally (same SAD, different final divisor); see the 2026-08-26 note under §4 for exactly which surfaces read which. The built-in `ConstraintCollectors.loadBalance` exists in 1.33 Community but its `LoadBalance.unfairness()` returns `BigDecimal` (verified) — rejected to keep the integer rule absolute and the metric explainable.
 
 ### 3.4 Overflow headroom (130 players)
 
-Worst cases per level, with max UI weight 10 000:
+Worst cases per level, with max UI weight 10 000 (levelBalance's matchWeight is spread units since v0.6.0 milestone B2: SAD ≤ ~11 000 scaled points per group ÷ `SPREAD_UNIT_SCALED` 1000 ≈ 11, rounded up to 1 100 units budgeted across the worst-case group count below for headroom):
 
-- Soft: LevelBalance ≤ 12 groups × 11 000 points × 10 000 = **1.3e9**; pair wishes ≤ ~1 300 matches × 10 000 = 1.3e7; ordering ≤ 11 pairs × 1 000 × 10 000 = 1.1e8. Total ≪ 1e10.
+- Soft: LevelBalance ≤ 12 groups × 1 100 units × 10 000 = **1.32e8**; pair wishes ≤ ~1 300 matches × 10 000 = 1.3e7; ordering ≤ 11 pairs × 1 000 × 10 000 = 1.1e8. Total ≪ 1e10.
 - Medium ≤ 130 × 5 × 100 = 6.5e4. Hard ≤ ~10 000 × 10 000 = 1e8.
 - `Long.MAX_VALUE ≈ 9.2e18` → headroom factor > 1e8. A guard test (`ScoreHeadroomTest`) computes the analytic worst case from metadata and asserts < 1e15.
 
@@ -383,6 +383,10 @@ Notes:
 - **10.6/10.7 tricky parts** are solved with pure-integer SAD and cross-multiplied mean comparison — no division except defined `Math.floorDiv`, no doubles (§3.3).
 - **`justifyWith` signatures (verified)**: Uni `BiFunction<A, Score_, J>`, Bi `TriFunction<A, B, Score_, J>`, etc.; every justification record carries entity **ids**, not object references, so records survive serialization into `ExplanationRecord` JSON.
 - **§26.13 gate**: every HARD row above has a named `ConstraintVerifier` test using `ConstraintVerifier.build(new GroupPlanConstraintProvider(), GroupPlanSolution.class, PlayerAssignment.class, GroupSchedule.class, CoachSlot.class)` and `verifyThat(GroupPlanConstraintProvider::<method>).given(...).penalizes(...)` / `penalizesBy(...)` (verified test API incl. `justifiesWith`). The solution's `constraintWeightOverrides` field defaults to `ConstraintWeightOverrides.none()` so verifier-constructed solutions are valid.
+- **2026-08-26 (v0.6.0 milestone B2)**: `10.6 levelBalance`'s **matchWeight unit** changed from whole level points (`LevelMath.sadPoints`) to **spread units** (`LevelMath.spreadUnits`, `SPREAD_UNIT_SCALED` = 1000 scaled = 10 level points/unit) — tempering how hard one band-move of level spread dominates the soft score, without touching the `ofSoft(100)` weight itself (weights are a later milestone). This is **not** display-neutral; the two surface families diverge:
+  - **sadPoints-derived numbers are unchanged**: `LevelSpreadJustification` text, `MoveProbe.GroupStats.spread`, and the group-detail "nivåspridning" display all still call `LevelMath.sadPoints` directly and are byte-identical to before this change.
+  - **score-derived surfaces shift ~10×** for levelBalance's contribution, because they read the soft score that the constraint provider now computes from `spreadUnits` instead of `sadPoints`: `GreedyBaselineService`'s score (computed via `solutionManager.update(...)` against the same constraint provider — `GreedyBaselineService` itself only reads `LevelMath.floorMean` for its own group-mean bookkeeping, it never read `sadPoints`), `ConstraintSummaryView`'s per-constraint score for `levelBalance`, `ProblematicGroupView.penaltySum` ranking (any ranking that weighs levelBalance against other constraints moves), and what-if score deltas. Anything that reads the **score** shifted; anything that reads **sadPoints directly** did not.
+  - **For the next milestone**: this unit temper *compounds* with any future weight change — e.g. a later `ofSoft(100)` → `ofSoft(10)` retempering would be a further 10× on top of this one (100× total vs. the pre-B2 baseline), not a replacement for it. Also, regenerated golden scores after a matchWeight/weight change are **not** a simple 10× rescale of the old goldens: the constraint's contribution to total score changes, which can shift which local-search moves the solver prefers, so the optimum itself can move and downstream unrelated constraints' contributions can differ too — goldens must be regenerated by actually solving, never by scaling old numbers.
 
 ---
 

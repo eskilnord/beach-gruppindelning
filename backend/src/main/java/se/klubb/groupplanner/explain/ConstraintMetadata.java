@@ -26,10 +26,13 @@ import se.klubb.groupplanner.solver.constraints.ConstraintKeys;
  *
  * <p>{@code unit} distinguishes constraints whose DB weight is a flat per-occurrence cost/reward
  * ({@link Unit#PER_MATCH}, e.g. one broken pair wish) from constraints whose weight is multiplied by
- * some magnitude ({@link Unit#PER_POINT}, e.g. level-spread points, players over/under a size bound,
- * groupOrder steps) — this is exactly what the design's §4 table's "50/spelare", "2/nivåpoäng" style
- * annotations encode, made machine-readable for message templates ("Grupp C är full: 12/12" needs no
- * unit; "Nivåspridning ökar 82 → 141" is inherently per-point).
+ * some magnitude ({@link Unit#PER_POINT}, e.g. players over/under a size bound, groupOrder steps,
+ * spread units of level imbalance) — this is exactly what the design's §4 table's "50/spelare",
+ * "100/saknad" style annotations encode, made machine-readable for message templates ("Grupp C är
+ * full: 12/12" needs no unit; "Grupp under min: 2 spelare kvar" is inherently per-point). Note that
+ * for {@code levelBalance} specifically, {@code PER_POINT} means per spread unit (10 level points)
+ * of the constraint's own {@code matchWeight}, not per single level point — see {@code LevelMath}
+ * and the levelBalance row's description above (v0.6.0 milestone B2).
  */
 public final class ConstraintMetadata {
 
@@ -145,7 +148,8 @@ public final class ConstraintMetadata {
         add(ConstraintKeys.GROUP_MIN_SIZE_EMPTY, "Minsta gruppstorlek (tom grupp)",
                 "Straffa en tom grupp för att vara under minSize.", HardOrSoft.SOFT, Unit.PER_POINT, Direction.PENALIZE);
         add(ConstraintKeys.LEVEL_BALANCE, "Nivåbalans i grupp",
-                "Minimera nivåspridning inom grupp.", HardOrSoft.SOFT, Unit.PER_POINT, Direction.PENALIZE);
+                "Minimera nivåspridning inom grupp (viktas per 10 nivåpoängs spridning).", HardOrSoft.SOFT,
+                Unit.PER_POINT, Direction.PENALIZE);
         add(ConstraintKeys.GROUP_ORDER_BY_LEVEL, "Gruppordning efter nivå",
                 "Högre grupper ska generellt ha högre nivå än lägre grupper.", HardOrSoft.SOFT, Unit.PER_POINT,
                 Direction.PENALIZE);

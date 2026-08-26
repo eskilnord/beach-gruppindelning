@@ -186,6 +186,11 @@ this is only about DEFAULTS. Full divergence table (constraint code defaults in
 
 `docs/design/04-solver.md` §4 carries a header note pointing here since this fix.
 
+**2026-08-26**: the `levelBalance` row's matchWeight (its `ofSoft(100)` weight is unchanged, only
+the *unit it's multiplied by* changed) was retempered from whole level points to spread units in
+v0.6.0 milestone B2 — see `docs/design/04-solver.md`'s 2026-08-26 note under §4 for what did and
+didn't shift as a result.
+
 ### F2 note — symmetric late-time weighting (documented future option)
 Design §4 wanted an ASYMMETRIC late-time pair (top groups penalized at 20, bottom groups rewarded
 at 10). The implementation fans BOTH directions out of the single seeded `lateTimeForLowerGroups`
@@ -273,6 +278,10 @@ real and unavoidable — verified by hand-computing the exact SAD for the two na
 slices before trusting the number. Greedy is expected to be worse-or-infeasible relative to the
 real solve (`coach-overlap-20`/`large-120` both show `hard < 0` for greedy) — it is a naive
 baseline, not a solver, exactly per spec §16.7's own framing ("enklast möjligt").
+
+**2026-08-26**: these golden scores predate v0.6.0 milestone B2's `levelBalance` matchWeight unit
+change (whole level points → spread units, see the F2-note-adjacent 2026-08-26 entry above); the
+levelBalance-heavy soft totals above are pre-B2 numbers and will not match a post-B2 regeneration.
 
 ## E2E verification (packaged jar, isolated `--app.data-dir`, port 4999)
 

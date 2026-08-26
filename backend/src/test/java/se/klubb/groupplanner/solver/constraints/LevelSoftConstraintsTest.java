@@ -4,6 +4,7 @@ import ai.timefold.solver.test.api.score.stream.ConstraintVerifier;
 import org.junit.jupiter.api.Test;
 import se.klubb.groupplanner.solver.constraints.Justifications.ContinuityJustification;
 import se.klubb.groupplanner.solver.constraints.Justifications.GroupOrderInversionJustification;
+import se.klubb.groupplanner.solver.constraints.Justifications.LevelSpreadJustification;
 import se.klubb.groupplanner.solver.domain.CoachSlot;
 import se.klubb.groupplanner.solver.domain.Group;
 import se.klubb.groupplanner.solver.domain.GroupPlanSolution;
@@ -22,14 +23,26 @@ class LevelSoftConstraintsTest {
     // ─────────────────────────────────────────────────────────────────── §10.6 levelBalance
 
     @Test
-    void fixedLevelsProduceExactSadPoints() {
+    void fixedLevelsProduceExactSpreadUnits() {
         // levels {600, 640, 700} scaled: {60000, 64000, 70000}; mean = floorDiv(194000,3) = 64666
         // SAD = |60000-64666| + |64000-64666| + |70000-64666| = 4666+666+5334 = 10666
-        // penalty = floorDiv(10666, 100) = 106
+        // matchWeight is in spread units (LevelMath.SPREAD_UNIT_SCALED = 1000): floorDiv(10666, 1000) = 10
+        // (sadPoints, the whole-level-points figure used for display, stays floorDiv(10666, 100) = 106 -
+        // see justifiesWithLevelSpreadJustification below, and LevelMathTest, for that unchanged value.)
         Group g = group(1);
         verifier.verifyThat(GroupPlanConstraintProvider::levelBalance)
                 .given(player(1, 60_000, g), player(2, 64_000, g), player(3, 70_000, g))
-                .penalizesBy(106);
+                .penalizesBy(10);
+    }
+
+    @Test
+    void justifiesWithLevelSpreadJustification() {
+        // Same {60000,64000,70000} fixture as above: the justification still carries sadPoints (106)
+        // and meanScaled (64666), unaffected by the matchWeight unit temper - pins display parity.
+        Group g = group(1);
+        verifier.verifyThat(GroupPlanConstraintProvider::levelBalance)
+                .given(player(1, 60_000, g), player(2, 64_000, g), player(3, 70_000, g))
+                .justifiesWith(new LevelSpreadJustification(1L, 106, 64666L));
     }
 
     @Test

@@ -690,13 +690,19 @@ export const sv = {
       // before every soft rule" is a fact worth stating, not just a ratio.
       MEDIUM: (weight: number) => `${weight} poäng per prioritetspoäng för varje oplacerad spelare – räknas alltid före mjuka regler`,
     },
-    // Per-key sentence overrides, checked BEFORE the unit/direction templates above. Only
-    // lateTimeForLowerGroups needs one so far: it fans out into two REAL constraints with opposite
-    // directions (lateTimeTopGroups penalizes, lateTimeBottomGroups rewards - see
-    // GroupPlanConstraintProvider), so no single unit+direction sentence could describe it truthfully.
+    // Per-key sentence overrides, checked BEFORE the unit/direction templates above.
+    //  - lateTimeForLowerGroups fans out into two REAL constraints with opposite directions
+    //    (lateTimeTopGroups penalizes, lateTimeBottomGroups rewards - see
+    //    GroupPlanConstraintProvider), so no single unit+direction sentence could describe it
+    //    truthfully.
+    //  - levelBalance's matchWeight is spread units, not whole level points, since v0.6.0
+    //    milestone B2 (LevelMath.SPREAD_UNIT_SCALED = 1000 scaled = 10 level points/unit,
+    //    GroupPlanConstraintProvider#levelBalance) - the generic PER_POINT_PENALIZE sentence
+    //    ("per nivåpoäng") would overstate the weight's effect by 10x, so it gets its own sentence.
     meaningByKey: {
       lateTimeForLowerGroups: (weight: number) =>
         `${weight} poäng – belönar sen tid för lägre grupper och straffar sen tid för toppgrupper`,
+      levelBalance: (weight: number) => `${weight} poäng straff per 10 nivåpoängs spridning i en grupp`,
     } as Record<string, (weight: number) => string>,
     resetButton: "Återställ till standard",
     overriddenBadge: "Anpassad",
