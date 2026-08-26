@@ -8,6 +8,7 @@ import { useParticipants } from "../../api/participants";
 import { usePersons } from "../../api/persons";
 import type { Person } from "../../api/types";
 import { sv } from "../../i18n/sv";
+import { useIsSimpleMode } from "../../lib/uiMode/useUiMode";
 import { matchesSearchQuery } from "./participantSearch";
 
 interface PlayerSearchSpotlightProps {
@@ -36,6 +37,7 @@ function personDisplayName(persons: Person[] | undefined, personId: string): str
  */
 export function PlayerSearchSpotlight({ planId }: PlayerSearchSpotlightProps) {
   const navigate = useNavigate();
+  const isSimple = useIsSimpleMode();
   const participants = useParticipants(planId);
   const persons = usePersons();
   const groups = useGroups(planId);
@@ -91,14 +93,19 @@ export function PlayerSearchSpotlight({ planId }: PlayerSearchSpotlightProps) {
           ),
           onClick: () => {
             if (hasGroups) {
-              navigate(`/plans/${planId}/resultat?highlight=${participant.id}`);
+              // v0.6.0 F5 (M-S5): SIMPLE also opens the explain drawer directly on arrival (`forklara`
+              // - ResultsPanel reads it on mount, then strips it from the URL) - the search-then-
+              // explain flow IS "Är någon placerad fel?" in simple mode, so it skips the extra click
+              // on the member row's own [Förklara] button that ADVANCED still requires.
+              const params = isSimple ? `highlight=${participant.id}&forklara=${participant.id}` : `highlight=${participant.id}`;
+              navigate(`/plans/${planId}/resultat?${params}`);
             } else {
               navigate(`/plans/${planId}/deltagare?participant=${participant.id}`);
             }
           },
         } satisfies SpotlightActionData;
       }),
-    [participants.data, persons.data, groupIdByParticipantId, groupNameById, hasGroups, navigate, planId],
+    [participants.data, persons.data, groupIdByParticipantId, groupNameById, hasGroups, isSimple, navigate, planId],
   );
 
   const filter = (

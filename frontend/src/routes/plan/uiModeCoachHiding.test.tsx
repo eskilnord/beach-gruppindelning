@@ -18,9 +18,14 @@
  * ReviewStep's "Justera" button (AdvancedOnly), ResourcesPanel's per-court Switch chips vs its
  * read-only SIMPLE summary text, and ParticipantsPanel's SIMPLE-only summary strip.
  *
- * TODO (F5): extend this file with the Resultat-screen coach surfaces (GroupCard's coach chip/lock,
- * ExplainDrawer's coach-related factors, ResultsSummary's coach-coverage quality signal) once F5
- * builds SIMPLE-mode gating for those - out of scope for F4 (Optimera/Tider/Deltagare/Import only).
+ * v0.6.0 F5 (M-S5): extended with the Resultat-screen coach surfaces this file's own F4 TODO above
+ * promised - GroupCard's coach chip/rows (`showCoachSection` prop), ScheduleView's coach names in
+ * schedule cells (`coachNameByGroupId` prop), ImprovementSuggestions' COACH_TIME/COACH_MAX rows (a
+ * light sanity check here - the thorough coverage of `filterSuggestionsForUiMode` itself lives in
+ * ImprovementSuggestions.test.tsx). ResultsSummary's coach-coverage badge was ALREADY covered by
+ * ResultsSummary.test.tsx's own `coachCoverage={null}` cases (the prop, not a uiMode gate - SIMPLE
+ * gating happens one level up, in ResultsPanel.tsx, by always passing `null`) - what F5 actually
+ * ADDS to ResultsSummary is the raw soft-score line going ADVANCED-only, covered below.
  */
 import type { ReactElement } from "react";
 import { describe, expect, it } from "vitest";
@@ -42,8 +47,12 @@ import type {
   FieldValueView,
   ParticipantCommentSuggestions,
   Person,
+  PersonExplanationResponse,
+  PlanExplanationResponse,
+  RunResultSummary,
   SuggestDurationResponse,
   TargetCandidate,
+  TrainingGroup,
 } from "../../api/types";
 import type { ImportAnalysis, ImportColumns } from "../../api/import";
 import type { LiveSnapshot, SlotBlocksView } from "../../api/types";
@@ -58,6 +67,11 @@ import { LiveSolveView } from "./optimize/LiveSolveView";
 import { SimpleCapacitySummary } from "./resources/SimpleCapacitySummary";
 import { ResourcesPanel } from "./resources/ResourcesPanel";
 import { ParticipantsPanel } from "./participants/ParticipantsPanel";
+import { ExplainDrawer } from "./results/explain/ExplainDrawer";
+import { GroupCard } from "./results/GroupCard";
+import { ImprovementSuggestions } from "./results/ImprovementSuggestions";
+import { ResultsSummary } from "./results/ResultsSummary";
+import { ScheduleView } from "./results/ScheduleView";
 
 /** OptimizeRoute/ResourcesPanel read `planId` via `useParams` (not a prop, unlike every other
  *  component covered in this file) - renderWithProviders' own MemoryRouter has no route table, so
@@ -621,5 +635,263 @@ describe("ParticipantsPanel summary strip", () => {
     renderAtRoute("/plans/:planId/deltagare", "/plans/plan-1/deltagare", <ParticipantsPanel />, "ADVANCED");
     await screen.findByText("Karin Lindqvist");
     expect(screen.queryByTestId("simple-participants-summary")).not.toBeInTheDocument();
+  });
+});
+
+// --- v0.6.0 F5 (M-S5): Resultat-screen coach surfaces (this file's own F4 TODO, resolved above) ---
+
+const RUN_SUMMARY: RunResultSummary = {
+  hard: 0,
+  medium: 0,
+  soft: -300,
+  feasible: true,
+  unassignedCount: 0,
+  note: null,
+  unchangedFromPrevious: false,
+};
+
+const PLAN_EXPLANATION: PlanExplanationResponse = {
+  runId: "run-1",
+  basedOnRevision: 1,
+  currentRevision: 1,
+  stale: false,
+  score: { hard: 0, medium: 0, soft: -300 },
+  feasible: true,
+  constraintSummaries: [],
+  hardViolations: [],
+  waitlist: [],
+  problematicGroups: [],
+  manualReview: [],
+};
+
+describe("ResultsSummary raw score line", () => {
+  it("shows the soft-score line in ADVANCED", async () => {
+    server.use(http.get("/api/plans/plan-1/runs/run-1/explanations/plan", () => HttpResponse.json(PLAN_EXPLANATION)));
+    renderWithProviders(
+      <ResultsSummary planId="plan-1" runId="run-1" runStartedAtLabel="10:00" runSummary={RUN_SUMMARY} coachCoverage={null} />,
+      { uiMode: "ADVANCED" },
+    );
+    expect(await screen.findByText((text) => text.includes("mjukt"))).toBeInTheDocument();
+  });
+
+  it("hides the soft-score line in SIMPLE - a raw solver score is exactly the jargon SIMPLE hides", async () => {
+    server.use(http.get("/api/plans/plan-1/runs/run-1/explanations/plan", () => HttpResponse.json(PLAN_EXPLANATION)));
+    renderWithProviders(
+      <ResultsSummary planId="plan-1" runId="run-1" runStartedAtLabel="10:00" runSummary={RUN_SUMMARY} coachCoverage={null} />,
+      { uiMode: "SIMPLE" },
+    );
+    await screen.findByTestId("results-quality-summary");
+    expect(screen.queryByText((text) => text.includes("mjukt"))).not.toBeInTheDocument();
+  });
+});
+
+const RESULTS_GROUP: TrainingGroup = {
+  id: "group-1",
+  activityPlanId: "plan-1",
+  name: "Grupp A",
+  requiredCoachCount: 1,
+  locked: false,
+};
+
+const GROUP_CARD_COACH = { coachProfileId: "coach-1", name: COACH_NAME, locked: false };
+
+describe("GroupCard coach chip/rows (showCoachSection)", () => {
+  it("shows the coach chip and coach row in ADVANCED (showCoachSection defaults to true)", () => {
+    renderWithProviders(
+      <GroupCard
+        planId="plan-1"
+        group={RESULTS_GROUP}
+        timeBanaLabel={null}
+        coaches={[GROUP_CARD_COACH]}
+        members={[]}
+        runId="run-1"
+        onExplain={() => {}}
+        onTestMove={() => {}}
+        onExplainGroup={() => {}}
+      />,
+    );
+    expect(screen.getByText(COACH_NAME)).toBeInTheDocument();
+    expect(screen.getByText(sv.results.quality.chips.coachLabel(1, 1))).toBeInTheDocument();
+  });
+
+  it("hides the coach chip, coach row, and 'Ingen tränare' text when showCoachSection is false, coaches empty", () => {
+    renderWithProviders(
+      <GroupCard
+        planId="plan-1"
+        group={RESULTS_GROUP}
+        timeBanaLabel={null}
+        coaches={[]}
+        showCoachSection={false}
+        members={[]}
+        runId="run-1"
+        onExplain={() => {}}
+        onTestMove={() => {}}
+        onExplainGroup={() => {}}
+      />,
+    );
+    expect(screen.queryByText(COACH_NAME)).not.toBeInTheDocument();
+    expect(screen.queryByText(sv.results.groupCard.noCoach)).not.toBeInTheDocument();
+    expect(screen.queryByText(sv.results.quality.chips.coachLabel(0, 1))).not.toBeInTheDocument();
+    // Block-lock stays - locks are core, not coach-only.
+    expect(screen.getByTestId(`block-lock-${RESULTS_GROUP.id}`)).toBeInTheDocument();
+  });
+});
+
+const SCHEDULE_SLOT_BLOCKS: SlotBlocksView[] = [
+  {
+    timeSlot: {
+      id: "ts-1",
+      activityPlanId: "plan-1",
+      dayOfWeek: "THURSDAY",
+      startTime: "18:00",
+      endTime: "19:30",
+      durationMinutes: 90,
+      label: "Torsdag 18.00–19.30",
+    },
+    blocks: [{ id: "block-1", timeSlotId: "ts-1", courtId: "court-1", courtName: "Bana 1", activityPlanId: "plan-1", active: true, locked: false }],
+  },
+];
+
+const SCHEDULE_GROUPS: TrainingGroup[] = [{ ...RESULTS_GROUP, assignedTrainingBlockId: "block-1" }];
+
+describe("ScheduleView coach names in cells", () => {
+  it("shows the coach's name in a schedule cell in ADVANCED", async () => {
+    server.use(http.get("/api/seasons/season-1/conflicts", () => HttpResponse.json([])));
+    renderWithProviders(
+      <ScheduleView
+        planId="plan-1"
+        seasonPlanId="season-1"
+        slotBlocks={SCHEDULE_SLOT_BLOCKS}
+        groups={SCHEDULE_GROUPS}
+        coachNameByGroupId={{ "group-1": COACH_NAME }}
+      />,
+    );
+    expect(await screen.findByText(`${RESULTS_GROUP.name} / ${COACH_NAME}`)).toBeInTheDocument();
+  });
+
+  it("omits the coach's name from schedule cells in SIMPLE (coachNameByGroupId passed as {})", async () => {
+    server.use(http.get("/api/seasons/season-1/conflicts", () => HttpResponse.json([])));
+    renderWithProviders(
+      <ScheduleView planId="plan-1" seasonPlanId="season-1" slotBlocks={SCHEDULE_SLOT_BLOCKS} groups={SCHEDULE_GROUPS} coachNameByGroupId={{}} />,
+    );
+    expect(await screen.findByText(RESULTS_GROUP.name)).toBeInTheDocument();
+    expect(screen.queryByText(`${RESULTS_GROUP.name} / ${COACH_NAME}`)).not.toBeInTheDocument();
+    expect(screen.queryByText(COACH_NAME)).not.toBeInTheDocument();
+  });
+});
+
+describe("ImprovementSuggestions COACH_TIME/COACH_MAX kinds", () => {
+  const SUGGESTIONS_URL = "/api/plans/plan-1/runs/run-1/suggestions";
+  const RESPONSE = {
+    runId: "run-1",
+    basedOnRevision: 1,
+    currentRevision: 1,
+    stale: false,
+    omittedCount: 0,
+    suggestions: [
+      {
+        kind: "COACH_TIME" as const,
+        titleSv: `Om ${COACH_NAME} kunde ta Torsdag 18.00-19.30 skulle Grupp A få en tränare.`,
+        detailSv: undefined,
+        impactSv: "1 grupp utan tränare åtgärdas",
+        groupId: "group-1",
+        participantProfileId: undefined,
+        coachProfileId: "coach-1",
+        timeSlotId: "slot-1",
+      },
+    ],
+  };
+
+  it("shows the COACH_TIME suggestion (with the coach's name) in ADVANCED", async () => {
+    server.use(http.get(SUGGESTIONS_URL, () => HttpResponse.json(RESPONSE)));
+    renderWithProviders(<ImprovementSuggestions planId="plan-1" runId="run-1" />, { uiMode: "ADVANCED" });
+    expect(await screen.findByText(RESPONSE.suggestions[0].titleSv)).toBeInTheDocument();
+  });
+
+  it("drops the COACH_TIME suggestion entirely in SIMPLE", async () => {
+    server.use(http.get(SUGGESTIONS_URL, () => HttpResponse.json(RESPONSE)));
+    renderWithProviders(<ImprovementSuggestions planId="plan-1" runId="run-1" />, { uiMode: "SIMPLE" });
+    await screen.findByTestId("improvement-suggestions-empty");
+    expect(screen.queryByText(RESPONSE.suggestions[0].titleSv)).not.toBeInTheDocument();
+    expect(screen.queryByText(COACH_NAME)).not.toBeInTheDocument();
+  });
+});
+
+// v0.6.0 F5 review fix (FIX 1, BLOCKER): the person-level explain drawer's own coach-hiding row -
+// a coach-wish positive factor AND a COACH: unmet wish must both survive verbatim in ADVANCED but
+// disappear entirely in SIMPLE (SimpleExplainBody's own unit tests cover the filtering mechanics in
+// detail; this is the coach-hiding sweep's cross-surface regression net).
+const COACH_EXPLAIN_RESPONSE: PersonExplanationResponse = {
+  runId: "run-1",
+  basedOnRevision: 1,
+  currentRevision: 1,
+  stale: false,
+  participantProfileId: "participant-1",
+  name: "Karin Lindqvist",
+  selectedGroup: { groupId: "group-1", name: "Grupp A", size: 1 },
+  positiveFactors: [{ messageSv: `Karin Lindqvist fick önskad tränare ${COACH_NAME}` }],
+  negativeFactors: [],
+  brokenWishes: [],
+  appliedWeights: [],
+  alternatives: [],
+  indirectFactors: [],
+  placementSummarySv: "Karin placerades i Grupp A.",
+  lockedNoticeSv: undefined,
+  unmetWishes: [
+    {
+      wishId: "COACH:coach-1",
+      key: "coachWishSoft",
+      bucket: "SOFT",
+      wishSv: `Karin Lindqvist vill helst ha tränare ${COACH_NAME}`,
+      outcome: "TRADE_OFF",
+      primaryReasonSv: `${COACH_NAME} coachar en annan grupp.`,
+      hedgeSv: undefined,
+      candidateGroupIds: [],
+      bestCandidateGroupId: undefined,
+      bestCandidateDelta: undefined,
+      competingReasons: [],
+      prioritySensitivity: undefined,
+    },
+  ],
+};
+
+function mockExplainEndpoint() {
+  server.use(
+    http.get("/api/plans/plan-1/runs/run-1/explanations/players/participant-1", () =>
+      HttpResponse.json(COACH_EXPLAIN_RESPONSE),
+    ),
+  );
+}
+
+function renderExplainDrawer(uiMode: UiMode) {
+  return renderWithProviders(
+    <ExplainDrawer
+      planId="plan-1"
+      runId="run-1"
+      participantProfileId="participant-1"
+      participantName="Karin Lindqvist"
+      allGroups={[{ id: "group-1", name: "Grupp A" }]}
+      onClose={() => {}}
+      onNavigateToParticipant={() => {}}
+      onTestMove={() => {}}
+    />,
+    { uiMode },
+  );
+}
+
+describe("ExplainDrawer coach factor + COACH unmet wish (Resultat person explain)", () => {
+  it("shows the coach's name (positive factor) in ADVANCED", async () => {
+    mockExplainEndpoint();
+    renderExplainDrawer("ADVANCED");
+    expect(await screen.findByText(COACH_NAME, { exact: false })).toBeInTheDocument();
+  });
+
+  it("hides the coach's name and drops the COACH unmet wish entirely in SIMPLE", async () => {
+    mockExplainEndpoint();
+    renderExplainDrawer("SIMPLE");
+    await screen.findByTestId("explain-why-headline");
+    expect(screen.queryByText(COACH_NAME, { exact: false })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("explain-unmet-wish")).not.toBeInTheDocument();
+    expect(screen.getByText(sv.results.explain.simple.noUnmetWishes)).toBeInTheDocument();
   });
 });

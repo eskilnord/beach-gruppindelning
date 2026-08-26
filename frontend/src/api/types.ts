@@ -351,8 +351,54 @@ export type AppliedWeightView = WithRequired<
   "key" | "label" | "level" | "weight"
 >;
 export type BrokenWishView = WithRequired<components["schemas"]["BrokenWishView"], "key" | "messageSv" | "weightApplied">;
+/** SelectedGroupView.timeLabelSv (v0.6.0 F5): a finished "tid / bana" sentence fragment, present
+ *  whenever the group has an assigned training block - stays optional (a group can be unscheduled),
+ *  SimpleExplainBody's headline sv() function omits the trailing parens when it's absent. */
 export type SelectedGroupView = WithRequired<components["schemas"]["SelectedGroupView"], "groupId" | "name" | "size">;
 export type WaitlistBlockerView = WithRequired<components["schemas"]["WaitlistBlockerView"], "groupId" | "name" | "blockerSv">;
+
+// --- v0.6.0 F5: the simple-mode explain drawer's "unmet wishes" + "what would it take?" data ---
+
+/** {@code outcome} on an {@link UnmetWishView} - the server's own classification of why a wish went
+ *  unmet, driving which of SimpleExplainBody's phrasings/CTAs apply (backend UnmetWishClassifier). */
+export type UnmetWishOutcome =
+  | "LOCKED"
+  | "NO_CANDIDATE"
+  | "BLOCKED_HARD"
+  | "TRADE_OFF"
+  | "EQUAL"
+  | "SOLVER_MISS"
+  | "INCONCLUSIVE";
+
+export type ConstraintReasonView = WithRequired<
+  components["schemas"]["ConstraintReasonView"],
+  "key" | "label" | "messageSv"
+>;
+
+/** {@code verdict}/{@code suggestedOrder}/{@code summarySv}/{@code cautionSv} are NOT YET in
+ *  schema.d.ts (they arrive in a near-future backend milestone per the F5 brief) - hand-added here,
+ *  optional, ahead of the backend so SimpleExplainBody's type-guard on `verdict` compiles now and
+ *  simply sees `undefined` for every field in this block until that milestone lands and `npm run
+ *  typegen` folds them into the generated schema (at which point this block becomes redundant with -
+ *  and should be replaced by - the generated optional fields, same as any other schema-drift cleanup). */
+export type PrioritySensitivityView = WithRequired<components["schemas"]["PrioritySensitivityView"], "available"> & {
+  /** "FLIPS_BY_REORDER" gates SimpleExplainBody's "Ändra prioritetsordning" CTA - any other
+   *  verdict (or absent) means reordering priorities would not help this specific move. */
+  verdict?: "FLIPS_BY_REORDER" | "NO_ORDER_HELPS" | "ALREADY_TOP" | "INCONCLUSIVE";
+};
+
+export type UnmetWishView = Omit<
+  WithRequired<
+    components["schemas"]["UnmetWishView"],
+    "wishId" | "key" | "bucket" | "wishSv" | "outcome" | "primaryReasonSv" | "candidateGroupIds" | "competingReasons"
+  >,
+  "outcome" | "bestCandidateDelta" | "competingReasons" | "prioritySensitivity"
+> & {
+  outcome: UnmetWishOutcome;
+  bestCandidateDelta?: ScoreDeltaView;
+  competingReasons: ConstraintReasonView[];
+  prioritySensitivity?: PrioritySensitivityView;
+};
 
 /** v0.3.0 WI-5 second-order factor (user feedback: "beror det på att en annan spelare påverkas av
  *  en tränare?") - see backend ExplanationDtos.IndirectFactorView/ExplanationService
@@ -393,6 +439,11 @@ export type PersonExplanationResponse = Omit<
     | "appliedWeights"
     | "alternatives"
     | "indirectFactors"
+    // v0.6.0 F5: placementSummarySv is always a finished plain-language sentence, unmetWishes always
+    // an array (possibly empty - "Alla önskemål ... uppfylldes" is unmetWishes.length === 0, not an
+    // absent field). lockedNoticeSv stays optional/nullable - most placements have no lock notice.
+    | "placementSummarySv"
+    | "unmetWishes"
   >,
   | "selectedGroup"
   | "positiveFactors"
@@ -402,6 +453,7 @@ export type PersonExplanationResponse = Omit<
   | "alternatives"
   | "indirectFactors"
   | "waitlist"
+  | "unmetWishes"
 > & {
   selectedGroup?: SelectedGroupView;
   positiveFactors: FactorView[];
@@ -411,6 +463,7 @@ export type PersonExplanationResponse = Omit<
   alternatives: AlternativeGroupView[];
   indirectFactors: IndirectFactorView[];
   waitlist?: WaitlistView;
+  unmetWishes: UnmetWishView[];
 };
 
 export type GroupCoachView = WithRequired<components["schemas"]["GroupCoachView"], "coachProfileId" | "name">;

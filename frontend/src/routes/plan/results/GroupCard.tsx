@@ -27,6 +27,13 @@ interface GroupCardProps {
   group: TrainingGroup;
   timeBanaLabel: string | null;
   coaches: GroupCardCoach[];
+  /** v0.6.0 F5 (M-S5): hides the coach chip, "Ingen tränare" text, coach rows, and coach lock
+   *  buttons entirely (independent of whether `coaches` is already empty) - ResultsPanel passes
+   *  `!isSimple`. Also switches off groupQuality's coach signals (`includeCoachSignals`) so SIMPLE's
+   *  hidden coach chip can't leave an unexplained coach-derived status color on the card. Defaults
+   *  to `true` (today's behavior, every existing caller/test unaffected). Block-lock stays visible
+   *  regardless - locks are core, not a coach-only concept. */
+  showCoachSection?: boolean;
   members: GroupCardMember[];
   /** The plan's latest run id (M7) - explain/what-if actions are disabled until the plan has been
    *  solved at least once (spec §17/§18 need a run to explain/probe against). */
@@ -67,6 +74,7 @@ export function GroupCard({
   group,
   timeBanaLabel,
   coaches,
+  showCoachSection = true,
   members,
   runId,
   highlightedParticipantId,
@@ -98,6 +106,7 @@ export function GroupCard({
     levelMin: group.levelMin ?? null,
     levelMax: group.levelMax ?? null,
     penaltySum,
+    includeCoachSignals: showCoachSection,
   });
   const statusColor = severityColor(quality.status);
   // Falls back to a neutral gray (not "ok"/teal) when the check simply doesn't apply to this group
@@ -211,9 +220,11 @@ export function GroupCard({
         <Badge size="sm" variant="light" color={sizeChipColor}>
           {sv.results.groupCard.playersCount(members.length, group.targetSize ?? null, group.maxSize ?? null)}
         </Badge>
-        <Badge size="sm" variant="light" color={coachChipColor}>
-          {sv.results.quality.chips.coachLabel(coaches.length, group.requiredCoachCount ?? null)}
-        </Badge>
+        {showCoachSection && (
+          <Badge size="sm" variant="light" color={coachChipColor}>
+            {sv.results.quality.chips.coachLabel(coaches.length, group.requiredCoachCount ?? null)}
+          </Badge>
+        )}
         {levelStats.mean != null && (
           <Badge size="sm" variant="light" color={levelChipColor}>
             {sv.results.quality.chips.levelLabel(levelStats.mean, levelStats.spread ?? 0)}
@@ -247,34 +258,36 @@ export function GroupCard({
         )}
       </Group>
 
-      <Group gap={6} mb="xs" wrap="wrap">
-        {coaches.length === 0 && (
-          <Text size="sm" c="dimmed">
-            {sv.results.groupCard.noCoach}
-          </Text>
-        )}
-        {coaches.map((coach) => (
-          <Group key={coach.coachProfileId} gap={4} wrap="nowrap">
-            <Text size="sm">{coach.name}</Text>
-            <Tooltip label={coach.locked ? sv.results.groupCard.coachUnlockTooltip : sv.results.groupCard.coachLockTooltip}>
-              <Button
-                size="compact-xs"
-                variant="subtle"
-                data-testid={`coach-lock-${group.id}-${coach.coachProfileId}`}
-                loading={lockCoach.isPending || unlockCoach.isPending}
-                onClick={() => toggleCoachLock(coach)}
-              >
-                {coach.locked ? sv.results.groupCard.unlockButton : sv.results.groupCard.lockButton}
-              </Button>
-            </Tooltip>
-            {coach.locked && (
-              <Badge size="xs" color="blue">
-                {sv.results.groupCard.coachLocked}
-              </Badge>
-            )}
-          </Group>
-        ))}
-      </Group>
+      {showCoachSection && (
+        <Group gap={6} mb="xs" wrap="wrap">
+          {coaches.length === 0 && (
+            <Text size="sm" c="dimmed">
+              {sv.results.groupCard.noCoach}
+            </Text>
+          )}
+          {coaches.map((coach) => (
+            <Group key={coach.coachProfileId} gap={4} wrap="nowrap">
+              <Text size="sm">{coach.name}</Text>
+              <Tooltip label={coach.locked ? sv.results.groupCard.coachUnlockTooltip : sv.results.groupCard.coachLockTooltip}>
+                <Button
+                  size="compact-xs"
+                  variant="subtle"
+                  data-testid={`coach-lock-${group.id}-${coach.coachProfileId}`}
+                  loading={lockCoach.isPending || unlockCoach.isPending}
+                  onClick={() => toggleCoachLock(coach)}
+                >
+                  {coach.locked ? sv.results.groupCard.unlockButton : sv.results.groupCard.lockButton}
+                </Button>
+              </Tooltip>
+              {coach.locked && (
+                <Badge size="xs" color="blue">
+                  {sv.results.groupCard.coachLocked}
+                </Badge>
+              )}
+            </Group>
+          ))}
+        </Group>
+      )}
 
       {/* v0.4.0 (user feedback v0.4 #5): the separate Nivåsnitt/Nivåspridning stat block folded into
           the "Nivå X (±Y)" chip above (same computeLevelStats numbers, still labeled Nivåsnitt/

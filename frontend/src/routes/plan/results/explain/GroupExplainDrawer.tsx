@@ -2,6 +2,7 @@ import { Alert, Button, Divider, Drawer, Group, Loader, Stack, Table, Text, Titl
 import { useGroupExplanation } from "../../../../api/explanations";
 import { ApiError } from "../../../../api/client";
 import { sv } from "../../../../i18n/sv";
+import { useIsSimpleMode } from "../../../../lib/uiMode/useUiMode";
 import { describeStaleness } from "./staleness";
 
 interface GroupExplainDrawerProps {
@@ -50,6 +51,7 @@ interface GroupExplainDrawerBodyProps {
 
 function GroupExplainDrawerBody({ planId, runId, groupId, onClose }: GroupExplainDrawerBodyProps) {
   const explanation = useGroupExplanation(planId, runId, groupId);
+  const isSimple = useIsSimpleMode();
 
   if (explanation.isLoading) {
     return <Loader size="sm" />;
@@ -83,7 +85,7 @@ function GroupExplainDrawerBody({ planId, runId, groupId, onClose }: GroupExplai
             {data.levelSpread != null ? ` · ${sv.results.groupCard.levelSpread}: ${data.levelSpread}` : ""}
           </Text>
         )}
-        {data.coach && <Text size="sm">{data.coach.name}</Text>}
+        {!isSimple && data.coach && <Text size="sm">{data.coach.name}</Text>}
         {data.block && <Text size="sm">{data.block.label}</Text>}
       </div>
 

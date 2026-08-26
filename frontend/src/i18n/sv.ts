@@ -1079,6 +1079,12 @@ export const sv = {
       cards: "Kort",
       schedule: "Schema",
     },
+    // v0.6.0 F5 (M-S5): SIMPLE-only hint card under ResultsSummary, offering the Ctrl/Cmd+F player
+    // search as the entry point into the per-person explain drawer's "why here" narrative.
+    misplacedHint: {
+      text: "Är någon placerad fel?",
+      searchButton: "Sök deltagare (Ctrl/Cmd+F)",
+    },
     groupCard: {
       // User feedback v0.4.1: the old "n/target/max spelare" chip was not self-explanatory - spell
       // out what each number means. Handles all four presence combinations of target/max.
@@ -1202,6 +1208,26 @@ export const sv = {
         blockersHeading: "Per grupp",
         qualityWarningTitle: "Förbättring möjlig",
       },
+      // v0.6.0 F5 (M-S5): the simplified explain drawer body (SimpleExplainBody.tsx) - a plain-
+      // language "why here"/"what's unmet" narrative instead of ADVANCED's full weights/alternatives/
+      // why-not surface. placementSummarySv/wishSv/primaryReasonSv/hedgeSv/summarySv/cautionSv/
+      // unavailableReasonSv are all server-rendered Swedish sentences (PersonExplanationResponse),
+      // rendered verbatim - only the section chrome around them lives here.
+      simple: {
+        headline: (name: string, groupName: string, timeLabel: string | null) =>
+          timeLabel ? `${name} tränar i ${groupName} (${timeLabel})` : `${name} tränar i ${groupName}`,
+        thereforeHeading: "Därför hamnade hen här",
+        showMoreFactors: "Visa fler",
+        unmetWishesHeading: "Önskemål som inte kunde uppfyllas",
+        noUnmetWishes: "Inga önskemål behövde väljas bort.",
+        whatWouldItTakeHeading: "Vad skulle krävas?",
+        changePriorityOrderButton: "Ändra prioritetsordning",
+        testMoveButton: "Testa att flytta",
+        // v0.6.0 F5 review fix (FIX 3, MAJOR): prioritySensitivity.available === true but summarySv
+        // is empty/absent (a backend classification the frontend can't further explain) previously
+        // rendered a blank accordion panel - looked broken, not "nothing to say here".
+        sensitivityUnknown: "Det gick inte att räkna fram ett svar här.",
+      },
     },
     whatIf: {
       title: (name: string) => `Testa att flytta ${name}`,
@@ -1209,7 +1235,7 @@ export const sv = {
       targetGroupPlaceholder: "Välj grupp",
       waitlistOption: "Kölista",
       consequenceHeading: "Konsekvens av flytt",
-      scoreDeltaLabel: "Total score",
+      scoreDeltaLabel: "Totalpoäng",
       wouldBreakHardAlert: "Flytten skulle bryta ett hårt krav.",
       groupSizeChangesHeading: "Ändrad gruppstorlek",
       groupSizeChangeLine: (name: string, from: number, to: number, max: number | null) =>

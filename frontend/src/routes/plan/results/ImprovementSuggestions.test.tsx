@@ -5,8 +5,8 @@ import { delay, http, HttpResponse } from "msw";
 import { server } from "../../../test/server";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { sv } from "../../../i18n/sv";
-import { ImprovementSuggestions } from "./ImprovementSuggestions";
-import type { ImprovementSuggestionsResponse } from "../../../api/types";
+import { filterSuggestionsForUiMode, ImprovementSuggestions } from "./ImprovementSuggestions";
+import type { ImprovementSuggestionsResponse, SuggestionView } from "../../../api/types";
 
 const SUGGESTIONS_URL = "/api/plans/plan-1/runs/run-1/suggestions";
 
@@ -230,5 +230,88 @@ describe("ImprovementSuggestions", () => {
 
     await user.click(screen.getByTestId("improvement-suggestions-toggle"));
     await waitFor(() => expect(screen.getByText(response.suggestions[0].titleSv)).toBeVisible());
+  });
+
+  // v0.6.0 F5 (M-S5): SIMPLE mode never shows any other coach content on the Resultat tab (GroupCard's
+  // chip/rows, ResultsSummary's coach-coverage badge, ScheduleView's coach names are all hidden) - a
+  // COACH_TIME/COACH_MAX suggestion here would be the one leak left, see uiModeCoachHiding.test.tsx
+  // for the full-component render assertion.
+  it("hides COACH_TIME/COACH_MAX suggestion rows entirely in SIMPLE", async () => {
+    const response: ImprovementSuggestionsResponse = {
+      ...BASE_RESPONSE,
+      suggestions: [
+        {
+          kind: "PLAYER_TIME",
+          titleSv: "Om Erik Eriksson kunde träna Torsdag 18.00-19.30 skulle hen få plats i Grupp A.",
+          detailSv: undefined,
+          impactSv: "1 spelare färre på kölistan",
+          groupId: "group-1",
+          participantProfileId: "participant-1",
+          coachProfileId: undefined,
+          timeSlotId: "slot-1",
+        },
+        {
+          kind: "COACH_TIME",
+          titleSv: "Om Lisa Larsson kunde ta Torsdag 18.00-19.30 skulle Grupp A få en tränare.",
+          detailSv: undefined,
+          impactSv: "1 grupp utan tränare åtgärdas",
+          groupId: "group-1",
+          participantProfileId: undefined,
+          coachProfileId: "coach-1",
+          timeSlotId: "slot-1",
+        },
+      ],
+    };
+    server.use(http.get(SUGGESTIONS_URL, () => HttpResponse.json(response)));
+
+    renderWithProviders(<ImprovementSuggestions planId="plan-1" runId="run-1" />, { uiMode: "SIMPLE" });
+
+    const rows = await screen.findAllByTestId("improvement-suggestion-row");
+    expect(rows).toHaveLength(1);
+    expect(screen.getByText(response.suggestions[0].titleSv)).toBeInTheDocument();
+    expect(screen.queryByText(response.suggestions[1].titleSv)).not.toBeInTheDocument();
+  });
+});
+
+function suggestion(overrides: Partial<SuggestionView> = {}): SuggestionView {
+  return {
+    kind: "PLAYER_TIME",
+    titleSv: "titel",
+    detailSv: undefined,
+    impactSv: "effekt",
+    groupId: undefined,
+    participantProfileId: undefined,
+    coachProfileId: undefined,
+    timeSlotId: undefined,
+    ...overrides,
+  };
+}
+
+describe("filterSuggestionsForUiMode", () => {
+  it("drops COACH_TIME/COACH_MAX and keeps everything else when isSimple is true", () => {
+    const all = [
+      suggestion({ kind: "PLAYER_TIME" }),
+      suggestion({ kind: "COACH_TIME" }),
+      suggestion({ kind: "COACH_MAX" }),
+      suggestion({ kind: "GROUP_MAX" }),
+      suggestion({ kind: "GROUP_MAX_WISH" }),
+      suggestion({ kind: "PLAYER_TIME_WISH" }),
+    ];
+    expect(filterSuggestionsForUiMode(all, true).map((s) => s.kind)).toEqual([
+      "PLAYER_TIME",
+      "GROUP_MAX",
+      "GROUP_MAX_WISH",
+      "PLAYER_TIME_WISH",
+    ]);
+  });
+
+  it("keeps every kind unchanged when isSimple is false", () => {
+    const all = [suggestion({ kind: "COACH_TIME" }), suggestion({ kind: "COACH_MAX" }), suggestion({ kind: "PLAYER_TIME" })];
+    expect(filterSuggestionsForUiMode(all, false)).toEqual(all);
+  });
+
+  it("is a no-op on an empty list in either mode", () => {
+    expect(filterSuggestionsForUiMode([], true)).toEqual([]);
+    expect(filterSuggestionsForUiMode([], false)).toEqual([]);
   });
 });

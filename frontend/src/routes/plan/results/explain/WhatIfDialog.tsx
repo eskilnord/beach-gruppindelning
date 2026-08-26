@@ -34,6 +34,11 @@ interface WhatIfDialogProps {
   currentGroupId: string | null;
   allGroups: GroupOption[];
   onClose: () => void;
+  /** v0.6.0 F5 (M-S5): pre-selects the target group picker (and so immediately fires the
+   *  consequence query, same as if the user had just picked it) - wired from SimpleExplainBody's
+   *  per-wish "Testa att flytta" CTA with the wish's `bestCandidateGroupId`. Omitted/`undefined`
+   *  (default) preserves today's behavior: the picker opens empty. */
+  initialTargetGroupId?: string | null;
 }
 
 /**
@@ -43,7 +48,16 @@ interface WhatIfDialogProps {
  * behåll nuvarande (close), flytta ändå (the actual mutating manual move, confirmed first if it would
  * break a hard rule), or lås & markera för omoptimering (move + lock, suggesting a re-solve).
  */
-export function WhatIfDialog({ planId, runId, participantProfileId, participantName, currentGroupId, allGroups, onClose }: WhatIfDialogProps) {
+export function WhatIfDialog({
+  planId,
+  runId,
+  participantProfileId,
+  participantName,
+  currentGroupId,
+  allGroups,
+  onClose,
+  initialTargetGroupId,
+}: WhatIfDialogProps) {
   const opened = participantProfileId !== null;
   return (
     <Modal opened={opened} onClose={onClose} title={sv.results.whatIf.title(participantName)} size="lg" data-testid="whatif-dialog">
@@ -57,6 +71,7 @@ export function WhatIfDialog({ planId, runId, participantProfileId, participantN
           currentGroupId={currentGroupId}
           allGroups={allGroups}
           onClose={onClose}
+          initialTargetGroupId={initialTargetGroupId}
         />
       )}
     </Modal>
@@ -71,10 +86,27 @@ interface WhatIfDialogBodyProps {
   currentGroupId: string | null;
   allGroups: GroupOption[];
   onClose: () => void;
+  initialTargetGroupId?: string | null;
 }
 
-function WhatIfDialogBody({ planId, runId, participantProfileId, participantName, currentGroupId, allGroups, onClose }: WhatIfDialogBodyProps) {
-  const [targetValue, setTargetValue] = useState<string | null>(null);
+function WhatIfDialogBody({
+  planId,
+  runId,
+  participantProfileId,
+  participantName,
+  currentGroupId,
+  allGroups,
+  onClose,
+  initialTargetGroupId,
+}: WhatIfDialogBodyProps) {
+  // v0.6.0 F5 review fix (FIX 5, MAJOR): only seed the picker from `initialTargetGroupId` when it's
+  // actually one of the CURRENT run's groups - a stale cached explain-drawer response (e.g. from
+  // before a re-solve regenerated groups) could otherwise prefill a group id that no longer exists,
+  // silently selecting nothing real and never firing the consequence query for the user's chosen
+  // group either.
+  const validInitialTargetGroupId =
+    initialTargetGroupId != null && allGroups.some((g) => g.id === initialTargetGroupId) ? initialTargetGroupId : null;
+  const [targetValue, setTargetValue] = useState<string | null>(validInitialTargetGroupId);
   const [confirmBreakHard, setConfirmBreakHard] = useState<"MOVE_ANYWAY" | "LOCK_AND_RESOLVE" | null>(null);
 
   const consequence = useWhatIfMove(planId);

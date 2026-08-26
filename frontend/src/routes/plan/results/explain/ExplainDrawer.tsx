@@ -5,10 +5,13 @@ import { useWhatIfWhyNot } from "../../../../api/whatif";
 import { ApiError } from "../../../../api/client";
 import type { BrokenWishView } from "../../../../api/types";
 import { sv } from "../../../../i18n/sv";
+import { useIsSimpleMode } from "../../../../lib/uiMode/useUiMode";
 import { AlternativeCard } from "./AlternativeCard";
 import { weightBadgeLabel } from "./badges";
 import { IndirectFactorsSection } from "./IndirectFactorsSection";
+import { SimpleExplainBody } from "./SimpleExplainBody";
 import { describeStaleness } from "./staleness";
+import { WaitlistNarrative } from "./WaitlistNarrative";
 
 export interface GroupOption {
   id: string;
@@ -28,6 +31,11 @@ interface ExplainDrawerProps {
   /** Jump the drawer to a different participant - used by the "waitlisted friend" link (a broken
    *  pair-wish whose other side is themselves unplaced, backend amendment (c)). */
   onNavigateToParticipant: (participantProfileId: string, name: string) => void;
+  /** v0.6.0 F5 (M-S5): opens the shared WhatIfDialog PREFILLED to `initialTargetGroupId` - wired to
+   *  SimpleExplainBody's per-wish "Testa att flytta" CTA ("Vad skulle krävas?" accordion). Unused by
+   *  the ADVANCED body (its own [Testa flytt] affordance lives on GroupCard/WaitlistCard instead, with
+   *  no prefill). */
+  onTestMove: (participantProfileId: string, name: string, currentGroupId: string | null, initialTargetGroupId: string) => void;
 }
 
 /**
@@ -45,25 +53,81 @@ export function ExplainDrawer({
   allGroups,
   onClose,
   onNavigateToParticipant,
+  onTestMove,
 }: ExplainDrawerProps) {
   const opened = participantProfileId !== null;
+  const isSimple = useIsSimpleMode();
   const explanation = usePersonExplanation(planId, runId, participantProfileId ?? undefined);
   const title = explanation.data ? sv.results.explain.title(explanation.data.name) : sv.results.explain.title(participantName);
 
   return (
     <Drawer opened={opened} onClose={onClose} position="right" size="xl" title={title} data-testid="explain-drawer">
-      {opened && (
-        <ExplainDrawerBody
-          key={`${runId ?? ""}:${participantProfileId}`}
-          planId={planId}
-          runId={runId}
-          participantProfileId={participantProfileId}
-          allGroups={allGroups}
-          onNavigateToParticipant={onNavigateToParticipant}
-          onClose={onClose}
-        />
-      )}
+      {opened &&
+        (isSimple ? (
+          <SimpleExplainDrawerBody
+            key={`${runId ?? ""}:${participantProfileId}`}
+            planId={planId}
+            runId={runId}
+            participantProfileId={participantProfileId}
+            allGroups={allGroups}
+            onTestMove={onTestMove}
+          />
+        ) : (
+          <ExplainDrawerBody
+            key={`${runId ?? ""}:${participantProfileId}`}
+            planId={planId}
+            runId={runId}
+            participantProfileId={participantProfileId}
+            allGroups={allGroups}
+            onNavigateToParticipant={onNavigateToParticipant}
+            onClose={onClose}
+          />
+        ))}
     </Drawer>
+  );
+}
+
+interface SimpleExplainDrawerBodyProps {
+  planId: string;
+  runId: string | undefined;
+  participantProfileId: string;
+  allGroups: GroupOption[];
+  onTestMove: (participantProfileId: string, name: string, currentGroupId: string | null, initialTargetGroupId: string) => void;
+}
+
+/**
+ * v0.6.0 F5 (M-S5): the SIMPLE-mode counterpart to {@link ExplainDrawerBody} below - same fetch/
+ * loading/error/staleness-banner shell (kept, staleness is a correctness warning not an "advanced"
+ * detail), but hands the resolved data to {@link SimpleExplainBody} instead of the full ADVANCED
+ * factors/weights/alternatives/why-not body. Deliberately a SEPARATE component (not a branch inside
+ * ExplainDrawerBody itself) so that function's ADVANCED-only 300+ lines stay untouched.
+ */
+function SimpleExplainDrawerBody({ planId, runId, participantProfileId, allGroups, onTestMove }: SimpleExplainDrawerBodyProps) {
+  const explanation = usePersonExplanation(planId, runId, participantProfileId);
+
+  if (explanation.isLoading) {
+    return <Loader size="sm" />;
+  }
+  if (explanation.isError || !explanation.data) {
+    return (
+      <Alert color="red">
+        {explanation.error instanceof ApiError ? explanation.error.message : sv.results.explain.loadFailed}
+      </Alert>
+    );
+  }
+
+  const data = explanation.data;
+  const banner = describeStaleness(data.stale);
+
+  return (
+    <Stack gap="md">
+      {banner.show && (
+        <Alert color="yellow" data-testid="explain-stale-banner">
+          {banner.message}
+        </Alert>
+      )}
+      <SimpleExplainBody planId={planId} data={data} allGroups={allGroups} onTestMove={onTestMove} />
+    </Stack>
   );
 }
 
@@ -139,34 +203,7 @@ function ExplainDrawerBody({
           )}
         </div>
       ) : (
-        data.waitlist && (
-          <div data-testid="explain-waitlist-narrative">
-            <Title order={5}>{sv.results.waitlist.heading}</Title>
-            <Text size="sm">{data.waitlist.reasonSv}</Text>
-            {data.waitlist.qualityWarningSv && (
-              <Alert color="blue" title={sv.results.explain.waitlist.qualityWarningTitle} mt="xs">
-                {data.waitlist.qualityWarningSv}
-              </Alert>
-            )}
-            {data.waitlist.perGroupBlockers.length > 0 && (
-              <>
-                <Text size="sm" fw={500} mt="sm">
-                  {sv.results.explain.waitlist.blockersHeading}
-                </Text>
-                <Table verticalSpacing={4} withTableBorder mt={4}>
-                  <Table.Tbody>
-                    {data.waitlist.perGroupBlockers.map((blocker) => (
-                      <Table.Tr key={blocker.groupId}>
-                        <Table.Td>{blocker.name}</Table.Td>
-                        <Table.Td>{blocker.blockerSv}</Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              </>
-            )}
-          </div>
-        )
+        data.waitlist && <WaitlistNarrative waitlist={data.waitlist} />
       )}
 
       <Divider />
@@ -180,7 +217,7 @@ function ExplainDrawerBody({
         )}
         {data.positiveFactors.map((f, i) => (
           <Text key={i} size="sm" c="green" data-testid="explain-positive-factor">
-            ✓ {f.messageSv}
+            <span aria-hidden="true">✓</span> {f.messageSv}
           </Text>
         ))}
       </div>

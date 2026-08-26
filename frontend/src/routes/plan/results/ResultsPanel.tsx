@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Alert, Button, Card, Loader, SegmentedControl, SimpleGrid, Stack, Title } from "@mantine/core";
+import { spotlight } from "@mantine/spotlight";
+import { Alert, Button, Card, Group, Loader, SegmentedControl, SimpleGrid, Stack, Text, Title } from "@mantine/core";
 import { IconTrophy } from "@tabler/icons-react";
 import { useAssignments } from "../../../api/assignments";
 import { ApiError } from "../../../api/client";
@@ -16,6 +17,7 @@ import { useTrainingBlocksForPlan } from "../../../api/trainingBlocks";
 import { sv } from "../../../i18n/sv";
 import { EmptyState } from "../../../components/EmptyState";
 import { formatDateTime } from "../../../lib/formatDateTime";
+import { useIsSimpleMode } from "../../../lib/uiMode/useUiMode";
 import { parseResultSummary } from "../optimize/runSummary";
 import { ExplainDrawer, type GroupOption } from "./explain/ExplainDrawer";
 import { GroupExplainDrawer } from "./explain/GroupExplainDrawer";
@@ -48,20 +50,31 @@ function personDisplayName(persons: { id: string; displayName?: string; firstNam
 export function ResultsPanel() {
   const { planId } = useParams<{ planId: string }>();
   const navigate = useNavigate();
+  const isSimple = useIsSimpleMode();
   const [view, setView] = useState<ResultView>("cards");
 
   // Ctrl/Cmd+F player search (PlayerSearchSpotlight.tsx) navigates here with `?highlight=<id>` -
   // force the Kort view (only it renders per-member rows to scroll to/flash) and jump to the row
-  // once the joined view model below is ready.
-  const [searchParams] = useSearchParams();
+  // once the joined view model below is ready. v0.6.0 F5 (M-S5): SIMPLE's spotlight also adds
+  // `?forklara=<id>` so the explain drawer opens directly - handled below, once, then stripped from
+  // the URL so back-navigation doesn't reopen it.
+  const [searchParams, setSearchParams] = useSearchParams();
   const highlightedParticipantId = searchParams.get("highlight");
+  const forklaraParticipantId = searchParams.get("forklara");
 
   // M7 explain/what-if drawer & dialog state - lifted to this shared parent (rather than living
   // inside each GroupCard/WaitlistCard) so there is exactly ONE of each mounted at a time and the
   // "waitlisted friend" link in the explain drawer can jump straight to a different participant
   // anywhere in the plan by just updating this state.
   const [explainTarget, setExplainTarget] = useState<{ id: string; name: string } | null>(null);
-  const [whatIfTarget, setWhatIfTarget] = useState<{ id: string; name: string; currentGroupId: string | null } | null>(null);
+  const [whatIfTarget, setWhatIfTarget] = useState<{
+    id: string;
+    name: string;
+    currentGroupId: string | null;
+    /** v0.6.0 F5 (M-S5): pre-selects WhatIfDialog's target group picker - set only when opened via
+     *  SimpleExplainBody's "Testa att flytta" CTA (WhatIfDialog's `initialTargetGroupId` prop). */
+    preselectGroupId?: string | null;
+  } | null>(null);
   const [explainGroup, setExplainGroup] = useState<{ id: string; name: string } | null>(null);
 
   const plan = usePlan(planId);
@@ -186,6 +199,48 @@ export function ResultsPanel() {
     row.scrollIntoView({ behavior: "smooth", block: "center" });
   });
 
+  // v0.6.0 F5 (M-S5): PlayerSearchSpotlight's SIMPLE-mode `?forklara=<id>` opens the explain drawer
+  // directly on arrival, then the param is stripped so a later back-navigation to this same URL
+  // doesn't reopen it (same once-per-id ref guard as the highlight effect above, for the same
+  // `model` object-identity reason). The participant's name isn't strictly needed (ExplainDrawer's
+  // title falls back to it only while the explanation itself is still loading), but resolving it
+  // here avoids a flash of an empty drawer title.
+  const forklaraHandledRef = useRef<string | null>(null);
+  useEffect(() => {
+    // v0.6.0 F5 review fix (FIX 4, MAJOR): reset the "already handled" latch the moment the param
+    // itself clears (rather than only ever setting it, never unsetting it) - otherwise a REPEAT
+    // search for the SAME participant (PlayerSearchSpotlight navigates with `?forklara=<id>` again)
+    // would forever find `forklaraHandledRef.current === forklaraParticipantId` and silently do
+    // nothing: no re-open, and (since the early return skipped the strip too) the param would even
+    // get stuck in the URL.
+    if (!forklaraParticipantId) {
+      forklaraHandledRef.current = null;
+      return;
+    }
+    if (!model || forklaraHandledRef.current === forklaraParticipantId) {
+      return;
+    }
+    forklaraHandledRef.current = forklaraParticipantId;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("forklara");
+        return next;
+      },
+      { replace: true },
+    );
+    const participant = model.participantById.get(forklaraParticipantId);
+    // v0.6.0 F5 review fix (FIX 4, MAJOR): a `forklara` id that no longer resolves to a real
+    // participant (a stale/copied link, or the participant was removed) previously still opened the
+    // drawer with an empty title/body instead of just staying closed - strip the param (above) and
+    // bail without ever calling setExplainTarget.
+    if (!participant) {
+      return;
+    }
+    const name = personDisplayName(persons.data, participant.personId);
+    setExplainTarget({ id: forklaraParticipantId, name });
+  }, [forklaraParticipantId, model, persons.data, setSearchParams]);
+
   if (isLoading) {
     return <Loader size="sm" />;
   }
@@ -272,8 +327,23 @@ export function ResultsPanel() {
           runId={latestRunId}
           runStartedAtLabel={runStartedAtLabel}
           runSummary={latestRunSummary}
-          coachCoverage={coachCoverage}
+          coachCoverage={isSimple ? null : coachCoverage}
         />
+      )}
+
+      {/* v0.6.0 F5 (M-S5): SIMPLE-only entry point into the per-person explain drawer - the
+       *  Kort/Schema views' own [Förklara] buttons stay ADVANCED-and-SIMPLE both (they're on a
+       *  specific member's row, not a general prompt), but a council member scanning the whole plan
+       *  for a misplaced friend needs a way in that doesn't require finding their card first. */}
+      {isSimple && latestRunId && (
+        <Card withBorder padding="lg" data-testid="results-misplaced-hint">
+          <Group justify="space-between" wrap="wrap" gap="sm">
+            <Text size="sm">{sv.results.misplacedHint.text}</Text>
+            <Button variant="default" onClick={() => spotlight.open()}>
+              {sv.results.misplacedHint.searchButton}
+            </Button>
+          </Group>
+        </Card>
       )}
 
       {/* WI-D "Förbättringsförslag" (user feedback v0.4 #2): only meaningful once a run exists -
@@ -311,7 +381,8 @@ export function ResultsPanel() {
                   planId={planId}
                   group={group}
                   timeBanaLabel={timeBanaLabel}
-                  coaches={groupCoaches}
+                  coaches={isSimple ? [] : groupCoaches}
+                  showCoachSection={!isSimple}
                   members={members}
                   runId={latestRunId}
                   highlightedParticipantId={highlightedParticipantId}
@@ -340,7 +411,7 @@ export function ResultsPanel() {
             seasonPlanId={plan.data?.seasonPlanId}
             slotBlocks={trainingBlocks.data ?? []}
             groups={model.sortedGroups}
-            coachNameByGroupId={model.coachNameByGroupId}
+            coachNameByGroupId={isSimple ? {} : model.coachNameByGroupId}
           />
         </Card>
       )}
@@ -355,6 +426,9 @@ export function ResultsPanel() {
             allGroups={allGroups}
             onClose={() => setExplainTarget(null)}
             onNavigateToParticipant={(id, name) => setExplainTarget({ id, name })}
+            onTestMove={(id, name, currentGroupId, initialTargetGroupId) =>
+              setWhatIfTarget({ id, name, currentGroupId, preselectGroupId: initialTargetGroupId })
+            }
           />
           <WhatIfDialog
             planId={planId}
@@ -364,6 +438,7 @@ export function ResultsPanel() {
             currentGroupId={whatIfTarget?.currentGroupId ?? null}
             allGroups={allGroups}
             onClose={() => setWhatIfTarget(null)}
+            initialTargetGroupId={whatIfTarget?.preselectGroupId ?? null}
           />
           <GroupExplainDrawer
             planId={planId}

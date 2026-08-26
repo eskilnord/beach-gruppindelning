@@ -6,6 +6,7 @@ import { useImprovementSuggestions } from "../../../api/explanations";
 import { ApiError } from "../../../api/client";
 import type { SuggestionKind, SuggestionView } from "../../../api/types";
 import { sv } from "../../../i18n/sv";
+import { useIsSimpleMode } from "../../../lib/uiMode/useUiMode";
 
 interface ImprovementSuggestionsProps {
   planId: string;
@@ -38,6 +39,19 @@ function isLimitation(kind: SuggestionKind): boolean {
   return LIMITATION_KINDS.has(kind);
 }
 
+/** v0.6.0 F5 (M-S5): coach-touching suggestion kinds - a SIMPLE-mode council member never sees any
+ *  other coach content on the Resultat tab (GroupCard's chip/rows, ResultsSummary's coach-coverage
+ *  badge, ScheduleView's coach names are all hidden), so a "Fråga tränaren X..." suggestion here
+ *  would be the one coach-identifying leak left on the tab. Exported (pure, no component
+ *  dependency) so it's unit-testable on its own. */
+const COACH_KINDS: ReadonlySet<SuggestionKind> = new Set(["COACH_TIME", "COACH_MAX"]);
+
+/** Drops COACH_TIME/COACH_MAX suggestions when `isSimple` - identity filter (same array reference
+ *  behavior as `.filter` always gives) in ADVANCED. */
+export function filterSuggestionsForUiMode(suggestions: SuggestionView[], isSimple: boolean): SuggestionView[] {
+  return isSimple ? suggestions.filter((s) => !COACH_KINDS.has(s.kind)) : suggestions;
+}
+
 /**
  * "Förbättringsförslag" (WI-D, user feedback v0.4 #2): post-solve, low-hanging-fruit suggestions for
  * SMALL data changes the council could make to unlock a bigger improvement - e.g. "Om tränaren Lisa
@@ -47,9 +61,10 @@ function isLimitation(kind: SuggestionKind): boolean {
  */
 export function ImprovementSuggestions({ planId, runId }: ImprovementSuggestionsProps) {
   const suggestions = useImprovementSuggestions(planId, runId);
+  const isSimple = useIsSimpleMode();
   const [opened, setOpened] = useState(true);
 
-  const all = suggestions.data?.suggestions ?? [];
+  const all = filterSuggestionsForUiMode(suggestions.data?.suggestions ?? [], isSimple);
   const actionable = all.filter((s) => !isLimitation(s.kind));
   const limitations = all.filter((s) => isLimitation(s.kind));
 

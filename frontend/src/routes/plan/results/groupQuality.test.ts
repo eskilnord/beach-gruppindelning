@@ -216,3 +216,46 @@ describe("computeGroupQuality", () => {
     expect(quality.signals.every((s) => s.severity === "ok")).toBe(true);
   });
 });
+
+// v0.6.0 F5 (M-S5): `includeCoachSignals: false` (GroupCard's SIMPLE-mode `showCoachSection={false}`)
+// skips coachMissing/coachBelowRequired/coachInPlace entirely, in every direction a coach signal
+// could otherwise push the group's overall status - existing callers (includeCoachSignals omitted)
+// keep today's behavior, covered by every test above this block.
+describe("computeGroupQuality includeCoachSignals", () => {
+  it("omits a would-be-bad coachMissing signal and does not drag the overall status down for it", () => {
+    const quality = computeGroupQuality({ ...BASE, requiredCoachCount: 1, coachCount: 0, includeCoachSignals: false });
+    expect(quality.signals).toHaveLength(0);
+    expect(quality.status).toBe("good");
+  });
+
+  it("omits a would-be-bad coachBelowRequired signal", () => {
+    const quality = computeGroupQuality({ ...BASE, requiredCoachCount: 2, coachCount: 1, includeCoachSignals: false });
+    expect(quality.signals).toHaveLength(0);
+    expect(quality.status).toBe("good");
+  });
+
+  it("omits a would-be-ok coachInPlace signal too - not just the bad ones", () => {
+    const quality = computeGroupQuality({ ...BASE, requiredCoachCount: 1, coachCount: 1, includeCoachSignals: false });
+    expect(quality.signals).toHaveLength(0);
+  });
+
+  it("still emits every non-coach signal (size/level/topPenalty) unaffected", () => {
+    const quality = computeGroupQuality({
+      ...BASE,
+      size: 3,
+      minSize: 6,
+      requiredCoachCount: 1,
+      coachCount: 0,
+      includeCoachSignals: false,
+    });
+    expect(quality.signals.map((s) => s.key)).toEqual(["sizeBelowMin"]);
+    expect(quality.status).toBe("bad");
+  });
+
+  it("defaulting includeCoachSignals (omitted) preserves today's behavior - equivalent to explicit true", () => {
+    const withDefault = computeGroupQuality({ ...BASE, requiredCoachCount: 1, coachCount: 0 });
+    const withExplicitTrue = computeGroupQuality({ ...BASE, requiredCoachCount: 1, coachCount: 0, includeCoachSignals: true });
+    expect(withDefault).toEqual(withExplicitTrue);
+    expect(withDefault.signals).toHaveLength(1);
+  });
+});

@@ -65,6 +65,13 @@ export interface GroupQualityInput {
    *  own javadoc. Never computed here; this module only reacts to what the caller already decided
    *  is "in the top 3". */
   penaltySum?: number | null;
+  /** v0.6.0 F5 (M-S5): `false` skips the coachMissing/coachBelowRequired/coachInPlace signals
+   *  entirely (no coach-status entry in `signals`, and the coach check never contributes to the
+   *  overall `status`) - GroupCard passes this through from its own `showCoachSection` prop so
+   *  SIMPLE mode's hidden coach chip never leaves a coach-derived "bad"/"warn" status on the card's
+   *  border/dot with no visible chip to explain it. Defaults to `true` (today's behavior, every
+   *  existing caller/test unaffected). */
+  includeCoachSignals?: boolean;
 }
 
 /** One decimal, Swedish comma - mirrors the backend's own level formatting convention
@@ -97,7 +104,7 @@ export function computeGroupQuality(input: GroupQualityInput): GroupQuality {
   // --- Coach coverage: only meaningful when the group actually requires a coach. Any shortfall is
   // bad (review fix 4): a group configured for 2 coaches with only 1 assigned is understaffed, not
   // "in place" - the zero case just gets its own blunter wording. ---
-  if (input.requiredCoachCount != null && input.requiredCoachCount > 0) {
+  if ((input.includeCoachSignals ?? true) && input.requiredCoachCount != null && input.requiredCoachCount > 0) {
     if (input.coachCount === 0) {
       signals.push({ key: "coachMissing", severity: "bad", textSv: sv.results.quality.signals.coachMissing });
     } else if (input.coachCount < input.requiredCoachCount) {

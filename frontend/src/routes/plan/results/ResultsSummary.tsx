@@ -2,6 +2,7 @@ import { Badge, Card, Group, Text } from "@mantine/core";
 import { IconAlertCircle, IconCircleCheck } from "@tabler/icons-react";
 import { usePlanExplanation } from "../../../api/explanations";
 import type { RunResultSummary } from "../../../api/types";
+import { AdvancedOnly } from "../../../components/uimode/AdvancedOnly";
 import { HelpTip } from "../../../components/HelpTip";
 import { sv } from "../../../i18n/sv";
 import { formatSoftLine } from "../optimize/scoreFormat";
@@ -76,13 +77,17 @@ export function ResultsSummary({ planId, runId, runStartedAtLabel, runSummary, c
 
       {/* Soft component ONLY (review fix 2): the chips above already carry the hard-violation and
           waitlist counts from better sources - formatScoreLine's own "|hard| hårda brott" is a
-          WEIGHTED score magnitude that can contradict the chip's per-violation count. */}
-      <Group gap={4} mt="xs">
-        <Text size="xs" c="dimmed">
-          {formatSoftLine(runSummary.soft)}
-        </Text>
-        <HelpTip label={sv.help.ariaLabel(sv.results.quality.softScoreLabel)}>{sv.help.results.softScore}</HelpTip>
-      </Group>
+          WEIGHTED score magnitude that can contradict the chip's per-violation count. v0.6.0 F5
+          (M-S5): a raw solver score is exactly the kind of jargon SIMPLE hides - the chips above
+          (hard violations, waitlist) stay, they're plain counts, not a score. */}
+      <AdvancedOnly>
+        <Group gap={4} mt="xs">
+          <Text size="xs" c="dimmed">
+            {formatSoftLine(runSummary.soft)}
+          </Text>
+          <HelpTip label={sv.help.ariaLabel(sv.results.quality.softScoreLabel)}>{sv.help.results.softScore}</HelpTip>
+        </Group>
+      </AdvancedOnly>
     </Card>
   );
 }

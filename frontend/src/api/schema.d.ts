@@ -20,7 +20,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/plans/{planId}/participants/{pid}/field-values": {
+    "/api/plans/{planId}/priority-order": {
         parameters: {
             query?: never;
             header?: never;
@@ -28,6 +28,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["get"];
+        put: operations["update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/participants/{pid}/field-values": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_1"];
         put: operations["put"];
         post?: never;
         delete?: never;
@@ -92,7 +108,7 @@ export interface paths {
             cookie?: never;
         };
         get: operations["list"];
-        put: operations["update"];
+        put: operations["update_1"];
         post?: never;
         delete?: never;
         options?: never;
@@ -123,7 +139,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_1"];
+        get: operations["get_2"];
         put: operations["put_1"];
         post?: never;
         delete?: never;
@@ -187,8 +203,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_2"];
-        put: operations["update_1"];
+        get: operations["get_3"];
+        put: operations["update_2"];
         post?: never;
         delete?: never;
         options?: never;
@@ -571,13 +587,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_3"];
+        get: operations["get_4"];
         put?: never;
         post?: never;
         delete: operations["delete"];
         options?: never;
         head?: never;
-        patch: operations["update_2"];
+        patch: operations["update_3"];
         trace?: never;
     };
     "/api/training-blocks/{id}": {
@@ -603,13 +619,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_4"];
+        get: operations["get_5"];
         put?: never;
         post?: never;
         delete: operations["delete_1"];
         options?: never;
         head?: never;
-        patch: operations["update_3"];
+        patch: operations["update_4"];
         trace?: never;
     };
     "/api/seasons/{id}": {
@@ -619,13 +635,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_5"];
+        get: operations["get_6"];
         put?: never;
         post?: never;
         delete: operations["delete_2"];
         options?: never;
         head?: never;
-        patch: operations["update_4"];
+        patch: operations["update_5"];
         trace?: never;
     };
     "/api/plans/{planId}/saved-plans/{savedPlanId}": {
@@ -651,13 +667,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_6"];
+        get: operations["get_7"];
         put?: never;
         post?: never;
         delete: operations["delete_4"];
         options?: never;
         head?: never;
-        patch: operations["update_5"];
+        patch: operations["update_6"];
         trace?: never;
     };
     "/api/persons/{id}": {
@@ -667,13 +683,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_7"];
+        get: operations["get_8"];
         put?: never;
         post?: never;
         delete: operations["delete_5"];
         options?: never;
         head?: never;
-        patch: operations["update_6"];
+        patch: operations["update_7"];
         trace?: never;
     };
     "/api/participants/{id}": {
@@ -683,13 +699,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_8"];
+        get: operations["get_9"];
         put?: never;
         post?: never;
         delete: operations["delete_6"];
         options?: never;
         head?: never;
-        patch: operations["update_7"];
+        patch: operations["update_8"];
         trace?: never;
     };
     "/api/field-definitions/{id}": {
@@ -705,7 +721,7 @@ export interface paths {
         delete: operations["delete_7"];
         options?: never;
         head?: never;
-        patch: operations["update_8"];
+        patch: operations["update_9"];
         trace?: never;
     };
     "/api/courts/{id}": {
@@ -715,13 +731,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_9"];
+        get: operations["get_10"];
         put?: never;
         post?: never;
         delete: operations["delete_8"];
         options?: never;
         head?: never;
-        patch: operations["update_9"];
+        patch: operations["update_10"];
         trace?: never;
     };
     "/api/coaches/{id}": {
@@ -731,13 +747,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_10"];
+        get: operations["get_11"];
         put?: never;
         post?: never;
         delete: operations["delete_9"];
         options?: never;
         head?: never;
-        patch: operations["update_10"];
+        patch: operations["update_11"];
         trace?: never;
     };
     "/api/seasons/{seasonId}/conflicts": {
@@ -844,6 +860,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["player"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/runs/{runId}/explanations/players/{participantProfileId}/wish-analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["wishAnalysis"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1173,6 +1205,31 @@ export interface components {
             active?: boolean;
             locked?: boolean;
         };
+        PriorityOrderUpdateRequest: {
+            order?: string[];
+        };
+        PriorityOrderRow: {
+            key?: string;
+            /** Format: int32 */
+            rank?: number;
+            labelSv?: string;
+            summarySv?: string;
+            constraintKeys?: string[];
+            weights?: {
+                [key: string]: number;
+            };
+            enabled?: boolean;
+        };
+        PriorityOrderView: {
+            order?: string[];
+            defaultOrder?: string[];
+            matchesOrder?: boolean;
+            customWeightsActive?: boolean;
+            otherOverridesActive?: boolean;
+            staleSinceLastRun?: boolean;
+            updatedAt?: string;
+            priorities?: components["schemas"]["PriorityOrderRow"][];
+        };
         JsonNode: unknown;
         FieldValueView: {
             fieldDefinitionId?: string;
@@ -1227,6 +1284,7 @@ export interface components {
             overridden?: boolean;
             unit?: string;
             direction?: string;
+            updatedAt?: string;
         };
         AvailabilityEntry: {
             timeSlotId?: string;
@@ -1543,6 +1601,9 @@ export interface components {
             manualReviewFlag?: boolean;
             waitlisted?: boolean;
             reviewedDone?: boolean;
+            /** Format: int32 */
+            previousGroupOrder?: number;
+            previousGroupParseWarning?: string;
         };
         RecomputeLevelsResult: {
             /** Format: int32 */
@@ -1924,6 +1985,15 @@ export interface components {
             unassignedFriendParticipantProfileId?: string;
             coachBindingSv?: string;
         };
+        ConstraintReasonView: {
+            key?: string;
+            label?: string;
+            messageSv?: string;
+            /** Format: int64 */
+            scoreImpact?: number;
+            /** Format: int32 */
+            sharePercent?: number;
+        };
         FactorView: {
             messageSv?: string;
         };
@@ -1952,6 +2022,18 @@ export interface components {
             alternatives?: components["schemas"]["AlternativeGroupView"][];
             indirectFactors?: components["schemas"]["IndirectFactorView"][];
             waitlist?: components["schemas"]["WaitlistView"];
+            placementSummarySv?: string;
+            lockedNoticeSv?: string;
+            unmetWishes?: components["schemas"]["UnmetWishView"][];
+        };
+        PrioritySensitivityView: {
+            available?: boolean;
+            unavailableReasonSv?: string;
+            verdict?: string;
+            suggestedOrder?: string[];
+            summarySv?: string;
+            cautionSv?: string;
+            blockerLabelSv?: string;
         };
         SelectedGroupView: {
             groupId?: string;
@@ -1965,6 +2047,21 @@ export interface components {
             levelMeanSv?: string;
             /** Format: int32 */
             levelSpread?: number;
+            timeLabelSv?: string;
+        };
+        UnmetWishView: {
+            wishId?: string;
+            key?: string;
+            bucket?: string;
+            wishSv?: string;
+            outcome?: string;
+            primaryReasonSv?: string;
+            hedgeSv?: string;
+            candidateGroupIds?: string[];
+            bestCandidateGroupId?: string;
+            bestCandidateDelta?: components["schemas"]["ScoreDeltaView"];
+            competingReasons?: components["schemas"]["ConstraintReasonView"][];
+            prioritySensitivity?: components["schemas"]["PrioritySensitivityView"];
         };
         WaitlistBlockerView: {
             groupId?: string;
@@ -1975,6 +2072,36 @@ export interface components {
             reasonSv?: string;
             perGroupBlockers?: components["schemas"]["WaitlistBlockerView"][];
             qualityWarningSv?: string;
+        };
+        OrderingView: {
+            orderKeys?: string[];
+            nonWorse?: boolean;
+            /** Format: int64 */
+            predictedSoftDelta?: number;
+        };
+        WeightBreakEvenView: {
+            key?: string;
+            labelSv?: string;
+            /** Format: int64 */
+            currentWeight?: number;
+            direction?: string;
+            /** Format: int32 */
+            threshold?: number;
+            messageSv?: string;
+            impossibleReasonSv?: string;
+        };
+        WishAnalysisResponse: {
+            runId?: string;
+            /** Format: int32 */
+            basedOnRevision?: number;
+            /** Format: int32 */
+            currentRevision?: number;
+            stale?: boolean;
+            wishId?: string;
+            breakEven?: components["schemas"]["WeightBreakEvenView"][];
+            orderings?: components["schemas"]["OrderingView"][];
+            unavailableReasonSv?: string;
+            cautionSv?: string;
         };
         ConstraintSummaryView: {
             key?: string;
@@ -2253,6 +2380,54 @@ export interface operations {
             header?: never;
             path: {
                 planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PriorityOrderView"];
+                };
+            };
+        };
+    };
+    update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriorityOrderUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PriorityOrderView"];
+                };
+            };
+        };
+    };
+    get_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
                 pid: string;
             };
             cookie?: never;
@@ -2406,7 +2581,7 @@ export interface operations {
             };
         };
     };
-    update: {
+    update_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -2482,7 +2657,7 @@ export interface operations {
             };
         };
     };
-    get_1: {
+    get_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -2674,7 +2849,7 @@ export interface operations {
             };
         };
     };
-    get_2: {
+    get_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -2694,7 +2869,7 @@ export interface operations {
             };
         };
     };
-    update_1: {
+    update_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -3501,7 +3676,7 @@ export interface operations {
             };
         };
     };
-    get_3: {
+    get_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -3543,7 +3718,7 @@ export interface operations {
             };
         };
     };
-    update_2: {
+    update_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -3595,7 +3770,7 @@ export interface operations {
             };
         };
     };
-    get_4: {
+    get_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -3637,7 +3812,7 @@ export interface operations {
             };
         };
     };
-    update_3: {
+    update_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -3665,7 +3840,7 @@ export interface operations {
             };
         };
     };
-    get_5: {
+    get_6: {
         parameters: {
             query?: never;
             header?: never;
@@ -3707,7 +3882,7 @@ export interface operations {
             };
         };
     };
-    update_4: {
+    update_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -3804,7 +3979,7 @@ export interface operations {
             };
         };
     };
-    get_6: {
+    get_7: {
         parameters: {
             query?: never;
             header?: never;
@@ -3846,7 +4021,7 @@ export interface operations {
             };
         };
     };
-    update_5: {
+    update_6: {
         parameters: {
             query?: never;
             header?: never;
@@ -3872,7 +4047,7 @@ export interface operations {
             };
         };
     };
-    get_7: {
+    get_8: {
         parameters: {
             query?: never;
             header?: never;
@@ -3914,7 +4089,7 @@ export interface operations {
             };
         };
     };
-    update_6: {
+    update_7: {
         parameters: {
             query?: never;
             header?: never;
@@ -3940,7 +4115,7 @@ export interface operations {
             };
         };
     };
-    get_8: {
+    get_9: {
         parameters: {
             query?: never;
             header?: never;
@@ -3982,7 +4157,7 @@ export interface operations {
             };
         };
     };
-    update_7: {
+    update_8: {
         parameters: {
             query?: never;
             header?: never;
@@ -4030,7 +4205,7 @@ export interface operations {
             };
         };
     };
-    update_8: {
+    update_9: {
         parameters: {
             query?: never;
             header?: never;
@@ -4056,7 +4231,7 @@ export interface operations {
             };
         };
     };
-    get_9: {
+    get_10: {
         parameters: {
             query?: never;
             header?: never;
@@ -4098,7 +4273,7 @@ export interface operations {
             };
         };
     };
-    update_9: {
+    update_10: {
         parameters: {
             query?: never;
             header?: never;
@@ -4124,7 +4299,7 @@ export interface operations {
             };
         };
     };
-    get_10: {
+    get_11: {
         parameters: {
             query?: never;
             header?: never;
@@ -4166,7 +4341,7 @@ export interface operations {
             };
         };
     };
-    update_10: {
+    update_11: {
         parameters: {
             query?: never;
             header?: never;
@@ -4347,6 +4522,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["PersonExplanationResponse"];
+                };
+            };
+        };
+    };
+    wishAnalysis: {
+        parameters: {
+            query: {
+                wish: string;
+            };
+            header?: never;
+            path: {
+                planId: string;
+                runId: string;
+                participantProfileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WishAnalysisResponse"];
                 };
             };
         };
