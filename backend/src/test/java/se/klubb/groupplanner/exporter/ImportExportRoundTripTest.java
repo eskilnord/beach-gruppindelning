@@ -21,6 +21,8 @@ import se.klubb.groupplanner.domain.TrainingGroup;
 import se.klubb.groupplanner.importer.ColumnMapping;
 import se.klubb.groupplanner.importer.CommitOptions;
 import se.klubb.groupplanner.importer.CommitResult;
+import se.klubb.groupplanner.importer.ImportAnalysis;
+import se.klubb.groupplanner.importer.ImportAnalysisService;
 import se.klubb.groupplanner.importer.ImportCommitService;
 import se.klubb.groupplanner.importer.ImportSession;
 import se.klubb.groupplanner.importer.ImportSessionService;
@@ -106,11 +108,37 @@ class ImportExportRoundTripTest {
     @Autowired
     private ImportValidationService importValidationService;
     @Autowired
+    private ImportAnalysisService importAnalysisService;
+    @Autowired
     private ImportCommitService importCommitService;
 
-    @Test
-    void previousGroupNameSurvivesAnExportThenImportRoundTrip() throws Exception {
-        // --- Source plan: schedule small-10 into 2 groups, export the council-layout xlsx. ---
+    /** Stale value seeded onto every participant before export (B5 FIX1 regression) - deliberately
+     *  distinct from every real small-10 group name (which are always plain "&lt;category&gt; N", no
+     *  term at all - {@code GroupGenerator}), so a committed previousGroupName ever equal to this
+     *  proves the OLD (stale, real-column) value won instead of the current block heading. Also
+     *  deliberately carries a term suffix ("Hösttermin 2020") - this is the EXACT shape of the FIX1
+     *  blocker: a term-bearing real column vs a term-less block heading, where the pre-fix chooser
+     *  always (and wrongly) favored the term-bearing side. */
+    private static final String STALE_PREVIOUS_GROUP_NAME = "Gammal Grupp (Hösttermin 2020)";
+
+    /** Schedules small-10 into >=2 groups and exports the council-layout xlsx (shared by both tests
+     *  in this class - the round-trip proof below, and the B5 one-click-precedence proof). */
+    private ExportRoundTripFixture setUpSourcePlanAndExport() throws Exception {
+        return setUpSourcePlanAndExport(false);
+    }
+
+    /**
+     * @param seedStalePreviousGroupNames when {@code true}, every small-10 participant's {@code
+     *     previousGroupName} is set to {@link #STALE_PREVIOUS_GROUP_NAME} BEFORE exporting - so the
+     *     export's own real "Tidigare grupp" column carries that stale value (this app's exporter
+     *     always writes the participant's CURRENT stored previousGroupName into it), while the export's
+     *     block structure carries each player's actual CURRENT group. B5 FIX1 regression: the one-click
+     *     analysis must prefer the block heading (the newer information) over this stale real-column
+     *     value, not the other way around - the pre-fix {@code PreviousGroupColumnChooser} term-
+     *     recency rule got this backwards specifically because a real column routinely carries a term
+     *     suffix while a block heading never does (see {@code PreviousGroupColumnChooserTest}).
+     */
+    private ExportRoundTripFixture setUpSourcePlanAndExport(boolean seedStalePreviousGroupNames) throws Exception {
         TestDatasetLoader loader = new TestDatasetLoader(
                 seasonPlanRepository, activityPlanRepository, personRepository, participantProfileRepository,
                 playerAssignmentRepository, coachProfileRepository, coachTimeSlotRepository, timeSlotRepository,
@@ -121,20 +149,42 @@ class ImportExportRoundTripTest {
                 sourcePlanId, trainingGroupRepository, trainingBlockRepository, participantProfileRepository,
                 playerAssignmentRepository, coachProfileRepository, coachAssignmentRepository);
 
+        if (seedStalePreviousGroupNames) {
+            for (ParticipantProfile p : participantProfileRepository.findByActivityPlanId(sourcePlanId)) {
+                participantProfileRepository.update(new ParticipantProfile(
+                        p.id(), p.personId(), p.activityPlanId(), p.rankingPoints(), p.rankingSource(),
+                        STALE_PREVIOUS_GROUP_NAME, p.previousGroupLevel(), p.estimatedLevel(), p.levelConfidence(),
+                        p.manualLevelScore(), p.importedComment(), p.internalNote(), p.manualReviewFlag(),
+                        p.waitlisted(), p.reviewedDone()));
+            }
+        }
+
         List<TrainingGroup> sourceGroups = trainingGroupRepository.findByActivityPlanId(sourcePlanId);
         Set<String> sourceGroupNames = sourceGroups.stream().map(TrainingGroup::name).collect(Collectors.toSet());
         assertThat(sourceGroupNames).as("small-10 + the fixture's scheduling must produce >=2 groups").hasSizeGreaterThanOrEqualTo(2);
 
         ExportService.ExportFile exported = exportService.export(sourcePlanId, "xlsx", "grouped", false);
+        return new ExportRoundTripFixture(exported, sourceGroupNames);
+    }
 
-        // --- A brand-new, otherwise-empty plan (same DB - `training_group` rows from BOTH plans are
-        // visible to knownGroupNames(), matching real life: last term's groups are a different plan). ---
+    private record ExportRoundTripFixture(ExportService.ExportFile exported, Set<String> sourceGroupNames) {
+    }
+
+    private String createTargetPlan() {
         Instant now = Instant.now();
         SeasonPlan newSeason = seasonPlanRepository.insert(
                 new SeasonPlan(Uuid7.generate(), "WP1 round-trip", null, null, "active", now, now));
         ActivityPlan targetPlan = activityPlanRepository.insert(new ActivityPlan(
                 Uuid7.generate(), newSeason.id(), "Round-trip", "beach", "draft", null, null, null, null, now, now));
-        String targetPlanId = targetPlan.id();
+        return targetPlan.id();
+    }
+
+    @Test
+    void previousGroupNameSurvivesAnExportThenImportRoundTrip() throws Exception {
+        ExportRoundTripFixture fixture = setUpSourcePlanAndExport();
+        ExportService.ExportFile exported = fixture.exported();
+        Set<String> sourceGroupNames = fixture.sourceGroupNames();
+        String targetPlanId = createTargetPlan();
 
         ImportSessionService.CreatedSession created = importSessionService.createSession(
                 targetPlanId, "export.xlsx", new ByteArrayInputStream(exported.bytes()));
@@ -160,7 +210,7 @@ class ImportExportRoundTripTest {
                 new ColumnMapping(ColumnMapping.BLOCK_GROUP_COLUMN_INDEX, MappingTargetKind.PREVIOUS_GROUP_NAME, null)));
 
         List<RowValidationResult> validation = importValidationService.validate(session, targetPlanId);
-        assertThat(validation).noneMatch(r -> r.reasons().stream().anyMatch(reason -> reason.startsWith("Okänd tidigare grupp")));
+        assertThat(validation).noneMatch(r -> r.reasons().stream().anyMatch(reason -> reason.startsWith("Tidigare grupp")));
 
         CommitResult commitResult = importCommitService.commit(session, targetPlanId, CommitOptions.none());
         assertThat(commitResult.imported()).isGreaterThan(0);
@@ -174,5 +224,72 @@ class ImportExportRoundTripTest {
         assertThat(importedPreviousGroupNames).isNotEmpty();
         assertThat(sourceGroupNames).as("every derived previous group name must be one of the source plan's real group names")
                 .containsAll(importedPreviousGroupNames);
+    }
+
+    /**
+     * B5 IMPORTANT round-trip check: the export's own 'Tidigare grupp' column is blank for every
+     * small-10 participant (none of them had a previousGroupName to begin with), while the export's
+     * own block structure (the group each player is CURRENTLY listed under) obviously carries a real
+     * value for every row. Before B5, {@code ImportAnalysisService}'s one-click analysis always
+     * preferred a real 'Tidigare grupp' column whenever ANY such column existed at all - regardless
+     * of whether it actually had data - so re-uploading the app's own grouped export never
+     * auto-suggested the (far more informative) synthetic block column without a manual override
+     * (see the test above, which manually maps it). With the new precedence
+     * ({@code PreviousGroupColumnChooser}), the empty real column loses to the synthetic block
+     * column automatically (tie on term-recency, default-to-synthetic since the real column has zero
+     * parseable samples) - this proves the ONE-CLICK path picks it with no manual mapping at all.
+     *
+     * <p>B5 FIX1 regression (review): the ORIGINAL version of this test was vacuous for the actual
+     * blocker it was meant to guard against - small-10's participants start with no previousGroupName
+     * at all, so the real column's win/loss made no visible difference either way. This now seeds a
+     * STALE previousGroupName onto every participant before export (so the real column is non-empty
+     * and carries genuinely wrong/outdated information), and asserts the current block heading still
+     * wins and OVERWRITES that stale value on commit.
+     */
+    @Test
+    void oneClickAnalysisOverOwnGroupedExportAutoPicksTheSyntheticBlockColumn() throws Exception {
+        ExportRoundTripFixture fixture = setUpSourcePlanAndExport(true);
+        Set<String> sourceGroupNames = fixture.sourceGroupNames();
+        String targetPlanId = createTargetPlan();
+
+        ImportSessionService.CreatedSession created = importSessionService.createSession(
+                targetPlanId, "export.xlsx", new ByteArrayInputStream(fixture.exported().bytes()));
+        ImportSession session = importSessionService.getForPlan(created.sessionId(), targetPlanId);
+
+        // No manual header/mapping at all - exactly what the "one click" wizard path does.
+        ImportAnalysis analysis = importAnalysisService.analyzeAndPrepare(session, targetPlanId);
+
+        ImportAnalysis.ColumnAnalysis syntheticColumn = analysis.columns().stream()
+                .filter(ImportAnalysis.ColumnAnalysis::synthetic)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Layout 1 must be detected against a real export"));
+        assertThat(syntheticColumn.target()).isEqualTo("previousGroupName");
+        assertThat(syntheticColumn.confidence()).isEqualTo(1.0);
+
+        ImportAnalysis.ColumnAnalysis realPreviousGroupColumn = analysis.columns().stream()
+                .filter(c -> "Tidigare grupp".equals(c.headerText()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("The export must still have its own 'Tidigare grupp' column"));
+        assertThat(realPreviousGroupColumn.target())
+                .as("B5 FIX1: the STALE real-column value must lose even though it is non-empty")
+                .isEqualTo("ignore");
+
+        // analyzeAndPrepare already wrote the mappings into the session - commit directly.
+        CommitResult commitResult = importCommitService.commit(session, targetPlanId, CommitOptions.none());
+        assertThat(commitResult.imported()).isGreaterThan(0);
+
+        List<ParticipantProfile> importedParticipants = participantProfileRepository.findByActivityPlanId(targetPlanId);
+        Set<String> importedPreviousGroupNames = importedParticipants.stream()
+                .map(ParticipantProfile::previousGroupName)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        // Every committed participant's previousGroupName is their CURRENT group heading from the
+        // export's own block structure - never the STALE real-column value seeded before export.
+        assertThat(importedPreviousGroupNames).isNotEmpty();
+        assertThat(importedPreviousGroupNames)
+                .as("B5 FIX1: the current block heading must OVERWRITE the stale real-column value")
+                .doesNotContain(STALE_PREVIOUS_GROUP_NAME);
+        assertThat(sourceGroupNames).containsAll(importedPreviousGroupNames);
     }
 }

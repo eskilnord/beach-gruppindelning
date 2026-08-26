@@ -7,10 +7,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import se.klubb.groupplanner.api.error.BadRequestException;
 import se.klubb.groupplanner.domain.Person;
+import se.klubb.groupplanner.groups.PreviousGroupNormalizer;
 import se.klubb.groupplanner.importer.match.PersonMatchProposal;
 import se.klubb.groupplanner.importer.match.PersonMatcher;
 import se.klubb.groupplanner.importer.parse.CellType;
@@ -33,13 +33,10 @@ public class ImportValidationService {
 
     private final PersonRepository personRepository;
     private final FieldDefinitionRepository fieldDefinitionRepository;
-    private final JdbcClient jdbcClient;
 
-    public ImportValidationService(
-            PersonRepository personRepository, FieldDefinitionRepository fieldDefinitionRepository, JdbcClient jdbcClient) {
+    public ImportValidationService(PersonRepository personRepository, FieldDefinitionRepository fieldDefinitionRepository) {
         this.personRepository = personRepository;
         this.fieldDefinitionRepository = fieldDefinitionRepository;
-        this.jdbcClient = jdbcClient;
     }
 
     public List<RowValidationResult> validate(ImportSession session, String activityPlanId) {
@@ -56,9 +53,7 @@ public class ImportValidationService {
                         || m.kind() == MappingTargetKind.LAST_NAME
                         || m.kind() == MappingTargetKind.DISPLAY_NAME);
         boolean hasRankingMapping = mappings.stream().anyMatch(m -> m.kind() == MappingTargetKind.RANKING_POINTS);
-        boolean hasPreviousGroupMapping = mappings.stream().anyMatch(m -> m.kind() == MappingTargetKind.PREVIOUS_GROUP_NAME);
         Set<String> timeIshFieldKeys = timeIshCustomFieldKeys(mappings, activityPlanId);
-        Set<String> knownPreviousGroupNames = hasPreviousGroupMapping ? knownGroupNames() : Set.of();
         List<Person> existingPersons = personRepository.findAll();
         BlockStructureDetector.BlockStructure blockStructure = session.blockStructure(sheetName).orElse(null);
 
@@ -96,7 +91,7 @@ public class ImportValidationService {
             }
             ExtractedRow extracted = extractedByRow.get(rowIndex);
             results.add(validateRow(extracted, hasNameMapping, hasRankingMapping, timeIshFieldKeys,
-                    knownPreviousGroupNames, rowsByNameKey, rowsByEmailKey, existingPersons));
+                    rowsByNameKey, rowsByEmailKey, existingPersons));
         }
 
         session.setLastValidation(results);
@@ -108,7 +103,6 @@ public class ImportValidationService {
             boolean hasNameMapping,
             boolean hasRankingMapping,
             Set<String> timeIshFieldKeys,
-            Set<String> knownPreviousGroupNames,
             Map<String, List<Integer>> rowsByNameKey,
             Map<String, List<Integer>> rowsByEmailKey,
             List<Person> existingPersons) {
@@ -139,11 +133,13 @@ public class ImportValidationService {
         checkInvalidNumber(row.previousGroupLevelCell(), warnReasons);
         checkInvalidNumber(row.manualLevelScoreCell(), warnReasons);
 
-        if (row.previousGroupName() != null && !row.previousGroupName().isBlank() && !knownPreviousGroupNames.isEmpty()) {
-            String normalized = row.previousGroupName().strip().toLowerCase(Locale.ROOT);
-            if (!knownPreviousGroupNames.contains(normalized)) {
-                warnReasons.add("Okänd tidigare grupp: '" + row.previousGroupName() + "'");
-            }
+        // MINOR 9 (B5 review): quote the ORIGINAL cell text (previousGroupNameRaw), not the already-
+        // normalized previousGroupName - ImportedValueNormalizer collapses pipe-separated history down
+        // to just the newest segment before this point, which would otherwise make the warning quote
+        // something the user never actually typed into this cell.
+        String previousGroupWarning = PreviousGroupNormalizer.parseWarningSv(row.previousGroupNameRaw());
+        if (previousGroupWarning != null) {
+            warnReasons.add(previousGroupWarning);
         }
 
         for (String timeIshKey : timeIshFieldKeys) {
@@ -200,25 +196,5 @@ public class ImportValidationService {
                     .ifPresent(field -> keys.add(mapping.customFieldKey()));
         }
         return keys;
-    }
-
-    /**
-     * Existing {@code training_group} names across the whole database, used to flag "okänd tidigare
-     * grupp" (spec §8.6). Deliberately not scoped to a specific plan/season - the previous term's
-     * groups typically live in a different {@code activity_plan} row - and deliberately returns an
-     * empty set (disabling the check) when no groups exist anywhere yet, since groups are usually
-     * only created after the first import (M5), so there is nothing meaningful to compare against.
-     */
-    private Set<String> knownGroupNames() {
-        List<String> names = jdbcClient.sql("SELECT DISTINCT name FROM training_group")
-                .query((rs, rowNum) -> rs.getString("name"))
-                .list();
-        Set<String> normalized = new HashSet<>();
-        for (String name : names) {
-            if (name != null) {
-                normalized.add(name.strip().toLowerCase(Locale.ROOT));
-            }
-        }
-        return normalized;
     }
 }

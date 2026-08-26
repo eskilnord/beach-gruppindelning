@@ -10,9 +10,12 @@ import java.util.Optional;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import se.klubb.groupplanner.domain.ActivityPlan;
+import se.klubb.groupplanner.groups.PreviousGroupNormalizer;
+import se.klubb.groupplanner.groups.PreviousGroupRef;
 import se.klubb.groupplanner.importer.parse.ParsedSheet;
 import se.klubb.groupplanner.repo.ActivityPlanRepository;
 import se.klubb.groupplanner.repo.ImportTemplateRepository;
+import se.klubb.groupplanner.repo.TrainingGroupRepository;
 
 /**
  * Runs the full import pipeline on an uploaded session so the UI can one-click commit when every
@@ -33,16 +36,19 @@ public class ImportAnalysisService {
     private final ActivityPlanRepository activityPlanRepository;
     private final ImportTemplateRepository importTemplateRepository;
     private final ImportValidationService importValidationService;
+    private final TrainingGroupRepository trainingGroupRepository;
     private final ObjectMapper objectMapper;
 
     public ImportAnalysisService(
             ActivityPlanRepository activityPlanRepository,
             ImportTemplateRepository importTemplateRepository,
             ImportValidationService importValidationService,
+            TrainingGroupRepository trainingGroupRepository,
             ObjectMapper objectMapper) {
         this.activityPlanRepository = activityPlanRepository;
         this.importTemplateRepository = importTemplateRepository;
         this.importValidationService = importValidationService;
+        this.trainingGroupRepository = trainingGroupRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -71,7 +77,17 @@ public class ImportAnalysisService {
         int mappedCount = 0;
         int ignoredCount = 0;
         boolean anyUnconfident = false;
-        boolean anyRealPreviousGroup = false;
+        // First real (non-synthetic) column whose decision landed on previousGroupName - captured
+        // (not just a boolean) so PreviousGroupColumnChooser can compare it against the synthetic
+        // block column below (B5).
+        PreviousGroupColumnChooser.Candidate realPreviousGroupCandidate = null;
+        boolean realPreviousGroupFromTemplate = false;
+        int realPreviousGroupListIndex = -1;
+        // FIX3 (MAJOR, B5 review): every OTHER real column that also independently suggested
+        // previousGroupName - only the FIRST ever competes against the synthetic block column; every
+        // extra one is downgraded to IGNORE outright below (a mapping can never carry two
+        // previousGroupName targets, one-click or not).
+        List<Integer> extraRealPreviousGroupListIndices = new ArrayList<>();
 
         for (int col = 0; col < sheet.columnCount(); col++) {
             String headerText = sheet.cellAt(headerRowIndex, col).rawString();
@@ -85,7 +101,15 @@ public class ImportAnalysisService {
             } else {
                 mappedCount++;
                 if (decision.target() == MappingTargetKind.PREVIOUS_GROUP_NAME) {
-                    anyRealPreviousGroup = true;
+                    if (realPreviousGroupCandidate == null) {
+                        realPreviousGroupListIndex = columns.size() - 1;
+                        realPreviousGroupFromTemplate = templateMapping.get(col) != null;
+                        realPreviousGroupCandidate = new PreviousGroupColumnChooser.Candidate(
+                                col, headerText, PreviousGroupColumnChooser.sampleRealColumnValues(
+                                        sheet, headerRowIndex, col, blockStructure.orElse(null)));
+                    } else {
+                        extraRealPreviousGroupListIndices.add(columns.size() - 1);
+                    }
                 }
             }
             if (decision.confidence() < COLUMN_CONFIDENT) {
@@ -96,46 +120,84 @@ public class ImportAnalysisService {
             }
         }
 
+        for (int extraListIndex : extraRealPreviousGroupListIndices) {
+            ImportAnalysis.ColumnAnalysis extra = columns.get(extraListIndex);
+            columns.set(extraListIndex, new ImportAnalysis.ColumnAnalysis(
+                    extra.columnIndex(), extra.headerText(), MappingTargetKind.IGNORE.wireName(),
+                    "Endast en kolumn kan mappas till \"Tidigare grupp\" – kolumnen \""
+                            + realPreviousGroupCandidate.headerLabel() + "\" användes", 1.0, false));
+            mappings.set(extraListIndex, new ColumnMapping(extra.columnIndex(), MappingTargetKind.IGNORE, null));
+            mappedCount--;
+            ignoredCount++;
+        }
+
         if (blockStructure.isPresent()) {
             String syntheticTarget = templateMapping.get(ColumnMapping.BLOCK_GROUP_COLUMN_INDEX);
-            MappingTargetKind kind;
-            String reason;
-            double confidence;
-            if (syntheticTarget != null) {
-                kind = MappingTargetKind.fromWireName(syntheticTarget.contains(":")
-                        ? syntheticTarget.substring(0, syntheticTarget.indexOf(':'))
-                        : syntheticTarget);
-                if (syntheticTarget.startsWith("customField:")) {
-                    // Templates may store customField — analysis keeps ignore for synthetic safety.
-                    kind = MappingTargetKind.IGNORE;
-                    reason = "Mallens mappning för härledd gruppkolumn kunde inte tillämpas automatiskt";
-                    confidence = 0.5;
-                    anyUnconfident = true;
+            boolean blockPinnedByTemplate = MappingTargetKind.PREVIOUS_GROUP_NAME.wireName().equals(syntheticTarget);
+            if (syntheticTarget != null && syntheticTarget.startsWith("customField:")) {
+                // Templates may store customField — analysis keeps ignore for synthetic safety. Not a
+                // previousGroupName decision at all, so out of PreviousGroupColumnChooser's scope.
+                columns.add(new ImportAnalysis.ColumnAnalysis(
+                        ColumnMapping.BLOCK_GROUP_COLUMN_INDEX, BLOCK_GROUP_COLUMN_HEADER, MappingTargetKind.IGNORE.wireName(),
+                        "Mallens mappning för härledd gruppkolumn kunde inte tillämpas automatiskt", 0.5, true));
+                ignoredCount++;
+                anyUnconfident = true;
+            } else if (syntheticTarget != null && !blockPinnedByTemplate) {
+                // Template pins the synthetic column to something other than previousGroupName -
+                // honor it outright, same as any other template pin (unchanged pre-B5 behavior).
+                MappingTargetKind kind = MappingTargetKind.fromWireName(syntheticTarget);
+                columns.add(new ImportAnalysis.ColumnAnalysis(
+                        ColumnMapping.BLOCK_GROUP_COLUMN_INDEX, BLOCK_GROUP_COLUMN_HEADER, kind.wireName(), "Från sparad importmall", 1.0, true));
+                if (kind != MappingTargetKind.IGNORE) {
+                    mappings.add(new ColumnMapping(ColumnMapping.BLOCK_GROUP_COLUMN_INDEX, kind, null));
+                    mappedCount++;
                 } else {
-                    reason = "Från sparad importmall";
-                    confidence = 1.0;
+                    ignoredCount++;
                 }
-            } else if (!anyRealPreviousGroup) {
-                kind = MappingTargetKind.PREVIOUS_GROUP_NAME;
-                reason = "Härledd från filens gruppblock (" + blockStructure.get().blockCount() + " grupper)";
-                confidence = 1.0;
-            } else {
-                kind = MappingTargetKind.IGNORE;
-                reason = "Tidigare grupp finns redan i en vanlig kolumn";
-                confidence = 1.0;
-            }
-            columns.add(new ImportAnalysis.ColumnAnalysis(
-                    ColumnMapping.BLOCK_GROUP_COLUMN_INDEX,
-                    BLOCK_GROUP_COLUMN_HEADER,
-                    kind.wireName(),
-                    reason,
-                    confidence,
-                    true));
-            if (kind != MappingTargetKind.IGNORE) {
-                mappings.add(new ColumnMapping(ColumnMapping.BLOCK_GROUP_COLUMN_INDEX, kind, null));
+            } else if (realPreviousGroupCandidate == null) {
+                // Only one candidate (the synthetic block column) - it wins by default.
+                columns.add(new ImportAnalysis.ColumnAnalysis(
+                        ColumnMapping.BLOCK_GROUP_COLUMN_INDEX, BLOCK_GROUP_COLUMN_HEADER,
+                        MappingTargetKind.PREVIOUS_GROUP_NAME.wireName(),
+                        blockPinnedByTemplate ? "Från sparad importmall"
+                                : "Härledd från filens gruppblock (" + blockStructure.get().blockCount() + " grupper)",
+                        1.0, true));
+                mappings.add(new ColumnMapping(ColumnMapping.BLOCK_GROUP_COLUMN_INDEX, MappingTargetKind.PREVIOUS_GROUP_NAME, null));
                 mappedCount++;
             } else {
-                ignoredCount++;
+                // Both a real column and the synthetic block column are candidates - delegate to the
+                // shared precedence rule (B5).
+                PreviousGroupColumnChooser.Candidate blockCandidate = new PreviousGroupColumnChooser.Candidate(
+                        ColumnMapping.BLOCK_GROUP_COLUMN_INDEX, BLOCK_GROUP_COLUMN_HEADER,
+                        PreviousGroupColumnChooser.sampleBlockLabels(blockStructure.get()));
+                PreviousGroupColumnChooser.Decision chosen = PreviousGroupColumnChooser.choose(
+                        realPreviousGroupCandidate, blockCandidate, realPreviousGroupFromTemplate, blockPinnedByTemplate);
+
+                if (chosen.chosenColumnIndex() == ColumnMapping.BLOCK_GROUP_COLUMN_INDEX) {
+                    // Block column wins - downgrade the real column's earlier previousGroupName entry
+                    // to IGNORE.
+                    columns.set(realPreviousGroupListIndex, new ImportAnalysis.ColumnAnalysis(
+                            realPreviousGroupCandidate.columnIndex(), realPreviousGroupCandidate.headerLabel(),
+                            MappingTargetKind.IGNORE.wireName(), chosen.loserReasonSv(), 1.0, false));
+                    mappings.set(realPreviousGroupListIndex,
+                            new ColumnMapping(realPreviousGroupCandidate.columnIndex(), MappingTargetKind.IGNORE, null));
+                    mappedCount--;
+                    ignoredCount++;
+
+                    columns.add(new ImportAnalysis.ColumnAnalysis(
+                            ColumnMapping.BLOCK_GROUP_COLUMN_INDEX, BLOCK_GROUP_COLUMN_HEADER,
+                            MappingTargetKind.PREVIOUS_GROUP_NAME.wireName(), chosen.chosenReasonSv(), 1.0, true));
+                    mappings.add(new ColumnMapping(ColumnMapping.BLOCK_GROUP_COLUMN_INDEX, MappingTargetKind.PREVIOUS_GROUP_NAME, null));
+                    mappedCount++;
+                } else {
+                    // Real column wins (already mapped as previousGroupName above) - the synthetic
+                    // column becomes IGNORE.
+                    columns.add(new ImportAnalysis.ColumnAnalysis(
+                            ColumnMapping.BLOCK_GROUP_COLUMN_INDEX, BLOCK_GROUP_COLUMN_HEADER,
+                            MappingTargetKind.IGNORE.wireName(), chosen.loserReasonSv(), 1.0, true));
+                    ignoredCount++;
+                }
+                warnings.add("Tidigare grupp: " + chosen.chosenReasonSv() + ".");
             }
         }
 
@@ -165,6 +227,37 @@ public class ImportAnalysisService {
         if (playerRowCount == 0) {
             warnings.add("Inga spelarader hittades på det valda bladet.");
             anyUnconfident = true;
+        }
+
+        // B5: one aggregate warning (not per-row - would be noisy) when at least one committed-
+        // candidate row (OK/WARN, not SKIP) carries a previous-group ordinal higher than the plan's
+        // current number of training groups - usually means the file is from a term with more groups
+        // than this plan has generated yet, so continuity for those rows may not do what's expected.
+        // Skipped entirely when the plan has no groups yet (nothing meaningful to compare against -
+        // groups are typically only created after the first import, M5).
+        int groupCount = trainingGroupRepository.countByActivityPlanId(planId);
+        if (groupCount > 0) {
+            int rowsWithHigherOrdinal = 0;
+            for (RowValidationResult row : validation) {
+                if (row.status() == RowStatus.SKIP) {
+                    continue;
+                }
+                ExtractedRow extracted = RowExtractor.extract(sheet, row.rowIndex(), mappings, blockStructure.orElse(null));
+                if (extracted.previousGroupName() == null) {
+                    continue;
+                }
+                PreviousGroupRef ref = PreviousGroupNormalizer.parse(extracted.previousGroupName());
+                if (ref != null && ref.groupOrder() != null && ref.groupOrder() > groupCount) {
+                    rowsWithHigherOrdinal++;
+                }
+            }
+            if (rowsWithHigherOrdinal > 0) {
+                // MINOR 12 (B5 review): trailing period + explicit guidance clause, so the reader knows
+                // WHY this matters, not just that a mismatch exists.
+                warnings.add(String.format(Locale.ROOT,
+                        "%d rader har en tidigare grupp högre än planens antal grupper (%d) – kontinuitet kan inte hålla dem kvar.",
+                        rowsWithHigherOrdinal, groupCount));
+            }
         }
 
         boolean readyToCommit = sheetChoice.confidence() >= SHEET_CONFIDENT
@@ -304,6 +397,10 @@ public class ImportAnalysisService {
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.strip();
     }
+
+    // MINOR 8: the real-column / block-label sampling helpers used to be duplicated here (near-
+    // identically) and in ImportController - both now delegate to the single home on
+    // PreviousGroupColumnChooser (sampleRealColumnValues/sampleBlockLabels).
 
     private record SheetChoice(String sheetName, double confidence, String reason) {
     }

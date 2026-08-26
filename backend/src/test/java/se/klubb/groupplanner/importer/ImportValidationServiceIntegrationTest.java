@@ -11,7 +11,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import se.klubb.groupplanner.domain.ActivityPlan;
@@ -25,8 +24,8 @@ import se.klubb.groupplanner.util.Uuid7;
 
 /**
  * Exercises every spec §8.6 validation flag (plus §8.7 person matching) against the messy fixture:
- * saknat namn, dubbletter (within file), saknad ranking, ogiltiga tal, okänd tidigare grupp,
- * ogiltiga tider, tomma rader, potentiella dubbletter mot befintliga personer.
+ * saknat namn, dubbletter (within file), saknad ranking, ogiltiga tal, tidigare grupp kan inte
+ * tolkas, ogiltiga tider, tomma rader, potentiella dubbletter mot befintliga personer.
  */
 @SpringBootTest
 class ImportValidationServiceIntegrationTest {
@@ -49,8 +48,6 @@ class ImportValidationServiceIntegrationTest {
     private ActivityPlanRepository activityPlanRepository;
     @Autowired
     private PersonRepository personRepository;
-    @Autowired
-    private JdbcClient jdbcClient;
 
     private String createPlan() {
         Instant now = Instant.now();
@@ -58,14 +55,6 @@ class ImportValidationServiceIntegrationTest {
         ActivityPlan plan = activityPlanRepository.insert(
                 new ActivityPlan(Uuid7.generate(), season.id(), "Herr", "beach", "draft", null, null, null, null, now, now));
         return plan.id();
-    }
-
-    private void seedTrainingGroup(String activityPlanId, String name) {
-        jdbcClient.sql("INSERT INTO training_group (id, activity_plan_id, name) VALUES (:id, :planId, :name)")
-                .param("id", Uuid7.generate())
-                .param("planId", activityPlanId)
-                .param("name", name)
-                .update();
     }
 
     private ImportSession uploadFixtureAndMap(MessyWorkbookBuilder.BuiltWorkbook built, String activityPlanId) {
@@ -95,10 +84,6 @@ class ImportValidationServiceIntegrationTest {
     void everyValidationFlagFromSpecSection86IsExercised() throws Exception {
         String planId = createPlan();
         MessyWorkbookBuilder.BuiltWorkbook built = MessyWorkbookBuilder.build();
-
-        // "okänd tidigare grupp" needs a known set to compare against: seed exactly p001's previous
-        // group as the only known one, so p001's row is NOT flagged but every other group is.
-        seedTrainingGroup(planId, "Torsdag Herr 1 (Hösttermin 2025)");
 
         // "potentiella dubbletter mot befintliga personer": an existing person sharing p001's email.
         Instant now = Instant.now();
@@ -139,9 +124,12 @@ class ImportValidationServiceIntegrationTest {
         assertThat(p008.status()).isEqualTo(RowStatus.WARN);
         assertThat(p008.reasons()).contains("Saknad ranking");
 
-        // okänd tidigare grupp: p001 matches the seeded known group; p003 (a different group) does not.
-        assertThat(p001.reasons()).noneMatch(reason -> reason.startsWith("Okänd tidigare grupp"));
-        assertThat(p003.reasons()).anyMatch(reason -> reason.startsWith("Okänd tidigare grupp"));
+        // tidigare grupp kan inte tolkas: both p001 and p003's previous-group text (e.g. "Torsdag Herr
+        // 3 (Hösttermin 2025)") parse cleanly to a groupOrder via PreviousGroupNormalizer, so neither
+        // is flagged - the check now fires only when the value cannot be parsed to an ordinal at all
+        // (see ImportValidationServiceParseWarningTest for that case).
+        assertThat(p001.reasons()).noneMatch(reason -> reason.startsWith("Tidigare grupp"));
+        assertThat(p003.reasons()).noneMatch(reason -> reason.startsWith("Tidigare grupp"));
 
         // dubbletter (within file): "p006" and its later re-occurrence share the same normalized name.
         RowValidationResult p006 = resultFor(results, built.row("p006"));
@@ -161,19 +149,61 @@ class ImportValidationServiceIntegrationTest {
         assertThat(coachRow.status()).isEqualTo(RowStatus.WARN);
     }
 
+    /**
+     * B5: the old "okänd tidigare grupp" check compared the imported value against {@code
+     * training_group} names in the DB (deleted in this milestone). The replacement check is purely
+     * about parseability - it fires whenever {@link
+     * se.klubb.groupplanner.groups.PreviousGroupNormalizer#parse(String)} cannot derive a {@code
+     * groupOrder} from the imported value, regardless of whether any training groups exist.
+     */
     @Test
-    void okandTidigareGruppCheckIsSkippedWhenNoTrainingGroupsExistAnywhereYet() throws Exception {
-        // Other tests in this class share the same temp-dir database (Spring context caching per
-        // docs/plan.md test conventions) - clear the table explicitly so this test's "nothing to
-        // compare against yet" premise holds regardless of method execution order.
-        jdbcClient.sql("DELETE FROM training_group").update();
-
+    void unparsablePreviousGroupValueIsFlaggedWithTheNewWarning() throws Exception {
         String planId = createPlan();
-        MessyWorkbookBuilder.BuiltWorkbook built = MessyWorkbookBuilder.build();
-        ImportSession session = uploadFixtureAndMap(built, planId);
+        ImportSession session = uploadTinyWorkbookAndMap(planId, "Slumpad text utan siffra");
 
         List<RowValidationResult> results = importValidationService.validate(session, planId);
 
-        assertThat(results).noneMatch(r -> r.reasons().stream().anyMatch(reason -> reason.startsWith("Okänd tidigare grupp")));
+        RowValidationResult row = results.get(0);
+        assertThat(row.status()).isEqualTo(RowStatus.WARN);
+        assertThat(row.reasons()).anyMatch(reason -> reason.equals(
+                "Tidigare grupp \"Slumpad text utan siffra\" kunde inte tolkas till en gruppnivå – kontinuitet används inte för denna rad"));
+    }
+
+    @Test
+    void parsablePreviousGroupValueIsNotFlagged() throws Exception {
+        String planId = createPlan();
+        ImportSession session = uploadTinyWorkbookAndMap(planId, "Torsdag Herr 4 (Vårtermin 2026)");
+
+        List<RowValidationResult> results = importValidationService.validate(session, planId);
+
+        RowValidationResult row = results.get(0);
+        assertThat(row.reasons()).noneMatch(reason -> reason.startsWith("Tidigare grupp"));
+    }
+
+    /** A minimal one-row workbook with just a name column and a "Tidigare grupp" column, for the
+     *  parse-warning tests above - the shared {@link MessyWorkbookBuilder} fixture's own
+     *  previous-group values all parse cleanly, so it cannot exercise the unparsable-value path. */
+    private ImportSession uploadTinyWorkbookAndMap(String planId, String previousGroupValue) throws Exception {
+        try (org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook()) {
+            org.apache.poi.xssf.usermodel.XSSFSheet sheet = workbook.createSheet("Herr");
+            org.apache.poi.ss.usermodel.Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue("Förnamn");
+            header.createCell(1).setCellValue("Tidigare grupp");
+            org.apache.poi.ss.usermodel.Row dataRow = sheet.createRow(1);
+            dataRow.createCell(0).setCellValue("Test");
+            dataRow.createCell(1).setCellValue(previousGroupValue);
+
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            workbook.write(out);
+
+            ImportSessionService.CreatedSession created =
+                    importSessionService.createSession(planId, "tiny.xlsx", new ByteArrayInputStream(out.toByteArray()));
+            ImportSession session = importSessionService.get(created.sessionId());
+            session.setHeaderRow("Herr", 0);
+            session.setMappings("Herr", List.of(
+                    new ColumnMapping(0, MappingTargetKind.FIRST_NAME, null),
+                    new ColumnMapping(1, MappingTargetKind.PREVIOUS_GROUP_NAME, null)));
+            return session;
+        }
     }
 }

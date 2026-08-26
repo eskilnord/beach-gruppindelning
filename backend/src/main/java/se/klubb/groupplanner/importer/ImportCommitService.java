@@ -69,6 +69,18 @@ public class ImportCommitService {
     static final String TIME_RELATION_IMPORT_WARNING =
             "Tidsönskemål kan inte importeras från Excel – ange dem i spelarvyn efter importen.";
 
+    /** MINOR 10 (B5 review): matches {@code PreviousGroupNormalizer#parseWarningSv}'s exact row-level
+     *  message so its rows can be pulled out of the WARN-reason stream and re-aggregated when there
+     *  are more than {@link #CANNOT_PARSE_AGGREGATE_THRESHOLD} of them - group 1 captures the quoted
+     *  original cell text (MINOR 9: the raw pre-normalization value, not any collapsed/normalized
+     *  form) for the aggregate's "t.ex. ..." examples. */
+    private static final java.util.regex.Pattern PREVIOUS_GROUP_CANNOT_PARSE_REASON = java.util.regex.Pattern.compile(
+            "^Tidigare grupp \"(.*)\" kunde inte tolkas till en gruppnivå.*$");
+
+    /** More than this many rows sharing the cannot-parse condition collapse into one summary warning
+     *  instead of one line per row (MINOR 10). */
+    private static final int CANNOT_PARSE_AGGREGATE_THRESHOLD = 5;
+
     private final ImportValidationService importValidationService;
     private final PersonRepository personRepository;
     private final ParticipantProfileRepository participantProfileRepository;
@@ -125,12 +137,31 @@ public class ImportCommitService {
         boolean usedBlockGroupMapping = blockStructure != null
                 && mappings.stream().anyMatch(m -> m.columnIndex() == ColumnMapping.BLOCK_GROUP_COLUMN_INDEX
                         && m.kind() == MappingTargetKind.PREVIOUS_GROUP_NAME);
+        // B5 blank-clears semantics: whether a REAL column (never the synthetic block column) is
+        // mapped to previousGroupName - threaded into upsertParticipantProfile so a blank value on a
+        // MAPPED REAL column clears the stored value (only the most recent group counts), while
+        // leaving the target entirely unmapped still preserves whatever value the profile already has.
+        // FIX2 (BLOCKER, B5 review): the synthetic block column deliberately yields no value at all for
+        // rows outside any group block (Kölista/waitlist rows, or a block with no confident label) -
+        // that is the chooser's "no opinion" on this row, not the file asserting "this person has no
+        // previous group". Counting the synthetic column here wiped every waitlisted player's
+        // previousGroupName on every re-import whenever it was the (sole) mapped previousGroupName
+        // source - see ImportCommitServicePreviousGroupTest#kolistaRowWithOnlySyntheticColumnMappedPreservesExistingPreviousGroupName.
+        boolean hasPreviousGroupMapping = mappings.stream().anyMatch(m ->
+                m.kind() == MappingTargetKind.PREVIOUS_GROUP_NAME && m.columnIndex() != ColumnMapping.BLOCK_GROUP_COLUMN_INDEX);
 
         int totalRows = 0;
         int imported = 0;
         int skipped = 0;
         List<String> warnings = new ArrayList<>();
         List<Integer> timeRelationRows = new ArrayList<>();
+        // MINOR 10 (B5 review): held back rather than added to `warnings` immediately, so they can be
+        // collapsed into ONE aggregate warning when more than 5 rows share the condition (see below) -
+        // an unparsable "Tidigare grupp" value is a common, not-actionable-per-row situation on a
+        // full-roster import (e.g. a whole "Tränarna"/color-coded group), and 200 identical-shaped
+        // warning lines would drown out everything else in the commit result.
+        List<String> cannotParseRowLines = new ArrayList<>();
+        java.util.LinkedHashSet<String> cannotParseExamples = new java.util.LinkedHashSet<>();
         Map<Integer, RowDecision> decisionsAudit = new LinkedHashMap<>();
         FieldDefinition coachWishField = null;
 
@@ -141,6 +172,12 @@ public class ImportCommitService {
 
             if (result.status() == RowStatus.WARN) {
                 for (String reason : result.reasons()) {
+                    java.util.regex.Matcher cannotParseMatch = PREVIOUS_GROUP_CANNOT_PARSE_REASON.matcher(reason);
+                    if (cannotParseMatch.matches()) {
+                        cannotParseRowLines.add("Rad " + result.rowIndex() + ": " + reason);
+                        cannotParseExamples.add(cannotParseMatch.group(1));
+                        continue;
+                    }
                     warnings.add("Rad " + result.rowIndex() + ": " + reason);
                 }
             }
@@ -158,7 +195,7 @@ public class ImportCommitService {
             if (row.isCoach()) {
                 ensureCoachProfile(person.id(), activityPlanId);
             } else {
-                ParticipantProfile profile = upsertParticipantProfile(person.id(), activityPlanId, row);
+                ParticipantProfile profile = upsertParticipantProfile(person.id(), activityPlanId, row, hasPreviousGroupMapping);
                 playerAssignmentRepository.insertImportedIfAbsent(profile.id());
 
                 if (ExtractedRow.isNonBlank(row.coachName())) {
@@ -204,6 +241,22 @@ public class ImportCommitService {
                 prefix = timeRelationRows.size() + " rader";
             }
             warnings.add(prefix + ": " + TIME_RELATION_IMPORT_WARNING);
+        }
+
+        // MINOR 10 (B5 review): >5 rows sharing the "cannot parse to a group level" condition collapse
+        // into ONE summary warning (with up to 3 distinct example values); <=5 keeps the per-row lines
+        // (still individually actionable at that volume).
+        if (!cannotParseRowLines.isEmpty()) {
+            if (cannotParseRowLines.size() > CANNOT_PARSE_AGGREGATE_THRESHOLD) {
+                String examples = cannotParseExamples.stream()
+                        .limit(3)
+                        .map(example -> "\"" + example + "\"")
+                        .collect(java.util.stream.Collectors.joining(", "));
+                warnings.add(cannotParseRowLines.size() + " rader har en tidigare grupp som inte kan tolkas till "
+                        + "gruppnivå – kontinuitet används inte för dem (t.ex. " + examples + ")");
+            } else {
+                warnings.addAll(cannotParseRowLines);
+            }
         }
 
         if (usedBlockGroupMapping) {
@@ -268,7 +321,8 @@ public class ImportCommitService {
         return personRepository.update(updated);
     }
 
-    private ParticipantProfile upsertParticipantProfile(String personId, String activityPlanId, ExtractedRow row) {
+    private ParticipantProfile upsertParticipantProfile(
+            String personId, String activityPlanId, ExtractedRow row, boolean hasPreviousGroupMapping) {
         Double rankingPoints = NumericValue.resolve(row.rankingPointsCell());
         Double previousGroupLevel = NumericValue.resolve(row.previousGroupLevelCell());
         Double manualLevelScore = NumericValue.resolve(row.manualLevelScoreCell());
@@ -277,11 +331,19 @@ public class ImportCommitService {
                 participantProfileRepository.findByPersonIdAndActivityPlanId(personId, activityPlanId);
         if (existing.isPresent()) {
             ParticipantProfile e = existing.get();
+            // B5 blank-clears semantics: a non-blank imported value always overwrites. A blank value
+            // CLEARS the stored previousGroupName when the target is mapped at all (a blank cell on a
+            // mapped previous-group column means "no previous group" - only the most recent group
+            // should count, per the B1 spec). When the target isn't mapped on this sheet at all, the
+            // existing value is left untouched (this row's file never had an opinion on it).
+            String previousGroupName = ExtractedRow.isNonBlank(row.previousGroupName())
+                    ? row.previousGroupName()
+                    : (hasPreviousGroupMapping ? null : e.previousGroupName());
             ParticipantProfile updated = new ParticipantProfile(
                     e.id(), e.personId(), e.activityPlanId(),
                     rankingPoints != null ? rankingPoints : e.rankingPoints(),
                     rankingPoints != null ? "imported" : e.rankingSource(),
-                    ExtractedRow.isNonBlank(row.previousGroupName()) ? row.previousGroupName() : e.previousGroupName(),
+                    previousGroupName,
                     previousGroupLevel != null ? previousGroupLevel : e.previousGroupLevel(),
                     e.estimatedLevel(), e.levelConfidence(),
                     manualLevelScore != null ? manualLevelScore : e.manualLevelScore(),

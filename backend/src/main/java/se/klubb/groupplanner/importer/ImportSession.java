@@ -162,8 +162,23 @@ public class ImportSession {
         return sheet;
     }
 
+    /**
+     * FIX3 (MAJOR, B5 review): a central uniqueness guard, not just {@code ImportController}'s own PUT
+     * .../mapping 400 - the one-click {@code ImportAnalysisService} path calls this directly and must
+     * never be able to silently commit two columns both mapped to {@code previousGroupName} (last-wins
+     * in {@code RowExtractor}) just because its own duplicate-downgrade logic had a bug. Both callers
+     * are expected to have already resolved any ambiguity themselves; this is the backstop, not the
+     * primary UX (the controller's own check remains for a deliberate manual PUT, with its own
+     * plan-appropriate error message).
+     */
     public synchronized void setMappings(String sheetName, List<ColumnMapping> mappings) {
         sheetOrThrow(sheetName);
+        long previousGroupMappingCount =
+                mappings.stream().filter(m -> m.kind() == MappingTargetKind.PREVIOUS_GROUP_NAME).count();
+        if (previousGroupMappingCount > 1) {
+            throw new BadRequestException(
+                    "Flera kolumner är mappade till \"Tidigare grupp\" – välj en.");
+        }
         mappingsBySheet.put(sheetName, List.copyOf(mappings));
         this.selectedSheet = sheetName;
         this.lastValidation = null; // Mapping changed - any cached validation is stale.

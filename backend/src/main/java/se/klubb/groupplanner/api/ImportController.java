@@ -35,6 +35,7 @@ import se.klubb.groupplanner.importer.ImportSessionService;
 import se.klubb.groupplanner.importer.ImportTemplateMappingCodec;
 import se.klubb.groupplanner.importer.ImportValidationService;
 import se.klubb.groupplanner.importer.MappingTargetKind;
+import se.klubb.groupplanner.importer.PreviousGroupColumnChooser;
 import se.klubb.groupplanner.importer.RowDecision;
 import se.klubb.groupplanner.importer.RowValidationResult;
 import se.klubb.groupplanner.importer.parse.ParsedSheet;
@@ -167,8 +168,20 @@ public class ImportController {
                 .map(template -> ImportTemplateMappingCodec.decode(objectMapper, template.mappingJson()))
                 .orElse(Map.of());
 
+        // MINOR 6 fix: computed BEFORE the per-column loop now, so the real-column chooser sampler can
+        // filter out structure/Kölista rows (see PreviousGroupColumnChooser#sampleRealColumnValues).
+        Optional<BlockStructureDetector.BlockStructure> blockStructure = session.blockStructure(sheetName);
+
         List<ColumnInfo> columns = new ArrayList<>(sheet.columnCount());
-        boolean anyRealColumnSuggestsPreviousGroup = false;
+        // First real column suggesting previousGroupName - captured (not just a boolean) so
+        // PreviousGroupColumnChooser can compare it against the synthetic block column below (B5).
+        PreviousGroupColumnChooser.Candidate realCandidate = null;
+        boolean realCandidateFromTemplate = false;
+        int realCandidateListIndex = -1;
+        // FIX3 (MAJOR, B5 review): every OTHER real column that also independently suggests
+        // previousGroupName - downgraded to "ignore" outright below, same as ImportAnalysisService, so
+        // the wizard's own preview can never show two columns both suggesting previousGroupName.
+        List<Integer> extraRealCandidateListIndices = new ArrayList<>();
         for (int col = 0; col < sheet.columnCount(); col++) {
             String headerText = sheet.cellAt(headerRowIndex, col).rawString();
             List<String> samples = sampleValues(sheet, headerRowIndex, col);
@@ -179,16 +192,50 @@ public class ImportController {
                         .orElse(null);
             }
             if (MappingTargetKind.PREVIOUS_GROUP_NAME.wireName().equals(suggested)) {
-                anyRealColumnSuggestsPreviousGroup = true;
+                if (realCandidate == null) {
+                    realCandidateListIndex = columns.size();
+                    realCandidateFromTemplate = templateMapping.get(col) != null;
+                    realCandidate = new PreviousGroupColumnChooser.Candidate(
+                            col, headerText, PreviousGroupColumnChooser.sampleRealColumnValues(
+                                    sheet, headerRowIndex, col, blockStructure.orElse(null)));
+                } else {
+                    extraRealCandidateListIndices.add(columns.size());
+                }
             }
             columns.add(new ColumnInfo(col, headerText, samples, suggested, false));
         }
+        for (int extraListIndex : extraRealCandidateListIndices) {
+            ColumnInfo extra = columns.get(extraListIndex);
+            columns.set(extraListIndex, new ColumnInfo(
+                    extra.columnIndex(), extra.headerText(), extra.sampleValues(), MappingTargetKind.IGNORE.wireName(), false));
+        }
 
-        Optional<BlockStructureDetector.BlockStructure> blockStructure = session.blockStructure(sheetName);
         if (blockStructure.isPresent()) {
             String syntheticSuggested = templateMapping.get(ColumnMapping.BLOCK_GROUP_COLUMN_INDEX);
-            if (syntheticSuggested == null && !anyRealColumnSuggestsPreviousGroup) {
+            boolean blockPinnedByTemplate = MappingTargetKind.PREVIOUS_GROUP_NAME.wireName().equals(syntheticSuggested);
+            if (syntheticSuggested != null && !blockPinnedByTemplate) {
+                // Template pins the synthetic column to something other than previousGroupName -
+                // honor it outright (syntheticSuggested already holds that pinned value); not a
+                // previousGroupName decision at all, so out of PreviousGroupColumnChooser's scope.
+            } else if (realCandidate == null) {
+                // Only one candidate (the synthetic block column, possibly template-pinned) - it wins.
                 syntheticSuggested = MappingTargetKind.PREVIOUS_GROUP_NAME.wireName();
+            } else {
+                // Both a real column and the synthetic block column are candidates - delegate to the
+                // shared precedence rule (B5).
+                PreviousGroupColumnChooser.Candidate blockCandidate = new PreviousGroupColumnChooser.Candidate(
+                        ColumnMapping.BLOCK_GROUP_COLUMN_INDEX, BLOCK_GROUP_COLUMN_HEADER,
+                        PreviousGroupColumnChooser.sampleBlockLabels(blockStructure.get()));
+                PreviousGroupColumnChooser.Decision chosen = PreviousGroupColumnChooser.choose(
+                        realCandidate, blockCandidate, realCandidateFromTemplate, blockPinnedByTemplate);
+                if (chosen.chosenColumnIndex() == ColumnMapping.BLOCK_GROUP_COLUMN_INDEX) {
+                    ColumnInfo downgraded = columns.get(realCandidateListIndex);
+                    columns.set(realCandidateListIndex, new ColumnInfo(downgraded.columnIndex(), downgraded.headerText(),
+                            downgraded.sampleValues(), MappingTargetKind.IGNORE.wireName(), false));
+                    syntheticSuggested = MappingTargetKind.PREVIOUS_GROUP_NAME.wireName();
+                } else {
+                    syntheticSuggested = MappingTargetKind.IGNORE.wireName();
+                }
             }
             columns.add(new ColumnInfo(
                     ColumnMapping.BLOCK_GROUP_COLUMN_INDEX, BLOCK_GROUP_COLUMN_HEADER,
@@ -211,6 +258,10 @@ public class ImportController {
         }
         return new ArrayList<>(samples);
     }
+
+    // MINOR 8: the real-column / block-label sampling helpers for PreviousGroupColumnChooser used to
+    // be duplicated here (near-identically) and in ImportAnalysisService - both now delegate to the
+    // single home on PreviousGroupColumnChooser (sampleRealColumnValues/sampleBlockLabels).
 
     @PutMapping("/api/plans/{planId}/import/sessions/{sid}/mapping")
     public MappingResponse setMapping(
@@ -247,6 +298,14 @@ public class ImportController {
                 }
             }
             mappings.add(mapping);
+        }
+
+        // Two columns mapped to previousGroupName would silently last-wins in RowExtractor - reject
+        // outright instead (B5) so the ambiguity is resolved by the user, not by column iteration order.
+        long previousGroupMappingCount =
+                mappings.stream().filter(m -> m.kind() == MappingTargetKind.PREVIOUS_GROUP_NAME).count();
+        if (previousGroupMappingCount > 1) {
+            throw new BadRequestException("Flera kolumner är mappade till \"Tidigare grupp\" – välj en.");
         }
 
         session.setMappings(request.sheet(), mappings);

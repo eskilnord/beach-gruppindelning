@@ -200,4 +200,18 @@ class PreviousGroupNormalizerTest {
         assertThat(PreviousGroupNormalizer.canonicalizeName("Torsdag  Herr, 3"))
                 .isEqualTo(PreviousGroupNormalizer.parse("Torsdag Herr 3").canonicalName());
     }
+
+    @Test
+    void parseWarningSvIsNullForBlankOrParsableValues() {
+        assertThat(PreviousGroupNormalizer.parseWarningSv(null)).isNull();
+        assertThat(PreviousGroupNormalizer.parseWarningSv("")).isNull();
+        assertThat(PreviousGroupNormalizer.parseWarningSv("   ")).isNull();
+        assertThat(PreviousGroupNormalizer.parseWarningSv("Torsdag Herr 3 (Vårtermin 2025)")).isNull();
+    }
+
+    @Test
+    void parseWarningSvNamesTheUnparsableValueInSwedish() {
+        assertThat(PreviousGroupNormalizer.parseWarningSv("Nybörjargrupp")).isEqualTo(
+                "Tidigare grupp \"Nybörjargrupp\" kunde inte tolkas till en gruppnivå – kontinuitet används inte för denna rad");
+    }
 }

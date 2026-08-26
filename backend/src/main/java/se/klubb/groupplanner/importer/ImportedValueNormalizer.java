@@ -1,6 +1,8 @@
 package se.klubb.groupplanner.importer;
 
 import java.util.regex.Pattern;
+import se.klubb.groupplanner.groups.PreviousGroupNormalizer;
+import se.klubb.groupplanner.groups.PreviousGroupRef;
 
 /**
  * Normalizes raw Excel/CSV cell text for targets that council files commonly mis-format, so
@@ -37,21 +39,13 @@ public final class ImportedValueNormalizer {
     }
 
     /**
-     * Takes the first segment of a pipe-concatenated previous-group history (common in council
-     * exports that append older terms after {@code |}).
+     * Picks the newest segment of a pipe-concatenated previous-group history (common in council
+     * exports that append older terms after {@code |}), delegating to {@link
+     * PreviousGroupNormalizer#parse(String)} - see its javadoc for the newest-term-wins/positional-
+     * fallback algorithm. {@code null} in, or nothing but blank/pipe segments, yields {@code null}.
      */
     public static String previousGroupName(String raw) {
-        if (raw == null) {
-            return null;
-        }
-        String stripped = raw.strip();
-        if (stripped.isEmpty()) {
-            return null;
-        }
-        int pipe = stripped.indexOf('|');
-        if (pipe >= 0) {
-            stripped = stripped.substring(0, pipe).strip();
-        }
-        return stripped.isEmpty() ? null : stripped;
+        PreviousGroupRef ref = PreviousGroupNormalizer.parse(raw);
+        return ref != null ? ref.rawDisplay() : null;
     }
 }

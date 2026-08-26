@@ -32,7 +32,7 @@ class PersonMatcherTest {
 
     private static ExtractedRow row(String firstName, String lastName, String email, String phone, String externalId) {
         return new ExtractedRow(1, firstName, lastName, null, email, phone, externalId,
-                (ParsedCell) null, null, null, null, null, null, null, false, Map.of(), Map.of());
+                (ParsedCell) null, null, null, null, null, null, null, null, false, Map.of(), Map.of());
     }
 
     @Test

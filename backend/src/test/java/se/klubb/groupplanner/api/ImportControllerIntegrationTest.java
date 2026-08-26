@@ -243,12 +243,15 @@ class ImportControllerIntegrationTest {
     }
 
     @Test
-    void groupedExportUploadExposesSyntheticBlockGroupColumnAutoSuggested() throws Exception {
-        // WP1: this app's own council-layout export re-uploaded must be recognized as Layout 1
+    void groupedExportUploadAutoSuggestsTheSyntheticBlockGroupColumnOverTheStaleRealColumn() throws Exception {
+        // WP1 + B5: this app's own council-layout export re-uploaded must be recognized as Layout 1
         // (repeated headers), default to the REAL repeated player-header row (not the width-1 group-
         // heading row - adversarial review item 6), auto-suggest every real column from its header
-        // text, and offer the synthetic "Grupp i filen" column WITHOUT auto-suggesting it (a real
-        // "Tidigare grupp" column already claims previousGroupName here).
+        // text, and - since B5's PreviousGroupColumnChooser - now prefer the synthetic "Grupp i filen"
+        // column over the real "Tidigare grupp" column by default: the file's own current grouping is
+        // the newest information, while a real 'Tidigare grupp' column is typically stale history
+        // (this fixture deliberately gives Bengt a real-column value that DISAGREES with his current
+        // block, to prove the newer source wins - see the final assertions below).
         String planId = createPlan();
         byte[] bytes = se.klubb.groupplanner.importer.fixture.GroupedExportWorkbookBuilder.build();
         String base = "/api/plans/" + planId + "/import";
@@ -295,19 +298,22 @@ class ImportControllerIntegrationTest {
         assertThat(findColumnByIndex(columnsJson, 2).get("headerText").asText()).isEqualTo("Nivåscore");
         assertThat(findColumnByIndex(columnsJson, 2).get("suggestedTarget").asText()).isEqualTo("manualLevelScore");
         assertThat(findColumnByIndex(columnsJson, 3).get("headerText").asText()).isEqualTo("Tidigare grupp");
-        assertThat(findColumnByIndex(columnsJson, 3).get("suggestedTarget").asText()).isEqualTo("previousGroupName");
+        // B5: the real column's values ("Torsdagsträning 1"/"2"/"3", no term info) tie the synthetic
+        // block column's own labels on term-recency (neither carries a parseable VT/HT term), and both
+        // fully parse to a group order - so the tie-break rule applies: the synthetic column wins by
+        // default, and the real column becomes IGNORE.
+        assertThat(findColumnByIndex(columnsJson, 3).get("suggestedTarget").asText()).isEqualTo("ignore");
 
         JsonNode syntheticColumn = findColumnByIndex(columnsJson, -1);
         assertThat(syntheticColumn).isNotNull();
         assertThat(syntheticColumn.get("synthetic").asBoolean()).isTrue();
         assertThat(syntheticColumn.get("headerText").asText()).isEqualTo("Grupp i filen");
-        assertThat(syntheticColumn.get("suggestedTarget").isNull())
-                .as("must not double-suggest previousGroupName - the real 'Tidigare grupp' column already does").isTrue();
+        assertThat(syntheticColumn.get("suggestedTarget").asText())
+                .as("B5: the file's own current grouping wins the previous-group precedence tie-break")
+                .isEqualTo("previousGroupName");
 
-        // The wizard's default mapping (every real column auto-suggested, the synthetic one left
-        // unmapped) would import previousGroupName from the real (already-populated) column. This
-        // test instead explicitly overrides to the synthetic block-group source, proving that
-        // mechanism end to end: map columnIndex -1 -> previousGroupName instead of the real column 3.
+        // The wizard's default mapping now already picks the synthetic block-group source - no manual
+        // override needed (pre-B5 this required an explicit -1 -> previousGroupName override).
         List<ImportController.ColumnMappingDto> mappings = List.of(
                 new ImportController.ColumnMappingDto(0, "displayName"),
                 new ImportController.ColumnMappingDto(-1, "previousGroupName"));
@@ -342,13 +348,26 @@ class ImportControllerIntegrationTest {
         assertThat(commitJson.get("warnings").toString()).contains("Tidigare grupp hämtades från filens gruppstruktur");
 
         // Astrid's REAL "Tidigare grupp" column value ("Torsdagsträning 1") happens to agree with her
-        // actual block ("Torsdagsträning 1") - the synthetic mapping we chose reproduces it exactly.
+        // actual block ("Torsdagsträning 1") - no visible difference for her either way.
         Person astrid = personRepository.findAll().stream()
                 .filter(p -> "Astrid Svensson".equals(p.displayName()))
                 .findFirst().orElseThrow();
         ParticipantProfile astridProfile =
                 participantProfileRepository.findByPersonIdAndActivityPlanId(astrid.id(), planId).orElseThrow();
         assertThat(astridProfile.previousGroupName()).isEqualTo("Torsdagsträning 1");
+
+        // Bengt's REAL "Tidigare grupp" column value is the STALE "Torsdagsträning 2" (his group in
+        // some earlier import), but he is CURRENTLY listed under "Torsdagsträning 1" in this export's
+        // own block structure - the B5 fix: his imported previousGroupName must be the current block
+        // ("Torsdagsträning 1"), not the stale real-column value.
+        Person bengt = personRepository.findAll().stream()
+                .filter(p -> "Bengt Karlsson".equals(p.displayName()))
+                .findFirst().orElseThrow();
+        ParticipantProfile bengtProfile =
+                participantProfileRepository.findByPersonIdAndActivityPlanId(bengt.id(), planId).orElseThrow();
+        assertThat(bengtProfile.previousGroupName())
+                .as("B5: the file's own current grouping (block) must win over a stale real-column value")
+                .isEqualTo("Torsdagsträning 1");
     }
 
     @Test
@@ -405,9 +424,12 @@ class ImportControllerIntegrationTest {
 
     @Test
     void messyFixtureExposesSyntheticColumnButDoesNotAutoSuggestItWhenARealColumnAlreadyDoes() throws Exception {
-        // The messy fixture has a real "Tidigare grupp" column (index 7) that already suggests
-        // previousGroupName - the synthetic block-group column must still be offered (Layout 2 is
-        // detectable in this fixture too) but must NOT also be auto-suggested for the same target.
+        // The messy fixture has a real "Tidigare grupp" column (index 7) whose values (e.g. "Torsdag
+        // Herr 1 (Hösttermin 2025)") carry a parseable term - the synthetic block-group column's own
+        // labels (Layout 2's "Grupp N" metadata) carry no term at all, so B5's
+        // PreviousGroupColumnChooser picks the real column (newer evidence, rule 3) over the
+        // synthetic one. The synthetic column must still be offered (Layout 2 is detectable in this
+        // fixture too) but explicitly suggested IGNORE, not previousGroupName.
         String planId = createPlan();
         MessyWorkbookBuilder.BuiltWorkbook built = MessyWorkbookBuilder.build();
         String base = "/api/plans/" + planId + "/import";
@@ -435,7 +457,9 @@ class ImportControllerIntegrationTest {
         JsonNode syntheticColumn = findColumnByIndex(columnsJson, -1);
         assertThat(syntheticColumn).as("a synthetic column should still be offered (Layout 2 detects too)").isNotNull();
         assertThat(syntheticColumn.get("synthetic").asBoolean()).isTrue();
-        assertThat(syntheticColumn.get("suggestedTarget").isNull()).as("must not double-suggest previousGroupName").isTrue();
+        assertThat(syntheticColumn.get("suggestedTarget").asText())
+                .as("must not double-suggest previousGroupName - the real column has newer evidence (B5)")
+                .isEqualTo("ignore");
     }
 
     @Test
@@ -485,6 +509,45 @@ class ImportControllerIntegrationTest {
                             .content(objectMapper.writeValueAsString(new ImportController.MappingRequest("Flat", mappings))))
                     .andExpect(status().isBadRequest());
         }
+    }
+
+    /**
+     * B5: two columns both mapped to previousGroupName used to silently last-wins in {@code
+     * RowExtractor} (whichever mapping happened to be iterated last overwrote the other) - now
+     * rejected outright with a 400 so the ambiguity is resolved by the user, not by mapping-list
+     * iteration order.
+     */
+    @Test
+    void mappingTwoColumnsToPreviousGroupNameIsRejected() throws Exception {
+        String planId = createPlan();
+        MessyWorkbookBuilder.BuiltWorkbook built = MessyWorkbookBuilder.build();
+        String base = "/api/plans/" + planId + "/import";
+
+        String createResponse = mockMvc.perform(multipart(base + "/sessions")
+                        .file(fixtureFile(built.bytes()))
+                        .header("X-GP-Token", VALID_TOKEN))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String sessionId = objectMapper.readTree(createResponse).get("sessionId").asText();
+        String sid = base + "/sessions/" + sessionId;
+
+        mockMvc.perform(put(sid + "/header")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ImportController.HeaderRequest(MessyWorkbookBuilder.SHEET_NAME, 0))))
+                .andExpect(status().isOk());
+
+        // Columns 4 ("Kommentar") and 7 ("Tidigare grupp") both mapped to previousGroupName.
+        List<ImportController.ColumnMappingDto> mappings = List.of(
+                new ImportController.ColumnMappingDto(1, "firstName"),
+                new ImportController.ColumnMappingDto(4, "previousGroupName"),
+                new ImportController.ColumnMappingDto(7, "previousGroupName"));
+        mockMvc.perform(put(sid + "/mapping")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ImportController.MappingRequest(MessyWorkbookBuilder.SHEET_NAME, mappings))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("Tidigare grupp")));
     }
 
     private static JsonNode findColumnByIndex(JsonNode columnsJson, int columnIndex) {
@@ -684,7 +747,13 @@ class ImportControllerIntegrationTest {
                 assertThat(target).isEqualTo("firstName");
             }
             if ("GruppFöregåendeTermin".equals(header)) {
-                assertThat(target).isEqualTo("previousGroupName");
+                // B5 FIX1 regression fix: this column's values DO carry a term (e.g. "Vårtermin 2025")
+                // while this fixture's own block labels ("Grupp 1"/"Grupp 2") never do - PRE-FIX,
+                // PreviousGroupColumnChooser's term-recency rule wrongly favored ANY term-bearing side
+                // over a term-less one, so this real column used to win here. Post-fix, rule 3 only
+                // applies when BOTH sides carry a term - it doesn't here, so the decision falls through
+                // to the tie-default: the synthetic block column wins, and this real column is ignored.
+                assertThat(target).isEqualTo("ignore");
             }
         }
         assertThat(sawPersonnummerIgnore).isTrue();
@@ -711,7 +780,11 @@ class ImportControllerIntegrationTest {
         ParticipantProfile adaProfile = participantProfileRepository
                 .findByPersonIdAndActivityPlanId(ada.id(), planId)
                 .orElseThrow();
-        assertThat(adaProfile.previousGroupName()).isEqualTo("Torsdag Herr 1 (Vårtermin 2025)");
+        // B5 FIX1 regression fix: previousGroupName now comes from the synthetic block column (Ada's
+        // run's block label is "Grupp 1", via BlockStructureDetector's Layout-2 pickLabel rule (a)),
+        // not from the term-bearing but ultimately-losing real "GruppFöregåendeTermin" column - see the
+        // comment above.
+        assertThat(adaProfile.previousGroupName()).isEqualTo("Grupp 1");
     }
 
     private Person findPersonByEmail(String email) {

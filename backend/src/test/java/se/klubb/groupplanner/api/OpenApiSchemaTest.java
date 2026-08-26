@@ -117,6 +117,27 @@ class OpenApiSchemaTest {
         assertThat(capacityResponse.get("properties").has("noCoaches")).as("CapacityResponse.noCoaches").isTrue();
     }
 
+    /**
+     * FIX5 (MAJOR, B5 review): {@code ParticipantProfileController.ParticipantProfileView} is
+     * {@code @Schema(name = "ParticipantProfile")}-pinned so the generated schema name stays exactly
+     * what it was pre-B5 (the domain entity used to be exposed directly; the view now replaces it on
+     * every endpoint) - without the pin, springdoc would key it as "ParticipantProfileView" by simple
+     * class name and silently break the frontend's {@code components["schemas"]["ParticipantProfile"]}
+     * openapi-typegen narrowing. Asserts exactly one schema named {@code ParticipantProfile} exists
+     * and it carries the new B5 derived field {@code previousGroupOrder}.
+     */
+    @Test
+    void exactlyOneParticipantProfileSchemaExistsWithTheNewDerivedField() throws Exception {
+        JsonNode schemas = fetchSchemas();
+
+        assertThat(schemas.has("ParticipantProfileView")).as("must be named ParticipantProfile, not ParticipantProfileView").isFalse();
+
+        JsonNode participantProfile = schemas.get("ParticipantProfile");
+        assertThat(participantProfile).as("ParticipantProfile schema must exist").isNotNull();
+        assertThat(participantProfile.get("properties").has("previousGroupOrder")).isTrue();
+        assertThat(participantProfile.get("properties").has("previousGroupParseWarning")).isTrue();
+    }
+
     private JsonNode fetchSchemas() throws Exception {
         return fetchRoot().get("components").get("schemas");
     }

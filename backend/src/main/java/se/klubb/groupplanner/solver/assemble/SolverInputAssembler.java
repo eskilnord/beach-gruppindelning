@@ -8,8 +8,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 import se.klubb.groupplanner.api.error.BadRequestException;
 import se.klubb.groupplanner.api.error.NotFoundException;
@@ -31,6 +29,8 @@ import se.klubb.groupplanner.domain.TimeSlot;
 import se.klubb.groupplanner.domain.TrainingGroup;
 import se.klubb.groupplanner.fields.ConstraintTypes;
 import se.klubb.groupplanner.fields.HardOrSoft;
+import se.klubb.groupplanner.groups.PreviousGroupNormalizer;
+import se.klubb.groupplanner.groups.PreviousGroupRef;
 import se.klubb.groupplanner.repo.ActivityPlanRepository;
 import se.klubb.groupplanner.repo.CoachAssignmentRepository;
 import se.klubb.groupplanner.repo.CoachProfileRepository;
@@ -95,7 +95,6 @@ import se.klubb.groupplanner.solver.domain.WishType;
 @Component
 public class SolverInputAssembler {
 
-    private static final Pattern TRAILING_INT = Pattern.compile("(\\d+)\\s*$");
     private static final int DEFAULT_PRIORITY = 3;
     private static final int MIN_PRIORITY = 1;
     private static final int MAX_PRIORITY = 5;
@@ -809,14 +808,8 @@ public class SolverInputAssembler {
     }
 
     private Integer previousGroupOrderOf(ParticipantProfile p) {
-        if (p.previousGroupName() == null) {
-            return null;
-        }
-        Matcher m = TRAILING_INT.matcher(p.previousGroupName().strip());
-        if (!m.find()) {
-            return null;
-        }
-        return Integer.parseInt(m.group(1));
+        PreviousGroupRef ref = PreviousGroupNormalizer.parse(p.previousGroupName());
+        return ref != null ? ref.groupOrder() : null;
     }
 
     private int parsePriority(String valueJson) {

@@ -32,6 +32,7 @@ public final class RowExtractor {
         String externalId = null;
         ParsedCell rankingPointsCell = null;
         String previousGroupName = null;
+        String previousGroupNameRaw = null;
         ParsedCell previousGroupLevelCell = null;
         ParsedCell manualLevelScoreCell = null;
         String comment = null;
@@ -60,7 +61,14 @@ public final class RowExtractor {
                 case PHONE -> phone = raw;
                 case EXTERNAL_ID -> externalId = ImportedValueNormalizer.externalId(raw);
                 case RANKING_POINTS -> rankingPointsCell = cell;
-                case PREVIOUS_GROUP_NAME -> previousGroupName = ImportedValueNormalizer.previousGroupName(raw);
+                case PREVIOUS_GROUP_NAME -> {
+                    // MINOR 9 (B5 review): keep the raw pre-normalization text too, so a "cannot be
+                    // parsed" warning can quote what the user actually typed - ImportedValueNormalizer
+                    // collapses pipe-history to just the newest segment, which is the right thing to
+                    // STORE but the wrong thing to quote back at the user in a warning about THIS cell.
+                    previousGroupNameRaw = raw;
+                    previousGroupName = ImportedValueNormalizer.previousGroupName(raw);
+                }
                 case PREVIOUS_GROUP_LEVEL -> previousGroupLevelCell = cell;
                 case MANUAL_LEVEL_SCORE -> manualLevelScoreCell = cell;
                 case COMMENT -> comment = raw;
@@ -82,7 +90,7 @@ public final class RowExtractor {
 
         return new ExtractedRow(
                 rowIndex, firstName, lastName, displayName, email, phone, externalId,
-                rankingPointsCell, previousGroupName, previousGroupLevelCell, manualLevelScoreCell,
+                rankingPointsCell, previousGroupName, previousGroupNameRaw, previousGroupLevelCell, manualLevelScoreCell,
                 comment, internalNote, coachName, isCoach, customFieldRaw, customFieldCell);
     }
 

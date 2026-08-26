@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RestController;
 import se.klubb.groupplanner.api.error.BadRequestException;
 import se.klubb.groupplanner.api.error.NotFoundException;
 import se.klubb.groupplanner.domain.ParticipantProfile;
+import se.klubb.groupplanner.groups.PreviousGroupNormalizer;
+import se.klubb.groupplanner.groups.PreviousGroupRef;
 import se.klubb.groupplanner.level.LevelService;
 import se.klubb.groupplanner.repo.ActivityPlanRepository;
 import se.klubb.groupplanner.repo.ParticipantProfileRepository;
@@ -64,14 +66,16 @@ public class ParticipantProfileController {
     }
 
     @GetMapping("/api/plans/{planId}/participants")
-    public List<ParticipantProfile> listForPlan(@PathVariable String planId) {
+    public List<ParticipantProfileView> listForPlan(@PathVariable String planId) {
         requirePlanExists(planId);
-        return participantProfileRepository.findByActivityPlanId(planId);
+        return participantProfileRepository.findByActivityPlanId(planId).stream()
+                .map(ParticipantProfileView::of)
+                .toList();
     }
 
     @PostMapping("/api/plans/{planId}/participants")
     @ResponseStatus(HttpStatus.CREATED)
-    public ParticipantProfile create(@PathVariable String planId, @RequestBody CreateParticipantProfileRequest request) {
+    public ParticipantProfileView create(@PathVariable String planId, @RequestBody CreateParticipantProfileRequest request) {
         requirePlanExists(planId);
         if (request == null || request.personId() == null || request.personId().isBlank()) {
             throw new BadRequestException("personId is required");
@@ -85,7 +89,7 @@ public class ParticipantProfileController {
                 planId,
                 request.rankingPoints(),
                 request.rankingSource(),
-                request.previousGroupName(),
+                nullIfBlank(request.previousGroupName()),
                 request.previousGroupLevel(),
                 request.estimatedLevel(),
                 request.levelConfidence(),
@@ -107,12 +111,12 @@ public class ParticipantProfileController {
         // plan describes (probe results, waitlist reasoning) - see AssignmentController#move's javadoc
         // for the shared invalidation-surface rationale.
         activityPlanRepository.bumpRevision(planId);
-        return created;
+        return ParticipantProfileView.of(created);
     }
 
     @GetMapping("/api/participants/{id}")
-    public ParticipantProfile get(@PathVariable String id) {
-        return findOrThrow(id);
+    public ParticipantProfileView get(@PathVariable String id) {
+        return ParticipantProfileView.of(findOrThrow(id));
     }
 
     /** The exact set of JSON keys {@code PATCH /api/participants/{id}} accepts. Anything else is a
@@ -124,10 +128,10 @@ public class ParticipantProfileController {
             "internalNote", "manualReviewFlag", "waitlisted", "reviewedDone");
 
     @PatchMapping("/api/participants/{id}")
-    public ParticipantProfile update(@PathVariable String id, @RequestBody(required = false) Map<String, JsonNode> body) {
+    public ParticipantProfileView update(@PathVariable String id, @RequestBody(required = false) Map<String, JsonNode> body) {
         ParticipantProfile existing = findOrThrow(id);
         if (body == null || body.isEmpty()) {
-            return existing;
+            return ParticipantProfileView.of(existing);
         }
         for (String key : body.keySet()) {
             if (!PATCHABLE_FIELDS.contains(key)) {
@@ -149,7 +153,7 @@ public class ParticipantProfileController {
                 existing.activityPlanId(),
                 nullableDouble(body, "rankingPoints", existing.rankingPoints()),
                 nullableString(body, "rankingSource", existing.rankingSource()),
-                nullableString(body, "previousGroupName", existing.previousGroupName()),
+                nullIfBlank(nullableString(body, "previousGroupName", existing.previousGroupName())),
                 nullableDouble(body, "previousGroupLevel", existing.previousGroupLevel()),
                 nullableDouble(body, "estimatedLevel", existing.estimatedLevel()),
                 nullableDouble(body, "levelConfidence", existing.levelConfidence()),
@@ -179,7 +183,7 @@ public class ParticipantProfileController {
             // for the full "invalidation surface" rationale shared by every bump call site.
             activityPlanRepository.bumpRevision(existing.activityPlanId());
         }
-        return saved;
+        return ParticipantProfileView.of(saved);
     }
 
     @DeleteMapping("/api/participants/{id}")
@@ -262,6 +266,27 @@ public class ParticipantProfileController {
         return node.asBoolean();
     }
 
+    /**
+     * FIX4 (B5 review, DECIDED: drop write normalization): {@code previousGroupName} is stored
+     * VERBATIM - no {@link PreviousGroupNormalizer#parse(String)}-based collapsing on write. Rationale:
+     * hand-typed free text is the admin's own data, and the solver only ever parses {@code
+     * previousGroupName} at READ time ({@link PreviousGroupNormalizer#parse(String)} again, via the
+     * derived {@link ParticipantProfileView#previousGroupOrder()}/{@link
+     * ParticipantProfileView#previousGroupParseWarning()} fields below) - so the value's STORAGE form
+     * never affects scoring, and silently rewriting what the admin typed (e.g. collapsing a pipe-
+     * separated paste down to one segment) is a surprise with no upside here. The import pipeline
+     * remains the only place that normalizes on write ({@code ImportedValueNormalizer#previousGroupName}
+     * / {@code ImportCommitService}) - a FILE is the actual source of truth for pipe-history there, a
+     * hand-typed API value is not.
+     *
+     * <p>The one thing this DOES still do is the pre-B5 blank-vs-null behavior: whitespace-only input
+     * becomes {@code null} rather than being stored as a blank/whitespace string (MINOR 11, matches the
+     * import path's {@code ExtractedRow.isNonBlank} treatment of a blank cell as "no value").
+     */
+    private static String nullIfBlank(String raw) {
+        return (raw == null || raw.isBlank()) ? null : raw;
+    }
+
     public record CreateParticipantProfileRequest(
             String personId,
             Double rankingPoints,
@@ -279,5 +304,55 @@ public class ParticipantProfileController {
     }
 
     public record RecomputeLevelsResult(int recomputedCount) {
+    }
+
+    /**
+     * Read view of a {@link ParticipantProfile} for the API surface (B5): adds two derived,
+     * read-only fields on top of every stored column so the frontend doesn't have to re-implement
+     * {@link PreviousGroupNormalizer#parse(String)} client-side just to show group continuity status.
+     *
+     * @param previousGroupOrder the parsed group order (see {@link
+     *     se.klubb.groupplanner.groups.PreviousGroupRef#groupOrder()}), or {@code null} when {@code
+     *     previousGroupName} is blank or does not parse to one.
+     * @param previousGroupParseWarning the same Swedish "kan inte tolkas" sentence used by the import
+     *     wizard's row-validation warning ({@link PreviousGroupNormalizer#parseWarningSv(String)}),
+     *     or {@code null} when {@code previousGroupName} is blank or parses successfully.
+     */
+    // FIX5 (MAJOR, B5 review): pin the generated OpenAPI schema name to "ParticipantProfile" - without
+    // this, springdoc keys components.schemas by simple class name, so this record would generate as
+    // "ParticipantProfileView" instead and silently break the frontend's openapi-typegen narrowing
+    // (components["schemas"]["ParticipantProfile"]). The domain-level se.klubb.groupplanner.domain
+    // .ParticipantProfile entity is no longer exposed on any endpoint (this view replaced it
+    // everywhere), so there is no name clash to worry about - see OpenApiSchemaTest.
+    @io.swagger.v3.oas.annotations.media.Schema(name = "ParticipantProfile")
+    public record ParticipantProfileView(
+            String id,
+            String personId,
+            String activityPlanId,
+            Double rankingPoints,
+            String rankingSource,
+            String previousGroupName,
+            Double previousGroupLevel,
+            Double estimatedLevel,
+            Double levelConfidence,
+            Double manualLevelScore,
+            String importedComment,
+            String internalNote,
+            boolean manualReviewFlag,
+            boolean waitlisted,
+            boolean reviewedDone,
+            Integer previousGroupOrder,
+            String previousGroupParseWarning) {
+
+        public static ParticipantProfileView of(ParticipantProfile p) {
+            PreviousGroupRef ref = PreviousGroupNormalizer.parse(p.previousGroupName());
+            Integer previousGroupOrder = ref != null ? ref.groupOrder() : null;
+            String previousGroupParseWarning = PreviousGroupNormalizer.parseWarningSv(p.previousGroupName());
+            return new ParticipantProfileView(
+                    p.id(), p.personId(), p.activityPlanId(), p.rankingPoints(), p.rankingSource(),
+                    p.previousGroupName(), p.previousGroupLevel(), p.estimatedLevel(), p.levelConfidence(),
+                    p.manualLevelScore(), p.importedComment(), p.internalNote(), p.manualReviewFlag(),
+                    p.waitlisted(), p.reviewedDone(), previousGroupOrder, previousGroupParseWarning);
+        }
     }
 }

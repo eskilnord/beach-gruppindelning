@@ -424,6 +424,131 @@ class ParticipantProfileControllerTest {
                 .andExpect(jsonPath("$.error").exists());
     }
 
+    /**
+     * B5: {@code previousGroupOrder}/{@code previousGroupParseWarning} are derived, read-only fields
+     * computed from {@code previousGroupName} via {@code PreviousGroupNormalizer} - a parsable value
+     * yields an order and no warning; an unparsable one yields no order and the Swedish "kan inte
+     * tolkas" sentence. FIX4 (B5 review, DECIDED: drop write normalization): a pipe-separated string
+     * is now stored VERBATIM (no collapsing to just the newest segment on write - that would silently
+     * rewrite what the admin hand-typed); {@code previousGroupOrder} is still derived from the NEWEST
+     * segment via {@code PreviousGroupNormalizer#parse}, since that parsing happens at READ time
+     * regardless of storage form.
+     */
+    @Test
+    void previousGroupOrderAndParseWarningAreDerivedOnRead() throws Exception {
+        String planId = createPlan();
+        String personId = createPerson();
+        String createBody = objectMapper.writeValueAsString(new ParticipantProfileController.CreateParticipantProfileRequest(
+                personId, null, null, "Torsdag Herr 3 (Vårtermin 2025)", null, null, null, null, null, null, null, null, false));
+        String response = mockMvc.perform(post("/api/plans/" + planId + "/participants")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.previousGroupName").value("Torsdag Herr 3 (Vårtermin 2025)"))
+                .andExpect(jsonPath("$.previousGroupOrder").value(3))
+                .andExpect(jsonPath("$.previousGroupParseWarning").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        String id = objectMapper.readTree(response).get("id").asText();
+
+        mockMvc.perform(get("/api/participants/" + id).header("X-GP-Token", VALID_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.previousGroupOrder").value(3))
+                .andExpect(jsonPath("$.previousGroupParseWarning").doesNotExist());
+
+        // Unparsable free text -> no order, and the Swedish parse-warning sentence appears.
+        mockMvc.perform(patch("/api/participants/" + id)
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"previousGroupName\": \"Nybörjargrupp\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.previousGroupOrder").doesNotExist())
+                .andExpect(jsonPath("$.previousGroupParseWarning").value(
+                        "Tidigare grupp \"Nybörjargrupp\" kunde inte tolkas till en gruppnivå – kontinuitet används inte för denna rad"));
+
+        // FIX4: a pipe-separated history string is stored VERBATIM (no write-side collapsing) - but
+        // previousGroupOrder is still derived from the NEWEST segment, since PreviousGroupNormalizer
+        // parses at READ time regardless of how the value is stored.
+        mockMvc.perform(patch("/api/participants/" + id)
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"previousGroupName\": \"Torsdag Herr 1 (Hösttermin 2024) |Torsdag Herr 4 (Vårtermin 2025)\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.previousGroupName").value("Torsdag Herr 1 (Hösttermin 2024) |Torsdag Herr 4 (Vårtermin 2025)"))
+                .andExpect(jsonPath("$.previousGroupOrder").value(4));
+    }
+
+    /**
+     * MINOR 11 (B5 review): whitespace-only input becomes {@code null} rather than being stored as a
+     * blank/whitespace string, matching the import path's treatment of a blank cell (a blank mapped
+     * value clears/omits, never stores literal whitespace).
+     */
+    @Test
+    void whitespaceOnlyPreviousGroupNameIsStoredAsNull() throws Exception {
+        String planId = createPlan();
+        String personId = createPerson();
+        String createBody = objectMapper.writeValueAsString(new ParticipantProfileController.CreateParticipantProfileRequest(
+                personId, null, null, "   ", null, null, null, null, null, null, null, null, false));
+        String response = mockMvc.perform(post("/api/plans/" + planId + "/participants")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.previousGroupName").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        String id = objectMapper.readTree(response).get("id").asText();
+
+        mockMvc.perform(patch("/api/participants/" + id)
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"previousGroupName\": \"Grupp 2\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.previousGroupName").value("Grupp 2"));
+
+        mockMvc.perform(patch("/api/participants/" + id)
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"previousGroupName\": \"   \"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.previousGroupName").doesNotExist());
+    }
+
+    /**
+     * FIX4 regression (B5 review, proved by an adversarial reviewer): the pre-fix write-side
+     * normalization re-parsed {@code previousGroupName} on EVERY PATCH, even one that never mentioned
+     * the field - {@code nullableString} correctly returns the untouched existing value when the key
+     * is absent, but the old code then ran that untouched value back through
+     * {@code PreviousGroupNormalizer#parse}, silently collapsing a stored pipe-separated history down
+     * to just its newest segment on a totally unrelated PATCH (e.g. {@code {"reviewedDone": true}}).
+     * FIX4 removes that re-parse entirely, so an unrelated field's PATCH must leave a pipe-separated
+     * previousGroupName completely untouched.
+     */
+    @Test
+    void unrelatedPatchNeverTouchesPreviousGroupName() throws Exception {
+        String planId = createPlan();
+        String personId = createPerson();
+        String pipeHistory = "Torsdag Herr 1 (Hösttermin 2024) |Torsdag Herr 4 (Vårtermin 2025)";
+        String createBody = objectMapper.writeValueAsString(new ParticipantProfileController.CreateParticipantProfileRequest(
+                personId, null, null, pipeHistory, null, null, null, null, null, null, null, null, false));
+        String response = mockMvc.perform(post("/api/plans/" + planId + "/participants")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.previousGroupName").value(pipeHistory))
+                .andReturn().getResponse().getContentAsString();
+        String id = objectMapper.readTree(response).get("id").asText();
+
+        mockMvc.perform(patch("/api/participants/" + id)
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reviewedDone\": true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewedDone").value(true))
+                .andExpect(jsonPath("$.previousGroupName").value(pipeHistory))
+                .andExpect(jsonPath("$.previousGroupOrder").value(4));
+    }
+
     @Test
     void listParticipantsWithoutTokenReturns401() throws Exception {
         String planId = createPlan();

@@ -12,6 +12,12 @@ import se.klubb.groupplanner.importer.parse.ParsedCell;
  * docs/plan.md's red-team correction ("map numeric targets from typed values; locale-aware parsing
  * ... only for text-typed cells").
  *
+ * <p>{@code previousGroupNameRaw} is the cell's text exactly as it appeared in the file, BEFORE
+ * {@link ImportedValueNormalizer#previousGroupName} (pipe-history collapse) is applied - {@code
+ * previousGroupName} is the normalized value actually stored; {@code previousGroupNameRaw} exists
+ * only so a "cannot be parsed" warning can quote what the user actually typed (MINOR 9, B5 review),
+ * not an already-normalized value.
+ *
  * <p>{@code customFieldRaw}/{@code customFieldCell} key on the target field's key and support
  * (rare) multiple columns mapped to the same custom field by concatenating their raw text - {@link
  * #customFieldCell} then loses per-cell typing in that case, which only matters for the "ogiltiga
@@ -27,6 +33,7 @@ public record ExtractedRow(
         String externalId,
         ParsedCell rankingPointsCell,
         String previousGroupName,
+        String previousGroupNameRaw,
         ParsedCell previousGroupLevelCell,
         ParsedCell manualLevelScoreCell,
         String comment,

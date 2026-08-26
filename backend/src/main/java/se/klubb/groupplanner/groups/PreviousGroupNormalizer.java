@@ -198,6 +198,24 @@ public final class PreviousGroupNormalizer {
     }
 
     /**
+     * The Swedish "kan inte tolkas" warning sentence for a raw previous-group value, or {@code null}
+     * when the value is blank or parses to a {@link PreviousGroupRef#groupOrder()} successfully (B5).
+     * Shared by the importer's row-validation warning ({@code ImportValidationService}) and the
+     * participant API's derived {@code previousGroupParseWarning} field ({@code
+     * ParticipantProfileController}) so the exact wording never drifts between the two surfaces.
+     */
+    public static String parseWarningSv(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        PreviousGroupRef ref = parse(raw);
+        if (ref != null && ref.groupOrder() != null) {
+            return null;
+        }
+        return "Tidigare grupp \"" + raw + "\" kunde inte tolkas till en gruppnivå – kontinuitet används inte för denna rad";
+    }
+
+    /**
      * Applies the same canonicalization used for a parsed {@link PreviousGroupRef#canonicalName()}
      * to an arbitrary plain group name (e.g. a generated plan group's {@code "<category> N"} name).
      * Public so callers wiring this module up to a plan's groups (a later milestone) can precompute
