@@ -128,6 +128,7 @@ public class ExplanationService {
     private final SolutionManager<GroupPlanSolution, HardMediumSoftLongScore> solutionManager;
     private final MoveProbe moveProbe;
     private final ExplanationCache cache;
+    private final WishAnalysisCache wishAnalysisCache;
     private final ExplanationRecordRepository explanationRecordRepository;
     private final ObjectMapper objectMapper;
 
@@ -143,6 +144,7 @@ public class ExplanationService {
             SolutionManager<GroupPlanSolution, HardMediumSoftLongScore> solutionManager,
             MoveProbe moveProbe,
             ExplanationCache cache,
+            WishAnalysisCache wishAnalysisCache,
             ExplanationRecordRepository explanationRecordRepository,
             ObjectMapper objectMapper) {
         this.activityPlanRepository = activityPlanRepository;
@@ -156,6 +158,7 @@ public class ExplanationService {
         this.solutionManager = solutionManager;
         this.moveProbe = moveProbe;
         this.cache = cache;
+        this.wishAnalysisCache = wishAnalysisCache;
         this.explanationRecordRepository = explanationRecordRepository;
         this.objectMapper = objectMapper;
     }
@@ -252,6 +255,102 @@ public class ExplanationService {
 
         cache.put(cacheKey, response);
         persistAudit(ctx, target, participantProfileId, response);
+        return response;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────── M-E3 wish-analysis (lazy)
+
+    /**
+     * {@code GET .../wish-analysis?wish={wishId}} (M-E3, advanced mode's "vad skulle krävas?"): the
+     * FULL per-constraint break-even table ({@link WeightBreakEven}) and all 24 {@link PriorityOrder
+     * .Priority} orderings' predictions ({@link PrioritySensitivityCalculator}) for one specific unmet
+     * wish — lazy (not embedded in {@link #explainPerson}'s response) since most wishes are never
+     * opened in the advanced drawer. Reuses the SAME probe map path {@link #buildAlternatives} already
+     * uses for the person-level response (1 base + one probe per other group) — no extra {@code
+     * analyze()} calls beyond that budget (see {@code WishAnalysisEndpointTest}'s probe-count pin).
+     *
+     * <p><b>Cache-hit is a TRUE zero-probe path</b> (deliberately stronger than {@link #explainPerson}'s
+     * own cache, which still pays for {@link #loadContext}'s one base {@code analyze()} call even on a
+     * hit): the cache key's revision component is read directly off {@link ActivityPlanRepository
+     * #getPlanRevision} — a plain DB read, no solver assembly/analysis — so a cache hit never touches
+     * {@link #loadContext} at all.
+     *
+     * @throws se.klubb.groupplanner.api.error.NotFoundException with a Swedish message when {@code
+     *     wishId} does not name one of this player's CURRENT unmet wishes (including: the player is
+     *     waitlisted, which has no unmet-wish concept — see {@link #buildWaitlistedExplanation})
+     */
+    public ExplanationDtos.WishAnalysisResponse wishAnalysis(String planId, String runId, String participantProfileId, String wishId) {
+        // FIX 3 (M-E3 review, MINOR): validate plan-exists/run-belongs-to-plan BEFORE the cache
+        // pre-check - a lightweight repo-lookup subset of what loadContext validates (plan/run rows
+        // only, no assembler.assemble/analyze() call), so an unknown planId/runId 404s honestly on
+        // EVERY call instead of being masked by a stale cache hit keyed only on (runId, revision, ...).
+        // Deliberately still cheap enough to keep the cache-hit path a TRUE zero-probe path (see
+        // WishAnalysisEndpointTest#secondCallForTheSameWishHitsTheCacheAndProbesNoMoreTimes) - neither
+        // lookup touches SolverInputAssembler/SolutionManager.
+        activityPlanRepository.findById(planId).orElseThrow(() -> new NotFoundException("Activity plan not found: " + planId));
+        optimizationRunRepository.findById(runId)
+                .filter(r -> r.activityPlanId().equals(planId))
+                .orElseThrow(() -> new NotFoundException("Run not found in plan " + planId + ": " + runId));
+
+        int revisionForCacheCheck = activityPlanRepository.getPlanRevision(planId);
+        WishAnalysisCache.Key precheckKey = new WishAnalysisCache.Key(planId, runId, revisionForCacheCheck, participantProfileId, wishId);
+        ExplanationDtos.WishAnalysisResponse cached = wishAnalysisCache.get(precheckKey);
+        if (cached != null) {
+            return cached;
+        }
+
+        RunContext ctx = loadContext(planId, runId);
+        PlayerAssignment target = requireTarget(ctx, participantProfileId);
+        Group selectedGroup = target.getGroup();
+        if (selectedGroup == null) {
+            throw new NotFoundException("Okänt önskemål (spelaren är oplacerad, har inga önskemål att analysera): " + wishId);
+        }
+
+        UnmetWishResolver.UnmetWish wish = UnmetWishResolver.resolve(ctx, target, selectedGroup).stream()
+                .filter(w -> CausalNarrator.wishId(w).equals(wishId))
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("Okänt önskemål: " + wishId));
+
+        AlternativesResult alt = buildAlternatives(ctx, target, selectedGroup);
+        ExplanationDtos.UnmetWishView view =
+                CausalNarrator.narrate(this, ctx, target, selectedGroup, wish, alt.probesByGroup(), solverQualityWarned);
+
+        List<ExplanationDtos.WeightBreakEvenView> breakEven = List.of();
+        List<ExplanationDtos.OrderingView> orderings = List.of();
+        String unavailableReasonSv;
+        if ("TRADE_OFF".equals(view.outcome())) {
+            String bestGroupDbId = view.bestCandidateGroupId();
+            Group bestGroup = alt.probesByGroup().keySet().stream()
+                    .filter(g -> groupDbId(ctx, g).equals(bestGroupDbId))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException(
+                            "TRADE_OFF best candidate group " + bestGroupDbId + " not found among probed groups"));
+            MoveProbe.Result bestResult = alt.probesByGroup().get(bestGroup);
+            Map<String, HardMediumSoftLongScore> currentWeights = PrioritySensitivityCalculator.currentWeightsOf(ctx.solution());
+            breakEven = WeightBreakEven.compute(bestResult.perConstraint(), currentWeights);
+            PrioritySensitivityCalculator.Computation computation =
+                    PrioritySensitivityCalculator.compute(bestResult.perConstraint(), currentWeights, wish.key(), bestGroup.name());
+            if (computation.available()) {
+                orderings = PrioritySensitivityCalculator.toOrderingViews(computation.orderings());
+                unavailableReasonSv = null;
+            } else {
+                unavailableReasonSv = computation.unavailableReasonSv();
+            }
+        } else {
+            unavailableReasonSv = view.prioritySensitivity().unavailableReasonSv();
+        }
+
+        // FIX 2 (M-E3 review, MAJOR): mandatory caution on this payload whenever it carries any concrete
+        // "this would help" claim (breakEven and/or orderings non-empty) - mirrors PrioritySensitivityView
+        // .cautionSv()'s own mandatory-on-FLIPS_BY_REORDER contract (see ExplanationDtos.WishAnalysisResponse's
+        // javadoc for the exact rule, including the TRADE_OFF-but-unavailable-sensitivity mixed state).
+        String cautionSv = (!breakEven.isEmpty() || !orderings.isEmpty()) ? PrioritySensitivityCalculator.CAUTION_SV : null;
+
+        ExplanationDtos.WishAnalysisResponse response = new ExplanationDtos.WishAnalysisResponse(
+                ctx.run().id(), ctx.run().planRevision(), ctx.currentRevision(), ctx.stale(), wishId, breakEven, orderings,
+                unavailableReasonSv, cautionSv);
+        wishAnalysisCache.put(
+                new WishAnalysisCache.Key(planId, runId, ctx.currentRevision(), participantProfileId, wishId), response);
         return response;
     }
 

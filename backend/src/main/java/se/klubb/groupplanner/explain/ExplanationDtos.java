@@ -112,19 +112,107 @@ public final class ExplanationDtos {
     }
 
     /**
-     * M-E2 sensitivity placeholder: for THIS milestone it is shipped as a fixed, honest "not yet
-     * computed" value — {@code available=false}, {@code unavailableReasonSv} explains why, and every
-     * OTHER field stays {@code null} (the null-safety contract {@code NoClaimWithoutProbeTest} pins:
-     * {@code available=false ⇒ every other field null}) — no priority-order re-solve is attempted or
-     * implied. E3 fills this in with the real computation.
+     * M-E3 "vad skulle krävas?": for a {@code TRADE_OFF} unmet wish, whether — and how — reordering
+     * the plan's four priorities ({@link se.klubb.groupplanner.fields.PriorityOrder.Priority}) would
+     * make the wish's own move stop costing points, computed via {@link PrioritySensitivityCalculator}
+     * from the SAME probe data {@code CausalNarrator} already has (zero extra {@code analyze()} calls
+     * — pure arithmetic over the M-E1 linearity spike's {@code Δscore(w') = Σ units_k·w'_k} result).
+     *
+     * <p>Null-safety contract ({@code NoClaimWithoutProbeTest} pins this): {@code available=false} ⇒
+     * every other field is {@code null}. {@code available=true} ⇒ {@code unavailableReasonSv} is
+     * {@code null} and {@code verdict}/{@code summarySv} are non-null. {@code verdict ==
+     * "FLIPS_BY_REORDER"} ⇒ {@code suggestedOrder} is non-null and NOT equal to the plan's current
+     * order, and {@code cautionSv} is non-null (MANDATORY — every "this would help" claim is scoped to
+     * THIS move, never a claim about what the solver would actually choose on a full re-solve).
+     * {@code verdict} is one of {@code FLIPS_BY_REORDER|NO_ORDER_HELPS|ALREADY_TOP}, {@code null} when
+     * {@code available=false}. {@code blockerLabelSv} is non-null only for {@code NO_ORDER_HELPS}/
+     * {@code ALREADY_TOP} (names the dominant reason no reorder is enough). {@code suggestedOrder} is
+     * the {@link se.klubb.groupplanner.fields.PriorityOrder.Priority} names in rank-1-first order —
+     * the exact shape {@code PUT /api/plans/{planId}/priority-order} accepts, so the frontend can offer
+     * "apply this order" directly.
+     *
+     * <p>{@code available=false} is honest for every OTHER outcome too (LOCKED/NO_CANDIDATE/
+     * BLOCKED_HARD/EQUAL/SOLVER_MISS/INCONCLUSIVE — none of these name a "would a reorder help"
+     * question that is even meaningful), each with its own {@code unavailableReasonSv}, and for
+     * {@code TRADE_OFF} itself when the plan uses custom (non-ladder) weights or a bucket constraint
+     * the move touches is disabled in this plan (units unknown — see {@link
+     * PrioritySensitivityCalculator}).
      */
     public record PrioritySensitivityView(
-            boolean available, String unavailableReasonSv, String wouldChangeAtRankSv, Integer newRank) {
+            boolean available,
+            String unavailableReasonSv,
+            String verdict,
+            List<String> suggestedOrder,
+            String summarySv,
+            String cautionSv,
+            String blockerLabelSv) {
+    }
 
-        /** The single instance every M-E2 {@link UnmetWishView} carries (E3 replaces call sites, not
-         * this shape). */
-        static final PrioritySensitivityView NOT_YET_AVAILABLE =
-                new PrioritySensitivityView(false, "Beräknas i ett senare steg.", null, null);
+    /** Advanced-mode closed-form per-constraint break-even ({@link WeightBreakEven}, M-E3 "vad skulle
+     * krävas?" for someone editing raw weights instead of the four-priority order): the weight {@code
+     * key} would need to cross (holding every other constraint's CURRENT weight fixed) for the same
+     * probe's move to stop costing points. {@code direction} is {@code AT_MOST} (the constraint's cost
+     * grows with its weight — lower it) or {@code AT_LEAST} (the constraint's gain grows with its
+     * weight — raise it). {@code threshold} is the clamped ({@code WeightLimits} 1..10 000) integer
+     * weight achieving break-even, {@code null} exactly when {@code impossibleReasonSv} is set (no
+     * weight in the allowed range would do it). {@code messageSv}/{@code impossibleReasonSv} are
+     * finished Swedish sentences, server-rendered like every other message field in this API. Rows
+     * with {@code units_k == 0} (the move never touched this constraint) are omitted entirely. */
+    public record WeightBreakEvenView(
+            String key,
+            String labelSv,
+            long currentWeight,
+            String direction,
+            Integer threshold,
+            String messageSv,
+            String impossibleReasonSv) {
+    }
+
+    /** One of the 24 permutations of the four {@link se.klubb.groupplanner.fields.PriorityOrder
+     * .Priority} values, and what it would predict for this wish's move (M-E3 advanced-mode {@code
+     * /wish-analysis}) — {@code orderKeys} in rank-1-first order (same shape as {@code
+     * PrioritySensitivityView.suggestedOrder}), {@code predictedSoftDelta} the exact {@code
+     * Σ units_k·w'_k} SOFT-level total under that permutation (never HARD/MEDIUM — a {@code TRADE_OFF}
+     * candidate is hard-feasible by construction and medium is unreachable in a group-to-group probe,
+     * see {@link PrioritySensitivityCalculator}), {@code nonWorse} = {@code predictedSoftDelta >= 0}. */
+    public record OrderingView(List<String> orderKeys, boolean nonWorse, long predictedSoftDelta) {
+    }
+
+    /** M-E3 lazy "wish analysis" drawer ({@code GET .../wish-analysis?wish={wishId}}, simple mode's
+     * {@link PrioritySensitivityView} plus advanced mode's full {@link WeightBreakEvenView} rows and
+     * every one of the 24 {@link OrderingView} permutations) — same staleness envelope as every other
+     * explanation response. {@code breakEven}/{@code orderings} are empty (never fabricated) for a wish
+     * whose outcome isn't {@code TRADE_OFF}; {@code unavailableReasonSv} then carries that outcome's own
+     * honest reason (the same text {@link UnmetWishView#prioritySensitivity()} would carry).
+     *
+     * <p><b>Mixed state (FIX 6, M-E3 review)</b>: for a {@code TRADE_OFF} wish whose {@code
+     * PrioritySensitivityCalculator} sensitivity is itself {@code available=false} (custom weights, or a
+     * bucket constraint the move touches is disabled), {@code unavailableReasonSv} is non-null and
+     * {@code orderings} is empty — but {@code breakEven} is computed independently ({@link
+     * WeightBreakEven} has no dependency on the 24-permutation sensitivity at all) and MAY still be
+     * non-empty. In that case {@code unavailableReasonSv} scopes ONLY the {@code orderings}/priority-
+     * reorder question ("would reordering the four priorities help") — {@code breakEven}'s per-constraint
+     * weight thresholds stand on their own and remain a fully valid, independently truthful answer to
+     * the advanced-mode "what raw weight would it take" question. Frontends must not suppress
+     * {@code breakEven} just because {@code unavailableReasonSv} is set.
+     *
+     * <p>{@code cautionSv} (FIX 2, M-E3 review — MANDATORY on this payload, mirroring {@link
+     * PrioritySensitivityView#cautionSv()}'s own mandatory-on-FLIPS_BY_REORDER contract): set to {@link
+     * PrioritySensitivityCalculator#CAUTION_SV} whenever this response contains any concrete "this would
+     * help" claim at all — i.e. whenever {@code breakEven} or {@code orderings} is non-empty — {@code
+     * null} only when BOTH are empty (nothing here to scope a caution onto). Every claim in this payload
+     * is, like {@link PrioritySensitivityView}'s, scoped to THIS specific move, never a claim about what
+     * a full re-solve would actually choose. */
+    public record WishAnalysisResponse(
+            String runId,
+            int basedOnRevision,
+            int currentRevision,
+            boolean stale,
+            String wishId,
+            List<WeightBreakEvenView> breakEven,
+            List<OrderingView> orderings,
+            String unavailableReasonSv,
+            String cautionSv) {
     }
 
     /** One competing reason a {@link UnmetWishView}'s best candidate would cost (M-E2 {@code

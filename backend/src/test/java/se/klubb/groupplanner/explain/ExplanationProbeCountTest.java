@@ -136,7 +136,7 @@ class ExplanationProbeCountTest {
         ExplanationService svc = new ExplanationService(
                 activityPlanRepository, optimizationRunRepository, participantProfileRepository, trainingGroupRepository,
                 coachAssignmentRepository, coachProfileRepository, personRepository, solverInputAssembler,
-                countingSolutionManager, countingProbe, new ExplanationCache(), explanationRecordRepository, objectMapper);
+                countingSolutionManager, countingProbe, new ExplanationCache(), new WishAnalysisCache(), explanationRecordRepository, objectMapper);
 
         PersonExplanationResponse response = svc.explainPerson(fx.planId, runId, kalle);
 
@@ -180,7 +180,7 @@ class ExplanationProbeCountTest {
         ExplanationService svc = new ExplanationService(
                 activityPlanRepository, optimizationRunRepository, participantProfileRepository, trainingGroupRepository,
                 coachAssignmentRepository, coachProfileRepository, personRepository, solverInputAssembler,
-                countingSolutionManager, countingProbe, new ExplanationCache(), explanationRecordRepository, objectMapper);
+                countingSolutionManager, countingProbe, new ExplanationCache(), new WishAnalysisCache(), explanationRecordRepository, objectMapper);
 
         PersonExplanationResponse response = svc.explainPerson(fx.planId, runId, kalle);
 

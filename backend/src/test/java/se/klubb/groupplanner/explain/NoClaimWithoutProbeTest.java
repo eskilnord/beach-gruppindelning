@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -82,6 +83,17 @@ class NoClaimWithoutProbeTest {
     private static final Set<String> NAMES_A_CANDIDATE = Set.of("TRADE_OFF", "EQUAL", "SOLVER_MISS");
     private static final Set<String> NAMES_NO_CANDIDATE = Set.of("LOCKED", "NO_CANDIDATE", "BLOCKED_HARD", "INCONCLUSIVE");
 
+    /** M-E3: every outcome OTHER than TRADE_OFF never names a "would reordering help" question that
+     * is even meaningful - {@code available=false} with its own honest per-outcome reason (never the
+     * old blanket M-E2 placeholder). */
+    private static final Map<String, String> NON_TRADE_OFF_SENSITIVITY_REASONS = Map.of(
+            "LOCKED", "Spelaren är låst till sin grupp – prioritetsordningen påverkar inget så länge låsningen gäller.",
+            "NO_CANDIDATE", "Ingen grupp kan uppfylla önskemålet – prioritetsordningen har inget att styra över här.",
+            "BLOCKED_HARD", "Ett hårt krav blockerar – ingen prioritetsordning påverkar det.",
+            "EQUAL", "Flytten kostar redan inga poäng – det finns inget att förbättra genom en annan prioritetsordning.",
+            "SOLVER_MISS", "Flytten skulle redan förbättra planen – prioritetsordningen är inte det som håller emot här.",
+            "INCONCLUSIVE", "Orsaken kunde inte säkert härledas, så känsligheten går inte att beräkna.");
+
     private ExplanationTestFixture newFixture() {
         return new ExplanationTestFixture(
                 seasonPlanRepository, activityPlanRepository, personRepository, participantProfileRepository,
@@ -95,11 +107,47 @@ class NoClaimWithoutProbeTest {
         customFieldValueRepository.upsert(fieldId, CustomFieldValue.ENTITY_TYPE_PARTICIPANT, participantId, "[\"" + timeSlotId + "\"]");
     }
 
+    /** M-E3: the null-safety contract now branches on outcome. Every non-TRADE_OFF outcome still
+     * carries a fixed, honest {@code available=false} view (own reason per outcome, never the old M-E2
+     * placeholder). A TRADE_OFF wish's sensitivity is REAL: {@code available=false ⇒} every other
+     * field null (custom weights / a disabled bucket constraint); {@code available=true ⇒ verdict}/
+     * {@code summarySv} non-null and {@code unavailableReasonSv} null; {@code verdict ==
+     * "FLIPS_BY_REORDER"} ⇒ {@code suggestedOrder} non-null, NOT equal to the plan's own default order
+     * ({@code ExplanationTestFixture} never changes weights, so a flip can only come from an ACTUAL
+     * reorder), and {@code cautionSv} non-null (mandatory on every FLIPS_BY_REORDER claim). */
     private void assertContract(UnmetWishView wish) {
-        assertThat(wish.prioritySensitivity().available()).as("wish %s sensitivity.available", wish.wishId()).isFalse();
-        assertThat(wish.prioritySensitivity().unavailableReasonSv()).isEqualTo("Beräknas i ett senare steg.");
-        assertThat(wish.prioritySensitivity().wouldChangeAtRankSv()).as("wish %s wouldChangeAtRankSv", wish.wishId()).isNull();
-        assertThat(wish.prioritySensitivity().newRank()).as("wish %s newRank", wish.wishId()).isNull();
+        if (!"TRADE_OFF".equals(wish.outcome())) {
+            String expectedReason = NON_TRADE_OFF_SENSITIVITY_REASONS.get(wish.outcome());
+            assertThat(wish.prioritySensitivity().available()).as("wish %s sensitivity.available", wish.wishId()).isFalse();
+            assertThat(wish.prioritySensitivity().unavailableReasonSv()).as("wish %s unavailableReasonSv", wish.wishId())
+                    .isEqualTo(expectedReason);
+            assertThat(wish.prioritySensitivity().verdict()).as("wish %s verdict", wish.wishId()).isNull();
+            assertThat(wish.prioritySensitivity().suggestedOrder()).as("wish %s suggestedOrder", wish.wishId()).isNull();
+            assertThat(wish.prioritySensitivity().summarySv()).as("wish %s summarySv", wish.wishId()).isNull();
+            assertThat(wish.prioritySensitivity().cautionSv()).as("wish %s cautionSv", wish.wishId()).isNull();
+            assertThat(wish.prioritySensitivity().blockerLabelSv()).as("wish %s blockerLabelSv", wish.wishId()).isNull();
+        } else if (!wish.prioritySensitivity().available()) {
+            assertThat(wish.prioritySensitivity().unavailableReasonSv()).as("wish %s unavailableReasonSv", wish.wishId()).isNotNull();
+            assertThat(wish.prioritySensitivity().verdict()).isNull();
+            assertThat(wish.prioritySensitivity().suggestedOrder()).isNull();
+            assertThat(wish.prioritySensitivity().summarySv()).isNull();
+            assertThat(wish.prioritySensitivity().cautionSv()).isNull();
+            assertThat(wish.prioritySensitivity().blockerLabelSv()).isNull();
+        } else {
+            assertThat(wish.prioritySensitivity().unavailableReasonSv()).as("wish %s unavailableReasonSv", wish.wishId()).isNull();
+            assertThat(wish.prioritySensitivity().verdict()).as("wish %s verdict", wish.wishId())
+                    .isIn("FLIPS_BY_REORDER", "NO_ORDER_HELPS", "ALREADY_TOP");
+            assertThat(wish.prioritySensitivity().summarySv()).as("wish %s summarySv", wish.wishId()).isNotNull();
+            if ("FLIPS_BY_REORDER".equals(wish.prioritySensitivity().verdict())) {
+                assertThat(wish.prioritySensitivity().suggestedOrder()).as("wish %s suggestedOrder", wish.wishId()).isNotNull();
+                assertThat(wish.prioritySensitivity().suggestedOrder())
+                        .as("wish %s suggestedOrder must differ from the plan's current order", wish.wishId())
+                        .isNotEqualTo(List.of("TRAIN_TOGETHER", "PREVIOUS_GROUP", "PREFERRED_TIME", "LEVEL"));
+                assertThat(wish.prioritySensitivity().cautionSv()).as("wish %s cautionSv", wish.wishId()).isNotNull();
+            } else {
+                assertThat(wish.prioritySensitivity().blockerLabelSv()).as("wish %s blockerLabelSv", wish.wishId()).isNotNull();
+            }
+        }
 
         if (NAMES_A_CANDIDATE.contains(wish.outcome())) {
             assertThat(wish.bestCandidateGroupId()).as(wish.outcome() + " bestCandidateGroupId").isNotNull();
@@ -184,6 +232,43 @@ class NoClaimWithoutProbeTest {
         for (UnmetWishView wish : response.unmetWishes()) {
             assertContract(wish);
         }
+    }
+
+    /** M-E3: a real TRADE_OFF (default weights, so a matching permutation exists and the sensitivity
+     * is genuinely computable) — the exact fixture shape {@code CausalNarrativeTruthfulnessTest
+     * .tradeOffOutcomeNamesTheDominantCompetingReasonWithoutRawNumbers} pins the reason text for; here
+     * only the sensitivity null-safety contract is asserted, via the SAME {@link #assertContract}
+     * every other outcome already goes through. */
+    @Test
+    void tradeOffOutcomeGetsARealComputedSensitivityNotThePlaceholder() {
+        ExplanationTestFixture fx = newFixture();
+        List<String> blocksA = fx.addTimeSlotWithBlocks("Torsdag 18.00-19.30", 1);
+        List<String> blocksB = fx.addTimeSlotWithBlocks("Fredag 20.00-21.00", 1);
+        String groupA = fx.addGroup("Grupp A", 1, 0, 0, 10, blocksA.get(0));
+        String groupB = fx.addGroup("Grupp B", 2, 0, 0, 10, blocksB.get(0));
+
+        String kalle = fx.addParticipant("Kalle", "Karlsson", 500.0, 3);
+        String lisa = fx.addParticipant("Lisa", "Larsson", 500.0, 3);
+        fx.place(kalle, groupA);
+        fx.place(lisa, groupA);
+        fx.wish(kalle, lisa, "playWith"); // WANT_SAME, currently satisfied - breaks on move to B.
+        setPreferTimes(kalle, timeSlotIdOfBlock(blocksB.get(0))); // TIME wish, fixed by move to B -> TRADE_OFF.
+
+        String runId = fx.insertFinishedRun();
+        PersonExplanationResponse response = explanationService.explainPerson(fx.planId, runId, kalle);
+        UnmetWishView time = response.unmetWishes().stream().filter(w -> w.wishId().equals("TIME")).findFirst().orElseThrow();
+        assertThat(time.outcome()).isEqualTo("TRADE_OFF");
+        assertContract(time);
+        // The specific, provable claim this fixture is known to produce (see
+        // CausalNarrativeTruthfulnessTest): promoting PREFERRED_TIME flips this exact move.
+        assertThat(time.prioritySensitivity().available()).isTrue();
+        assertThat(time.prioritySensitivity().verdict()).isEqualTo("FLIPS_BY_REORDER");
+        assertThat(time.prioritySensitivity().suggestedOrder()).contains("PREFERRED_TIME");
+
+        // FIX 2 (M-E3 review, MAJOR): the lazy wish-analysis payload's OWN cautionSv (distinct from
+        // prioritySensitivity.cautionSv above) is likewise mandatory whenever it carries a concrete claim.
+        ExplanationDtos.WishAnalysisResponse analysis = explanationService.wishAnalysis(fx.planId, runId, kalle, "TIME");
+        assertThat(analysis.cautionSv()).isEqualTo(PrioritySensitivityCalculator.CAUTION_SV);
     }
 
     private String timeSlotIdOfBlock(String blockId) {

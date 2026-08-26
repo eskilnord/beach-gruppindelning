@@ -278,7 +278,25 @@ public class MoveProbe {
             ConstraintAnalysis<HardMediumSoftLongScore> diffCa = findConstraintAnalysis(diff, key);
             HardMediumSoftLongScore scoreDelta = diffCa == null ? HardMediumSoftLongScore.ZERO : diffCa.score();
             long deltaScalar = componentOf(scoreDelta, level);
-            long units = weightScalar == 0 ? 0L : deltaScalar / weightScalar;
+            long units;
+            if (weightScalar == 0) {
+                units = 0L;
+            } else {
+                // FIX 9 (M-E3 review, defensive, pre-existing E1): the constraint-streams model
+                // guarantees units_k = Δscore_k / weight_k divides evenly (every match contributes a
+                // whole-number multiple of the constraint's own per-match weight at this level) - assert
+                // that rather than silently truncating a would-be fraction into a wrong integer units
+                // value, which every downstream E3 computation (PrioritySensitivityCalculator,
+                // WeightBreakEven) treats as exact. A nonzero remainder is a programming error upstream
+                // (a level/weight mismatch), never a legitimate fractional unit.
+                if (deltaScalar % weightScalar != 0) {
+                    throw new IllegalStateException(
+                            "MoveProbe.derivePerConstraintDeltas: non-integer units for constraint '" + key
+                                    + "' (deltaScalar=" + deltaScalar + ", weightScalar=" + weightScalar + ") - the "
+                                    + "constraint-streams model guarantees units_k = Δscore_k / weight_k divides evenly.");
+                }
+                units = deltaScalar / weightScalar;
+            }
             result.add(new ConstraintDelta(key, scoreDelta, units, true));
         }
         return result;

@@ -2,11 +2,13 @@ package se.klubb.groupplanner.api;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import se.klubb.groupplanner.explain.ExplanationDtos.GroupExplanationResponse;
 import se.klubb.groupplanner.explain.ExplanationDtos.ImprovementSuggestionsResponse;
 import se.klubb.groupplanner.explain.ExplanationDtos.PersonExplanationResponse;
 import se.klubb.groupplanner.explain.ExplanationDtos.PlanExplanationResponse;
+import se.klubb.groupplanner.explain.ExplanationDtos.WishAnalysisResponse;
 import se.klubb.groupplanner.explain.ExplanationService;
 import se.klubb.groupplanner.explain.ImprovementSuggestionService;
 
@@ -42,6 +44,16 @@ public class ExplanationController {
     public PersonExplanationResponse player(
             @PathVariable String planId, @PathVariable String runId, @PathVariable String participantProfileId) {
         return explanationService.explainPerson(planId, runId, participantProfileId);
+    }
+
+    /** M-E3 advanced mode's lazy "vad skulle krävas?" drawer (task item 3) — full break-even table
+     * plus all 24 priority-order predictions for ONE unmet wish, fetched only when the drawer is
+     * opened rather than embedded in {@link #player}'s response. */
+    @GetMapping("/api/plans/{planId}/runs/{runId}/explanations/players/{participantProfileId}/wish-analysis")
+    public WishAnalysisResponse wishAnalysis(
+            @PathVariable String planId, @PathVariable String runId, @PathVariable String participantProfileId,
+            @RequestParam("wish") String wishId) {
+        return explanationService.wishAnalysis(planId, runId, participantProfileId, wishId);
     }
 
     @GetMapping("/api/plans/{planId}/runs/{runId}/suggestions")

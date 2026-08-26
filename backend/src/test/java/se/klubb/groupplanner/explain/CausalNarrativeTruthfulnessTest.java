@@ -602,6 +602,7 @@ class CausalNarrativeTruthfulnessTest {
         SolveCoordinator.GreedyResult greedy = solveCoordinator.runGreedy(planId);
 
         int checked = 0;
+        int tradeOffsChecked = 0;
         for (ParticipantProfile p : participantProfileRepository.findByActivityPlanId(planId)) {
             PersonExplanationResponse response = explanationService.explainPerson(planId, greedy.runId(), p.id());
             // M-E2 review fix (MINOR, "banned-lexicon sweep extended"): every OTHER finished-Swedish-
@@ -616,9 +617,34 @@ class CausalNarrativeTruthfulnessTest {
                 for (var competing : wish.competingReasons()) {
                     checkNotBanned(competing.messageSv(), "competingReasons[].messageSv for wish " + wish.wishId(), p.id());
                 }
+                // M-E3 (task brief): the sweep now also covers summarySv/cautionSv/blockerLabelSv (the
+                // sensitivity fields) and, for TRADE_OFF wishes specifically, the lazy wish-analysis
+                // endpoint's own breakEven[].messageSv/impossibleReasonSv.
+                checkNotBanned(wish.prioritySensitivity().summarySv(), "prioritySensitivity.summarySv for wish " + wish.wishId(), p.id());
+                checkNotBanned(wish.prioritySensitivity().cautionSv(), "prioritySensitivity.cautionSv for wish " + wish.wishId(), p.id());
+                checkNotBanned(
+                        wish.prioritySensitivity().blockerLabelSv(), "prioritySensitivity.blockerLabelSv for wish " + wish.wishId(), p.id());
+                // FIX 8 (M-E3 review, sweep): unavailableReasonSv on BOTH DTOs that carry it - the
+                // person-level PrioritySensitivityView field and the lazy wish-analysis endpoint's own
+                // WishAnalysisResponse field - so "every finished-Swedish field" is actually true, not
+                // just every field that happens to carry a POSITIVE claim.
+                checkNotBanned(
+                        wish.prioritySensitivity().unavailableReasonSv(),
+                        "prioritySensitivity.unavailableReasonSv for wish " + wish.wishId(), p.id());
+                if ("TRADE_OFF".equals(wish.outcome())) {
+                    tradeOffsChecked++;
+                    var analysis = explanationService.wishAnalysis(planId, greedy.runId(), p.id(), wish.wishId());
+                    checkNotBanned(analysis.unavailableReasonSv(), "wishAnalysis.unavailableReasonSv for wish " + wish.wishId(), p.id());
+                    checkNotBanned(analysis.cautionSv(), "wishAnalysis.cautionSv for wish " + wish.wishId(), p.id());
+                    for (var row : analysis.breakEven()) {
+                        checkNotBanned(row.messageSv(), "breakEven[].messageSv for wish " + wish.wishId(), p.id());
+                        checkNotBanned(row.impossibleReasonSv(), "breakEven[].impossibleReasonSv for wish " + wish.wishId(), p.id());
+                    }
+                }
             }
         }
         assertThat(checked).isGreaterThan(0);
+        assertThat(tradeOffsChecked).as("large-120 must exercise at least one TRADE_OFF wish for the breakEven sweep").isGreaterThan(0);
     }
 
     private void checkNotBanned(String text, String fieldLabel, String participantId) {

@@ -79,6 +79,29 @@ final class CausalNarrator {
     private static final String STALE_PREFIX =
             "Planen har ändrats sedan optimeringen kördes. Med dagens data kan svaret nedan vara annorlunda. ";
 
+    // ─────────────────────────────────────────────────────────────────────── M-E3 per-outcome sensitivity honesty
+    //
+    // Only TRADE_OFF names a question ("would reordering the four priorities help THIS move?") that is
+    // even meaningful - every other outcome gets an honest available=false with its OWN reason, never
+    // the old blanket "Beräknas i ett senare steg." placeholder.
+
+    private static final PrioritySensitivityView SENSITIVITY_LOCKED = unavailableSensitivity(
+            "Spelaren är låst till sin grupp – prioritetsordningen påverkar inget så länge låsningen gäller.");
+    private static final PrioritySensitivityView SENSITIVITY_NO_CANDIDATE = unavailableSensitivity(
+            "Ingen grupp kan uppfylla önskemålet – prioritetsordningen har inget att styra över här.");
+    private static final PrioritySensitivityView SENSITIVITY_BLOCKED_HARD = unavailableSensitivity(
+            "Ett hårt krav blockerar – ingen prioritetsordning påverkar det.");
+    private static final PrioritySensitivityView SENSITIVITY_EQUAL = unavailableSensitivity(
+            "Flytten kostar redan inga poäng – det finns inget att förbättra genom en annan prioritetsordning.");
+    private static final PrioritySensitivityView SENSITIVITY_SOLVER_MISS = unavailableSensitivity(
+            "Flytten skulle redan förbättra planen – prioritetsordningen är inte det som håller emot här.");
+    private static final PrioritySensitivityView SENSITIVITY_INCONCLUSIVE = unavailableSensitivity(
+            "Orsaken kunde inte säkert härledas, så känsligheten går inte att beräkna.");
+
+    private static PrioritySensitivityView unavailableSensitivity(String reasonSv) {
+        return new PrioritySensitivityView(false, reasonSv, null, null, null, null, null);
+    }
+
     private CausalNarrator() {
     }
 
@@ -106,19 +129,25 @@ final class CausalNarrator {
             String reason = "%s är låst till %s (%s). Optimeringen fick inte flytta %s, så önskemålet kunde inte prövas. "
                     .formatted(target.getDisplayName(), selectedGroup.name(), timeLabel(svc, ctx, selectedGroup), target.getDisplayName())
                     + "Lås upp placeringen och kör om optimeringen om du vill att det ska testas.";
-            return finish(ctx, wishId, wish.key(), bucket, wishSv, "LOCKED", reason, hedgeSv(target), candidateGroupIds, null, null, List.of());
+            return finish(
+                    ctx, wishId, wish.key(), bucket, wishSv, "LOCKED", reason, hedgeSv(target), candidateGroupIds, null, null, List.of(),
+                    SENSITIVITY_LOCKED);
         }
 
         if (wish.candidateGroups().isEmpty()) {
             String reason = noCandidateReason(ctx, target, wish);
-            return finish(ctx, wishId, wish.key(), bucket, wishSv, "NO_CANDIDATE", reason, hedgeSv(target), candidateGroupIds, null, null, List.of());
+            return finish(
+                    ctx, wishId, wish.key(), bucket, wishSv, "NO_CANDIDATE", reason, hedgeSv(target), candidateGroupIds, null, null, List.of(),
+                    SENSITIVITY_NO_CANDIDATE);
         }
 
         List<Group> candidates = wish.candidateGroups();
         boolean allBlocked = candidates.stream().allMatch(g -> requireResult(probesByGroup, g).wouldBreakHard());
         if (allBlocked) {
             String reason = blockedHardReason(svc, ctx, target, candidates, probesByGroup);
-            return finish(ctx, wishId, wish.key(), bucket, wishSv, "BLOCKED_HARD", reason, null, candidateGroupIds, null, null, List.of());
+            return finish(
+                    ctx, wishId, wish.key(), bucket, wishSv, "BLOCKED_HARD", reason, null, candidateGroupIds, null, null, List.of(),
+                    SENSITIVITY_BLOCKED_HARD);
         }
 
         Group bestGroup = null;
@@ -141,7 +170,9 @@ final class CausalNarrator {
                     .formatted(bestGroup.name(), timeLabel(svc, ctx, bestGroup))
                     + "Flera likvärdiga lösningar finns. Du kan flytta %s manuellt utan att planen blir sämre."
                             .formatted(target.getDisplayName());
-            return finish(ctx, wishId, wish.key(), bucket, wishSv, "EQUAL", reason, hedgeSv(target), candidateGroupIds, bestGroupDbId, bestDelta, List.of());
+            return finish(
+                    ctx, wishId, wish.key(), bucket, wishSv, "EQUAL", reason, hedgeSv(target), candidateGroupIds, bestGroupDbId, bestDelta,
+                    List.of(), SENSITIVITY_EQUAL);
         }
 
         if (bestResult.isImprovement()) {
@@ -157,7 +188,9 @@ final class CausalNarrator {
                             target.getDisplayName(), bestGroup.name(), ctx.run().id());
                 }
             }
-            return finish(ctx, wishId, wish.key(), bucket, wishSv, "SOLVER_MISS", reason, null, candidateGroupIds, bestGroupDbId, bestDelta, List.of());
+            return finish(
+                    ctx, wishId, wish.key(), bucket, wishSv, "SOLVER_MISS", reason, null, candidateGroupIds, bestGroupDbId, bestDelta,
+                    List.of(), SENSITIVITY_SOLVER_MISS);
         }
 
         // TRADE_OFF: self-check invariant first - the wish's own SPECIFIC pair (not merely its key)
@@ -172,7 +205,9 @@ final class CausalNarrator {
                             + "fix the wish's own key {} - refusing to make a causal TRADE_OFF claim.",
                     wishId, target.getDisplayName(), ctx.run().id(), bestGroup.name(), wish.key());
             String reason = "Det gick inte att säkert härleda orsaken här. Kör om optimeringen så beräknas förklaringen om.";
-            return finish(ctx, wishId, wish.key(), bucket, wishSv, "INCONCLUSIVE", reason, null, candidateGroupIds, null, null, List.of());
+            return finish(
+                    ctx, wishId, wish.key(), bucket, wishSv, "INCONCLUSIVE", reason, null, candidateGroupIds, null, null, List.of(),
+                    SENSITIVITY_INCONCLUSIVE);
         }
 
         Map<String, List<MoveProbe.ScoredMatch>> brokenByKey = groupBrokenByKeyExcludingOwnPair(
@@ -198,8 +233,16 @@ final class CausalNarrator {
         Group finalBestGroup = bestGroup;
         List<Group> others = candidates.stream().filter(g -> g != finalBestGroup).toList();
         reason += sameAppliesClause(others);
+
+        // M-E3: the real "vad skulle krävas?" computation - pure arithmetic over bestResult's own
+        // perConstraint units (E1), zero additional analyze() calls.
+        Map<String, HardMediumSoftLongScore> currentWeights = PrioritySensitivityCalculator.currentWeightsOf(ctx.solution());
+        PrioritySensitivityCalculator.Computation sensitivityComputation =
+                PrioritySensitivityCalculator.compute(bestResult.perConstraint(), currentWeights, wish.key(), bestGroup.name());
+        PrioritySensitivityView sensitivity = PrioritySensitivityCalculator.toView(sensitivityComputation);
+
         return finish(ctx, wishId, wish.key(), bucket, wishSv, "TRADE_OFF", reason, hedgeSv(target), candidateGroupIds, bestGroupDbId, bestDelta,
-                competingReasons);
+                competingReasons, sensitivity);
     }
 
     /** M-E2 review fix (BLOCKER, "least-bad candidate ordering for the narrator"): no-new-hard-breaks
@@ -227,10 +270,10 @@ final class CausalNarrator {
     private static UnmetWishView finish(
             RunContext ctx, String wishId, String key, String bucket, String wishSv, String outcome, String primaryReasonSv, String hedgeSv,
             List<String> candidateGroupIds, String bestCandidateGroupId, ScoreDeltaView bestCandidateDelta,
-            List<ConstraintReasonView> competingReasons) {
+            List<ConstraintReasonView> competingReasons, PrioritySensitivityView sensitivity) {
         String finalReason = primaryReasonSv == null || !ctx.stale() ? primaryReasonSv : STALE_PREFIX + primaryReasonSv;
         return view(wishId, key, bucket, wishSv, outcome, finalReason, hedgeSv, candidateGroupIds, bestCandidateGroupId, bestCandidateDelta,
-                competingReasons);
+                competingReasons, sensitivity);
     }
 
     // ─────────────────────────────────────────────────────────────────────── outcome-specific text
@@ -513,7 +556,10 @@ final class CausalNarrator {
 
     // ─────────────────────────────────────────────────────────────────────── wish text
 
-    private static String wishId(UnmetWish wish) {
+    /** Package-visible (M-E3): {@code ExplanationService}'s {@code wish-analysis} endpoint needs to
+     * find the ONE {@link UnmetWish} matching a caller-supplied {@code wishId} string, using the exact
+     * same id scheme this class already uses for every {@code UnmetWishView.wishId()}. */
+    static String wishId(UnmetWish wish) {
         return switch (wish.wishKind()) {
             case "FRIEND" -> "FRIEND:" + wish.otherParticipantSolverId();
             case "AVOID" -> "AVOID:" + wish.otherParticipantSolverId();
@@ -654,9 +700,9 @@ final class CausalNarrator {
     private static UnmetWishView view(
             String wishId, String key, String bucket, String wishSv, String outcome, String primaryReasonSv, String hedgeSv,
             List<String> candidateGroupIds, String bestCandidateGroupId, ScoreDeltaView bestCandidateDelta,
-            List<ConstraintReasonView> competingReasons) {
+            List<ConstraintReasonView> competingReasons, PrioritySensitivityView sensitivity) {
         return new UnmetWishView(
                 wishId, key, bucket, wishSv, outcome, primaryReasonSv, hedgeSv, candidateGroupIds, bestCandidateGroupId,
-                bestCandidateDelta, competingReasons, PrioritySensitivityView.NOT_YET_AVAILABLE);
+                bestCandidateDelta, competingReasons, sensitivity);
     }
 }
