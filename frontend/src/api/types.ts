@@ -634,12 +634,11 @@ export type ParticipantSuggestionCount = WithRequired<
 
 // --- v0.6.0 F1: UI mode (docs/plan.md) ---
 
-/** Body/response shape of the parallel backend milestone's `GET/PUT /api/app-settings`
- *  (`{ "uiMode": "SIMPLE" | "ADVANCED" }`, 400 with a Swedish message on an invalid value). That
- *  backend milestone is NOT merged yet, so this is hand-written rather than derived from
- *  `components["schemas"]` in schema.d.ts (unlike every other type in this file) - do NOT run
- *  `npm run typegen` until it lands, then replace this with a schema-derived alias per the
- *  `WithRequired` pattern used elsewhere in this file. */
-export interface AppSettings {
+/** Body/response shape of `GET/PUT /api/app-settings` (AppSettingsController.AppSettingsResponse):
+ *  `{ "uiMode": "SIMPLE" | "ADVANCED" }`, 400 with a Swedish message on an invalid PUT value.
+ *  springdoc emits `uiMode` as a plain `string` (no enum annotation on the Java record component,
+ *  same as `SuggestionView.kind` above) - narrowed to the `UiMode` literal union here rather than
+ *  hand-written, now that `npm run typegen` has this endpoint in schema.d.ts. */
+export type AppSettings = Omit<WithRequired<components["schemas"]["AppSettingsResponse"], "uiMode">, "uiMode"> & {
   uiMode: UiMode;
-}
+};

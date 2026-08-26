@@ -73,21 +73,11 @@ test("Optimering (GREEDY, 2 grupper) → Analys/Förklara grupp/Förklara/Testa 
   await finishImportAfterUpload(page, { ok: 12, warn: 0, skip: 0 });
   await expect(page).toHaveURL(/\/deltagare$/);
 
-  // --- Resurser: two time slots, 1 court each -> 2 active TrainingBlocks -> 2 generated groups ---
+  // --- Resurser: B3 (v0.6.0) auto-seeds 3 default weekly Thursday slots on plan creation, including
+  // both slots this spec needs (SLOT1_LABEL/SLOT2_LABEL) - reuse them instead of creating duplicates
+  // (which would 409, TimeSlotController.requireNoDuplicate). 1 court each -> 2 active TrainingBlocks
+  // -> 2 generated groups. ---
   await page.getByRole("tab", { name: sv.plan.tabs.resources }).click();
-
-  const createSlot = async (start: string, end: string) => {
-    await page.getByRole("button", { name: sv.resources.newSlotButton }).click();
-    const dialog = page.getByRole("dialog", { name: sv.resources.slotModal.createTitle });
-    await dialog.getByRole("textbox", { name: sv.resources.slotModal.dayLabel }).click();
-    await page.getByRole("option", { name: sv.days.THURSDAY }).click();
-    await dialog.getByLabel(sv.resources.slotModal.startTimeLabel).fill(start);
-    await dialog.getByLabel(sv.resources.slotModal.endTimeLabel).fill(end);
-    await dialog.getByRole("button", { name: sv.resources.slotModal.submit }).click();
-    await expect(dialog).toHaveCount(0);
-  };
-  await createSlot("18:00", "19:30");
-  await createSlot("19:30", "21:00");
 
   const slot1Row = page.locator('[data-testid="time-slot-row"]').filter({ hasText: SLOT1_LABEL });
   const slot2Row = page.locator('[data-testid="time-slot-row"]').filter({ hasText: SLOT2_LABEL });

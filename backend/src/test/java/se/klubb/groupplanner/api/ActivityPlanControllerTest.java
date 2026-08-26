@@ -61,7 +61,7 @@ class ActivityPlanControllerTest {
     void createReadUpdateDeleteHappyPath() throws Exception {
         String seasonId = createSeason();
         String createBody = objectMapper.writeValueAsString(
-                new ActivityPlanController.CreateActivityPlanRequest("Herr", "beach", null, 10, 8, 12, 300.0));
+                new ActivityPlanController.CreateActivityPlanRequest("Herr", "beach", null, 10, 8, 12, 300.0, null));
 
         String response = mockMvc.perform(post("/api/seasons/" + seasonId + "/plans")
                         .header("X-GP-Token", VALID_TOKEN)
@@ -110,7 +110,7 @@ class ActivityPlanControllerTest {
     @Test
     void createUnderUnknownSeasonReturns404() throws Exception {
         String createBody = objectMapper.writeValueAsString(
-                new ActivityPlanController.CreateActivityPlanRequest("Herr", null, null, null, null, null, null));
+                new ActivityPlanController.CreateActivityPlanRequest("Herr", null, null, null, null, null, null, null));
 
         mockMvc.perform(post("/api/seasons/does-not-exist/plans")
                         .header("X-GP-Token", VALID_TOKEN)
@@ -124,7 +124,7 @@ class ActivityPlanControllerTest {
     void defaultLevelMinOutOfRangeIsRejectedOnCreate() throws Exception {
         String seasonId = createSeason();
         String createBody = objectMapper.writeValueAsString(
-                new ActivityPlanController.CreateActivityPlanRequest("Herr", null, null, null, null, null, 1500.0));
+                new ActivityPlanController.CreateActivityPlanRequest("Herr", null, null, null, null, null, 1500.0, null));
 
         mockMvc.perform(post("/api/seasons/" + seasonId + "/plans")
                         .header("X-GP-Token", VALID_TOKEN)
@@ -138,7 +138,7 @@ class ActivityPlanControllerTest {
     void groupSizeDefaultsOutOfOrderAreRejected() throws Exception {
         String seasonId = createSeason();
         String createBody = objectMapper.writeValueAsString(
-                new ActivityPlanController.CreateActivityPlanRequest("Herr", null, null, 10, 12, 8, null));
+                new ActivityPlanController.CreateActivityPlanRequest("Herr", null, null, 10, 12, 8, null, null));
 
         mockMvc.perform(post("/api/seasons/" + seasonId + "/plans")
                         .header("X-GP-Token", VALID_TOKEN)
@@ -158,7 +158,7 @@ class ActivityPlanControllerTest {
     void minSizeAloneAboveEffectiveFallbackSizesIsRejected() throws Exception {
         String seasonId = createSeason();
         String createBody = objectMapper.writeValueAsString(
-                new ActivityPlanController.CreateActivityPlanRequest("Herr", null, null, null, 20, null, null));
+                new ActivityPlanController.CreateActivityPlanRequest("Herr", null, null, null, 20, null, null, null));
 
         mockMvc.perform(post("/api/seasons/" + seasonId + "/plans")
                         .header("X-GP-Token", VALID_TOKEN)
@@ -171,7 +171,7 @@ class ActivityPlanControllerTest {
         // Same rule against the MERGED values on PATCH: create a plan without defaults, then patch
         // only defaultGroupMinSize above the fallback target/max.
         String validBody = objectMapper.writeValueAsString(
-                new ActivityPlanController.CreateActivityPlanRequest("Herr", null, null, null, null, null, null));
+                new ActivityPlanController.CreateActivityPlanRequest("Herr", null, null, null, null, null, null, null));
         String response = mockMvc.perform(post("/api/seasons/" + seasonId + "/plans")
                         .header("X-GP-Token", VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -199,7 +199,7 @@ class ActivityPlanControllerTest {
     void patchDistinguishesAbsentNullAndValueForDefaults() throws Exception {
         String seasonId = createSeason();
         String createBody = objectMapper.writeValueAsString(
-                new ActivityPlanController.CreateActivityPlanRequest("Herr", null, null, 10, 8, 12, 300.0));
+                new ActivityPlanController.CreateActivityPlanRequest("Herr", null, null, 10, 8, 12, 300.0, null));
         String response = mockMvc.perform(post("/api/seasons/" + seasonId + "/plans")
                         .header("X-GP-Token", VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -250,6 +250,87 @@ class ActivityPlanControllerTest {
                 .andExpect(jsonPath("$.defaultGroupTargetSize").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.defaultGroupMinSize").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.defaultGroupMaxSize").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    /**
+     * B3 (v0.6.0): a freshly created plan is seeded with the three default Thursday time slots
+     * (DefaultTimeSlotService) unless the caller opts out - absent {@code seedDefaultTimeSlots} (as
+     * every earlier test in this file passes) defaults to {@code true}.
+     */
+    @Test
+    void createSeedsDefaultThursdayTimeSlotsByDefault() throws Exception {
+        String seasonId = createSeason();
+        String createBody = objectMapper.writeValueAsString(
+                new ActivityPlanController.CreateActivityPlanRequest("Herr", null, null, null, null, null, null, null));
+        String response = mockMvc.perform(post("/api/seasons/" + seasonId + "/plans")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String planId = objectMapper.readTree(response).get("id").asText();
+
+        mockMvc.perform(get("/api/plans/" + planId + "/time-slots").header("X-GP-Token", VALID_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[0].dayOfWeek").value("THURSDAY"))
+                .andExpect(jsonPath("$[0].startTime").value("18:00"))
+                .andExpect(jsonPath("$[0].endTime").value("19:30"))
+                .andExpect(jsonPath("$[0].durationMinutes").value(90))
+                .andExpect(jsonPath("$[0].label").value("Torsdag 18.00–19.30"))
+                .andExpect(jsonPath("$[1].startTime").value("19:30"))
+                .andExpect(jsonPath("$[1].endTime").value("21:00"))
+                .andExpect(jsonPath("$[1].label").value("Torsdag 19.30–21.00"))
+                .andExpect(jsonPath("$[2].startTime").value("21:00"))
+                .andExpect(jsonPath("$[2].endTime").value("22:30"))
+                .andExpect(jsonPath("$[2].label").value("Torsdag 21.00–22.30"));
+    }
+
+    /**
+     * Fix 6 (MINOR): {@code createSeedsDefaultThursdayTimeSlotsByDefault} above serializes {@code
+     * CreateActivityPlanRequest} with {@code seedDefaultTimeSlots = null}, which Jackson may still
+     * emit as an explicit {@code "seedDefaultTimeSlots":null} in the JSON - that pins the
+     * JSON-null-&gt;absent-record-component case, not a genuinely ABSENT key. This test sends raw
+     * JSON with the key omitted entirely, to pin Jackson's absent-component deserialization
+     * explicitly: an omitted key must deserialize {@code seedDefaultTimeSlots()} to null the same
+     * way an explicit JSON null does, so {@code request.seedDefaultTimeSlots() == null} still holds
+     * and seeding still defaults to on.
+     */
+    @Test
+    void createWithSeedDefaultTimeSlotsKeyEntirelyAbsentStillSeedsDefaults() throws Exception {
+        String seasonId = createSeason();
+        String createBody = "{\"name\": \"Herr\"}";
+
+        String response = mockMvc.perform(post("/api/seasons/" + seasonId + "/plans")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String planId = objectMapper.readTree(response).get("id").asText();
+
+        mockMvc.perform(get("/api/plans/" + planId + "/time-slots").header("X-GP-Token", VALID_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3));
+    }
+
+    /** B3: an explicit {@code seedDefaultTimeSlots: false} opts out, leaving the plan empty. */
+    @Test
+    void createWithSeedDefaultTimeSlotsFalseSkipsSeeding() throws Exception {
+        String seasonId = createSeason();
+        String createBody = objectMapper.writeValueAsString(
+                new ActivityPlanController.CreateActivityPlanRequest("Herr", null, null, null, null, null, null, false));
+        String response = mockMvc.perform(post("/api/seasons/" + seasonId + "/plans")
+                        .header("X-GP-Token", VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String planId = objectMapper.readTree(response).get("id").asText();
+
+        mockMvc.perform(get("/api/plans/" + planId + "/time-slots").header("X-GP-Token", VALID_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
     }
 
     @Test

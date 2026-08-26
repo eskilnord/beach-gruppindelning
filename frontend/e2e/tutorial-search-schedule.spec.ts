@@ -83,16 +83,11 @@ test("Kom igång-guiden → Ctrl/Cmd+F spelarsök → Schema horisontell scroll"
   await finishImportAfterUpload(page, { ok: 2, warn: 0, skip: 0 });
   await expect(page).toHaveURL(/\/deltagare$/);
 
-  // --- Resurser: one time slot with COURT_COUNT (8) courts, well past "6+" (feature brief) ---
+  // --- Resurser: B3 (v0.6.0) auto-seeds 3 default weekly Thursday slots on plan creation, including
+  // the one this spec needs (SLOT_LABEL) - reuse it instead of creating a duplicate (which would
+  // 409, TimeSlotController.requireNoDuplicate). COURT_COUNT (8) courts, well past "6+" (feature
+  // brief). ---
   await page.getByRole("tab", { name: sv.plan.tabs.resources }).click();
-  await page.getByRole("button", { name: sv.resources.newSlotButton }).click();
-  const slotDialog = page.getByRole("dialog", { name: sv.resources.slotModal.createTitle });
-  await slotDialog.getByRole("textbox", { name: sv.resources.slotModal.dayLabel }).click();
-  await page.getByRole("option", { name: sv.days.THURSDAY }).click();
-  await slotDialog.getByLabel(sv.resources.slotModal.startTimeLabel).fill("18:00");
-  await slotDialog.getByLabel(sv.resources.slotModal.endTimeLabel).fill("19:30");
-  await slotDialog.getByRole("button", { name: sv.resources.slotModal.submit }).click();
-  await expect(slotDialog).toHaveCount(0);
 
   const slotRow = page.locator('[data-testid="time-slot-row"]').filter({ hasText: SLOT_LABEL });
   await expect(slotRow).toHaveCount(1);

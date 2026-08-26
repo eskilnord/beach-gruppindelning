@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -18,6 +19,7 @@ import se.klubb.groupplanner.api.error.NotFoundException;
 import se.klubb.groupplanner.domain.ActivityPlan;
 import se.klubb.groupplanner.repo.ActivityPlanRepository;
 import se.klubb.groupplanner.repo.SeasonPlanRepository;
+import se.klubb.groupplanner.resources.DefaultTimeSlotService;
 import se.klubb.groupplanner.solver.assemble.GroupGenerator;
 import se.klubb.groupplanner.util.Uuid7;
 
@@ -36,10 +38,15 @@ public class ActivityPlanController {
 
     private final ActivityPlanRepository activityPlanRepository;
     private final SeasonPlanRepository seasonPlanRepository;
+    private final DefaultTimeSlotService defaultTimeSlotService;
 
-    public ActivityPlanController(ActivityPlanRepository activityPlanRepository, SeasonPlanRepository seasonPlanRepository) {
+    public ActivityPlanController(
+            ActivityPlanRepository activityPlanRepository,
+            SeasonPlanRepository seasonPlanRepository,
+            DefaultTimeSlotService defaultTimeSlotService) {
         this.activityPlanRepository = activityPlanRepository;
         this.seasonPlanRepository = seasonPlanRepository;
+        this.defaultTimeSlotService = defaultTimeSlotService;
     }
 
     @GetMapping("/api/seasons/{seasonId}/plans")
@@ -50,6 +57,7 @@ public class ActivityPlanController {
 
     @PostMapping("/api/seasons/{seasonId}/plans")
     @ResponseStatus(HttpStatus.CREATED)
+    @Transactional
     public ActivityPlan create(@PathVariable String seasonId, @RequestBody CreateActivityPlanRequest request) {
         requireSeasonExists(seasonId);
         if (request == null || request.name() == null || request.name().isBlank()) {
@@ -71,7 +79,28 @@ public class ActivityPlanController {
                 request.defaultLevelMin(),
                 now,
                 now);
-        return activityPlanRepository.insert(plan);
+        ActivityPlan created = activityPlanRepository.insert(plan);
+        // B3 (v0.6.0): seed the three default Thursday time slots unless the caller explicitly opts
+        // out (seedDefaultTimeSlots: false) - absent/null defaults to true. Same transaction as the
+        // plan insert; no plan-revision bump for seeding (mirrors DemoDataService/DefaultVenueService
+        // - this is initial scaffolding, not a user edit the revision-based staleness envelope needs
+        // to track).
+        //
+        // Deliberately left inside this @Transactional method (not moved to a best-effort
+        // post-commit step): DefaultTimeSlotService.seedDefaults is infallible by construction - it
+        // only writes three hardcoded constants (day/start/end) through the same TimeSlotRepository
+        // insert path used elsewhere, no external input, no I/O beyond the DB this method is already
+        // writing to. If it ever DOES throw (e.g. a future schema change breaks an invariant it
+        // relies on), failing the whole plan creation loudly - and rolling back the PLAN insert with
+        // it - is preferred over silently returning a "created" plan with a half-initialized schedule
+        // the user has no signal was ever supposed to have slots. See
+        // ActivityPlanCreateRollbackTest#seedingFailureRollsBackPlanCreation for the rollback
+        // boundary this depends on (injected bean, no self-invocation, so @Transactional's proxy
+        // actually applies).
+        if (request.seedDefaultTimeSlots() == null || request.seedDefaultTimeSlots()) {
+            defaultTimeSlotService.seedDefaults(created.id());
+        }
+        return created;
     }
 
     @GetMapping("/api/plans/{id}")
@@ -167,6 +196,11 @@ public class ActivityPlanController {
         }
     }
 
+    /**
+     * {@code seedDefaultTimeSlots}: absent/{@code null} defaults to {@code true} (seed the three
+     * default Thursday slots - see {@link DefaultTimeSlotService}); an explicit {@code false} skips
+     * it, leaving the new plan with no time slots (e.g. tests/tooling that want a bare plan).
+     */
     public record CreateActivityPlanRequest(
             String name,
             String category,
@@ -174,7 +208,8 @@ public class ActivityPlanController {
             Integer defaultGroupTargetSize,
             Integer defaultGroupMinSize,
             Integer defaultGroupMaxSize,
-            Double defaultLevelMin) {
+            Double defaultLevelMin,
+            Boolean seedDefaultTimeSlots) {
     }
 
     /**

@@ -39,7 +39,8 @@ class FlywayMigrationTest {
             "coach_time_slot", "venue", "court", "time_slot", "training_block", "training_group",
             "player_assignment", "coach_assignment", "constraint_definition", "field_definition",
             "custom_field_value", "constraint_weight_config", "import_template", "import_run",
-            "optimization_run", "saved_plan", "saved_plan_resource_usage", "explanation_record");
+            "optimization_run", "saved_plan", "saved_plan_resource_usage", "explanation_record",
+            "app_setting");
 
     @Test
     void allExpectedTablesExist() {
@@ -60,7 +61,8 @@ class FlywayMigrationTest {
         assertThat(descriptions).containsExactly(
                 "core", "seed constraints and standard fields", "import", "resources", "solver runs",
                 "soft constraints locks saved plan", "explainability", "activity plan level min default",
-                "explanation record indirect factors", "coach unknown time constraint", "reviewed done");
+                "explanation record indirect factors", "coach unknown time constraint", "reviewed done",
+                "app settings");
     }
 
     /**
@@ -79,6 +81,16 @@ class FlywayMigrationTest {
                 .query((rs, rowNum) -> rs.getString("name"))
                 .list();
         assertThat(coachProfileColumns).contains("reviewed_done");
+    }
+
+    /** B3 (v0.6.0, V12): the app_setting table seeds a default ui.mode = SIMPLE row on migration. */
+    @Test
+    void appSettingSeedsUiModeSimpleByDefault() {
+        String uiMode = jdbcClient.sql("SELECT value FROM app_setting WHERE key = 'ui.mode'")
+                .query(String.class)
+                .single();
+
+        assertThat(uiMode).isEqualTo("SIMPLE");
     }
 
     @Test

@@ -180,6 +180,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/app-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_2"];
+        put: operations["update_1"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/venues": {
         parameters: {
             query?: never;
@@ -555,13 +571,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_2"];
+        get: operations["get_3"];
         put?: never;
         post?: never;
         delete: operations["delete"];
         options?: never;
         head?: never;
-        patch: operations["update_1"];
+        patch: operations["update_2"];
         trace?: never;
     };
     "/api/training-blocks/{id}": {
@@ -587,13 +603,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_3"];
+        get: operations["get_4"];
         put?: never;
         post?: never;
         delete: operations["delete_1"];
         options?: never;
         head?: never;
-        patch: operations["update_2"];
+        patch: operations["update_3"];
         trace?: never;
     };
     "/api/seasons/{id}": {
@@ -603,13 +619,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_4"];
+        get: operations["get_5"];
         put?: never;
         post?: never;
         delete: operations["delete_2"];
         options?: never;
         head?: never;
-        patch: operations["update_3"];
+        patch: operations["update_4"];
         trace?: never;
     };
     "/api/plans/{planId}/saved-plans/{savedPlanId}": {
@@ -635,13 +651,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_5"];
+        get: operations["get_6"];
         put?: never;
         post?: never;
         delete: operations["delete_4"];
         options?: never;
         head?: never;
-        patch: operations["update_4"];
+        patch: operations["update_5"];
         trace?: never;
     };
     "/api/persons/{id}": {
@@ -651,13 +667,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_6"];
+        get: operations["get_7"];
         put?: never;
         post?: never;
         delete: operations["delete_5"];
         options?: never;
         head?: never;
-        patch: operations["update_5"];
+        patch: operations["update_6"];
         trace?: never;
     };
     "/api/participants/{id}": {
@@ -667,13 +683,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_7"];
+        get: operations["get_8"];
         put?: never;
         post?: never;
         delete: operations["delete_6"];
         options?: never;
         head?: never;
-        patch: operations["update_6"];
+        patch: operations["update_7"];
         trace?: never;
     };
     "/api/field-definitions/{id}": {
@@ -689,7 +705,7 @@ export interface paths {
         delete: operations["delete_7"];
         options?: never;
         head?: never;
-        patch: operations["update_7"];
+        patch: operations["update_8"];
         trace?: never;
     };
     "/api/courts/{id}": {
@@ -699,13 +715,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_8"];
+        get: operations["get_9"];
         put?: never;
         post?: never;
         delete: operations["delete_8"];
         options?: never;
         head?: never;
-        patch: operations["update_8"];
+        patch: operations["update_9"];
         trace?: never;
     };
     "/api/coaches/{id}": {
@@ -715,13 +731,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_9"];
+        get: operations["get_10"];
         put?: never;
         post?: never;
         delete: operations["delete_9"];
         options?: never;
         head?: never;
-        patch: operations["update_9"];
+        patch: operations["update_10"];
         trace?: never;
     };
     "/api/seasons/{seasonId}/conflicts": {
@@ -924,6 +940,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["columns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{planId}/import/sessions/{sid}/analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["analysis"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1233,6 +1265,12 @@ export interface components {
         LockBlockRequest: {
             trainingBlockId?: string;
         };
+        UpdateAppSettingsRequest: {
+            uiMode?: string;
+        };
+        AppSettingsResponse: {
+            uiMode?: string;
+        };
         CreateVenueRequest: {
             name?: string;
             notes?: string;
@@ -1283,6 +1321,7 @@ export interface components {
             defaultGroupMaxSize?: number;
             /** Format: double */
             defaultLevelMin?: number;
+            seedDefaultTimeSlots?: boolean;
         };
         ActivityPlan: {
             id?: string;
@@ -1509,9 +1548,44 @@ export interface components {
             /** Format: int32 */
             recomputedCount?: number;
         };
+        ColumnAnalysis: {
+            /** Format: int32 */
+            columnIndex?: number;
+            headerText?: string;
+            target?: string;
+            reason?: string;
+            /** Format: double */
+            confidence?: number;
+            synthetic?: boolean;
+        };
         CreatedSession: {
             sessionId?: string;
             sheets?: components["schemas"]["SheetSummary"][];
+            analysis?: components["schemas"]["ImportAnalysis"];
+        };
+        ImportAnalysis: {
+            readyToCommit?: boolean;
+            selectedSheet?: string;
+            /** Format: int32 */
+            headerRowIndex?: number;
+            sheetReason?: string;
+            /** Format: double */
+            sheetConfidence?: number;
+            usedTemplate?: boolean;
+            templateId?: string;
+            templateName?: string;
+            columns?: components["schemas"]["ColumnAnalysis"][];
+            /** Format: int32 */
+            mappedCount?: number;
+            /** Format: int32 */
+            ignoredCount?: number;
+            /** Format: int32 */
+            playerRowCount?: number;
+            /** Format: int32 */
+            warnRowCount?: number;
+            /** Format: int32 */
+            skipRowCount?: number;
+            warnings?: string[];
         };
         SheetSummary: {
             name?: string;
@@ -2600,6 +2674,50 @@ export interface operations {
             };
         };
     };
+    get_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AppSettingsResponse"];
+                };
+            };
+        };
+    };
+    update_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UpdateAppSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AppSettingsResponse"];
+                };
+            };
+        };
+    };
     list_1: {
         parameters: {
             query?: never;
@@ -3383,7 +3501,7 @@ export interface operations {
             };
         };
     };
-    get_2: {
+    get_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -3425,7 +3543,7 @@ export interface operations {
             };
         };
     };
-    update_1: {
+    update_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -3477,7 +3595,7 @@ export interface operations {
             };
         };
     };
-    get_3: {
+    get_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -3519,7 +3637,7 @@ export interface operations {
             };
         };
     };
-    update_2: {
+    update_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -3547,7 +3665,7 @@ export interface operations {
             };
         };
     };
-    get_4: {
+    get_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -3589,7 +3707,7 @@ export interface operations {
             };
         };
     };
-    update_3: {
+    update_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -3686,7 +3804,7 @@ export interface operations {
             };
         };
     };
-    get_5: {
+    get_6: {
         parameters: {
             query?: never;
             header?: never;
@@ -3728,7 +3846,7 @@ export interface operations {
             };
         };
     };
-    update_4: {
+    update_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -3754,7 +3872,7 @@ export interface operations {
             };
         };
     };
-    get_6: {
+    get_7: {
         parameters: {
             query?: never;
             header?: never;
@@ -3796,7 +3914,7 @@ export interface operations {
             };
         };
     };
-    update_5: {
+    update_6: {
         parameters: {
             query?: never;
             header?: never;
@@ -3822,7 +3940,7 @@ export interface operations {
             };
         };
     };
-    get_7: {
+    get_8: {
         parameters: {
             query?: never;
             header?: never;
@@ -3864,7 +3982,7 @@ export interface operations {
             };
         };
     };
-    update_6: {
+    update_7: {
         parameters: {
             query?: never;
             header?: never;
@@ -3912,7 +4030,7 @@ export interface operations {
             };
         };
     };
-    update_7: {
+    update_8: {
         parameters: {
             query?: never;
             header?: never;
@@ -3938,7 +4056,7 @@ export interface operations {
             };
         };
     };
-    get_8: {
+    get_9: {
         parameters: {
             query?: never;
             header?: never;
@@ -3980,7 +4098,7 @@ export interface operations {
             };
         };
     };
-    update_8: {
+    update_9: {
         parameters: {
             query?: never;
             header?: never;
@@ -4006,7 +4124,7 @@ export interface operations {
             };
         };
     };
-    get_9: {
+    get_10: {
         parameters: {
             query?: never;
             header?: never;
@@ -4048,7 +4166,7 @@ export interface operations {
             };
         };
     };
-    update_9: {
+    update_10: {
         parameters: {
             query?: never;
             header?: never;
@@ -4371,6 +4489,29 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ColumnsResponse"];
+                };
+            };
+        };
+    };
+    analysis: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+                sid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ImportAnalysis"];
                 };
             };
         };

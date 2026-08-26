@@ -26,6 +26,7 @@ const FIXTURE_PATH = path.join(__dirname, "fixtures/resources-fixture.csv.txt");
 
 const SLOT1_LABEL = "Torsdag 18.00–19.30";
 const SLOT2_LABEL = "Torsdag 19.30–21.00";
+const SLOT3_LABEL = "Torsdag 21.00–22.30";
 
 /**
  * M5 frontend acceptance flow (milestone brief): Resursvy (§19.6) - create two time slots matching
@@ -68,27 +69,36 @@ test("Resurser (tider+banor+block) → Tränare (tillgänglighet) → Kapacitet 
   await finishImportAfterUpload(page, { ok: 3, warn: 0, skip: 0 });
   await expect(page).toHaveURL(/\/deltagare$/);
 
-  // --- Resurser: two time slots, spec §12.1's own worked example ---
+  // --- Resurser: B3 (v0.6.0) auto-seeds 3 default weekly Thursday slots on plan creation
+  // (ActivityPlanController.create -> DefaultTimeSlotService), which happen to already be spec
+  // §12.1's own worked example for the first two - so the panel opens non-empty, pinning that
+  // product default, and this spec reuses those seeded rows instead of creating duplicates (which
+  // would 409, TimeSlotController.requireNoDuplicate). ---
   await page.getByRole("tab", { name: sv.plan.tabs.resources }).click();
   // exact: true - otherwise this also substring-matches the plan's own title heading
   // ("E2E-resurser-plan-<timestamp>" contains "resurser") - same Playwright substring-matching
   // pitfall as the sv.capacity.heading assertion further down this file.
   await expect(page.getByRole("heading", { name: sv.resources.heading, exact: true })).toBeVisible();
-  await expect(page.getByText(sv.resources.empty)).toBeVisible();
+  await expect(page.getByText(SLOT1_LABEL)).toBeVisible();
+  await expect(page.getByText(SLOT2_LABEL)).toBeVisible();
+  await expect(page.getByText(SLOT3_LABEL)).toBeVisible();
 
-  const createSlot = async (start: string, end: string) => {
+  const createSlot = async (day: string, start: string, end: string) => {
     await page.getByRole("button", { name: sv.resources.newSlotButton }).click();
     const dialog = page.getByRole("dialog", { name: sv.resources.slotModal.createTitle });
     await dialog.getByRole("textbox", { name: sv.resources.slotModal.dayLabel }).click();
-    await page.getByRole("option", { name: sv.days.THURSDAY }).click();
+    await page.getByRole("option", { name: day }).click();
     await dialog.getByLabel(sv.resources.slotModal.startTimeLabel).fill(start);
     await dialog.getByLabel(sv.resources.slotModal.endTimeLabel).fill(end);
     await dialog.getByRole("button", { name: sv.resources.slotModal.submit }).click();
     await expect(dialog).toHaveCount(0);
   };
 
-  await createSlot("18:00", "19:30");
-  await createSlot("19:30", "21:00");
+  // Still exercise the create-slot modal UI end to end, with a non-colliding day/time (the three
+  // Thursday slots above are already taken by the seed).
+  await createSlot(sv.days.TUESDAY, "17:00", "18:30");
+  const extraSlotRow = page.locator('[data-testid="time-slot-row"]').filter({ hasText: "Tisdag 17.00–18.30" });
+  await expect(extraSlotRow).toHaveCount(1);
 
   const slot1Row = page.locator('[data-testid="time-slot-row"]').filter({ hasText: SLOT1_LABEL });
   const slot2Row = page.locator('[data-testid="time-slot-row"]').filter({ hasText: SLOT2_LABEL });

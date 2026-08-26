@@ -61,11 +61,15 @@ test("create season → open it → create activity plan → navigate tabs → d
   await expect(page.getByRole("button", { name: sv.fieldBuilder.newFieldButton })).toBeVisible();
 
   // Resurser (M5: Resursvy, not a placeholder anymore — see resources-coaches-capacity.spec.ts for
-  // the full flow).
+  // the full flow). B3 (v0.6.0): every freshly created plan is auto-seeded with 3 default weekly
+  // Thursday time slots (ActivityPlanController.create -> DefaultTimeSlotService), so the panel is
+  // no longer empty on a brand-new plan — assert the three seeded labels instead.
   await page.getByRole("tab", { name: sv.plan.tabs.resources }).click();
   await expect(page.getByRole("tab", { name: sv.plan.tabs.resources })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("heading", { name: sv.resources.heading })).toBeVisible();
-  await expect(page.getByText(sv.resources.empty)).toBeVisible();
+  await expect(page.getByText("Torsdag 18.00–19.30")).toBeVisible();
+  await expect(page.getByText("Torsdag 19.30–21.00")).toBeVisible();
+  await expect(page.getByText("Torsdag 21.00–22.30")).toBeVisible();
   await expect(page.getByRole("button", { name: sv.resources.newSlotButton })).toBeVisible();
 
   // Tränare (M5: Tränarvy, not a placeholder anymore).
@@ -75,11 +79,19 @@ test("create season → open it → create activity plan → navigate tabs → d
   await expect(page.getByText(sv.coaches.empty)).toBeVisible();
   await expect(page.getByRole("button", { name: sv.coaches.newCoachButton })).toBeVisible();
 
-  // Kapacitet (M5: Kapacitetsanalysvy, not a placeholder anymore) - empty state before any time
-  // slots exist.
+  // Kapacitet (M5: Kapacitetsanalysvy, not a placeholder anymore). B3 (v0.6.0): the plan already has
+  // 3 seeded time slots (see Resurser above), so the panel is no longer in its empty state — it
+  // renders the full dashboard, honestly reflecting 0 participants/0 active blocks (no courts set
+  // yet) and 0 coaches (the "inga tränare registrerade" info banner), with all 3 seeded slots in the
+  // per-slot breakdown table.
   await page.getByRole("tab", { name: sv.plan.tabs.capacity }).click();
   await expect(page.getByRole("tab", { name: sv.plan.tabs.capacity })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByText(sv.capacity.empty)).toBeVisible();
+  // exact: true — "Kapacitet" otherwise substring-matches the panel's own "Tränarkapacitet"
+  // subheading too (Playwright role-name matching is case-insensitive substring by default).
+  await expect(page.getByRole("heading", { name: sv.capacity.heading, exact: true })).toBeVisible();
+  await expect(page.getByTestId("no-coaches-info")).toBeVisible();
+  const capacityPerSlotRows = page.getByRole("row").filter({ hasText: "Torsdag" });
+  await expect(capacityPerSlotRows).toHaveCount(3);
 
   // Optimering (M6b: Optimeringsvy, not a placeholder anymore — see optimize-results.spec.ts for the
   // full solve/results/schedule flow). No groups generated yet for this fresh plan.

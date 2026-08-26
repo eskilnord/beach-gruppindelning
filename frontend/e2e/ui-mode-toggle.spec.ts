@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { sv } from "../src/i18n/sv";
 import { UI_MODE_STORAGE_KEY } from "../src/lib/uiMode/uiMode";
+import { resetServerUiMode } from "./helpers/uiMode";
 
 // Deliberately does NOT seed a mode via helpers/uiMode.ts's useAdvancedMode/useSimpleMode (unlike
 // every other e2e spec): this spec's own "simple by default" assertion below needs a genuine
@@ -16,7 +17,16 @@ import { UI_MODE_STORAGE_KEY } from "../src/lib/uiMode/uiMode";
 // same class of bug B10 flagged in the old useSimpleMode-seeded version, just in the opposite
 // direction). A sessionStorage marker - which itself survives a reload, unlike localStorage cleared
 // here - makes the removal a true one-shot: gone before the very first paint, untouched afterwards.
+//
+// Every OTHER spec in this suite runs against the same backend for the whole run
+// (playwright.config.ts, fullyParallel: false) and seeds ADVANCED via useAdvancedMode, which now
+// that /api/app-settings genuinely persists (B3) leaves the backend's durable uiMode as ADVANCED by
+// the time this spec runs. UiModeSync's background GET would then reconcile the freshly-cleared
+// localStorage mirror right back to ADVANCED on first paint, breaking the "simple by default"
+// assertion below even with no local value present - so also reset the durable value directly
+// (resetServerUiMode, no addInitScript attached, fires exactly once) before the app boots.
 test.beforeEach(async ({ page }) => {
+  await resetServerUiMode(page, "SIMPLE");
   await page.addInitScript(
     (key) => {
       const marker = "e2e-ui-mode-cleared-once";
