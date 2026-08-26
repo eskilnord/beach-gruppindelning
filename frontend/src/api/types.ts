@@ -567,14 +567,26 @@ export type WhatIfWhyNotResponse = Omit<
 // --- WI-D: Förbättringsförslag (post-solve improvement suggestions, user feedback v0.4 #2) ---
 
 /** {@code kind} on a {@link SuggestionView} - see backend ImprovementSuggestionService's class
- *  javadoc for the three families (A: waitlisted players, B: coachless groups, C: broken WANT_SAME
- *  wishes) each of these six kinds belongs to. */
-export type SuggestionKind = "PLAYER_TIME" | "GROUP_MAX" | "COACH_TIME" | "COACH_MAX" | "GROUP_MAX_WISH" | "PLAYER_TIME_WISH";
+ *  javadoc for the four families (A: waitlisted players, B: coachless groups, C: broken WANT_SAME
+ *  wishes, D: priority-order reorder - v0.6.0 E5, {@code PriorityOrderSuggestionBuilder}) each of
+ *  these seven kinds belongs to. */
+export type SuggestionKind =
+  | "PLAYER_TIME"
+  | "GROUP_MAX"
+  | "COACH_TIME"
+  | "COACH_MAX"
+  | "GROUP_MAX_WISH"
+  | "PLAYER_TIME_WISH"
+  | "PRIORITY_ORDER";
 
 /** One data-derived "this small change would help" suggestion. `titleSv`/`detailSv`/`impactSv` are
  *  finished Swedish sentences rendered server-side (same "no client-side copy" pattern as {@link
  *  BrokenWishView}); the four reference ids are whichever of them are relevant to `kind` - the
- *  others are `undefined`, never fabricated. */
+ *  others are `undefined`, never fabricated (a `PRIORITY_ORDER` suggestion is plan-level and carries
+ *  all four as `undefined`). `suggestedOrder` (v0.6.0 E5, additive) is the four {@code
+ *  PriorityOrder.Priority} names in rank-1-first order - non-undefined ONLY for `kind =
+ *  "PRIORITY_ORDER"`; full wiring to the priorities screen is a later milestone, this just exposes
+ *  the field. */
 export type SuggestionView = Omit<WithRequired<components["schemas"]["SuggestionView"], "kind" | "titleSv" | "impactSv">, "kind"> & {
   kind: SuggestionKind;
 };

@@ -1968,6 +1968,7 @@ export interface components {
             participantProfileId?: string;
             coachProfileId?: string;
             timeSlotId?: string;
+            suggestedOrder?: string[];
         };
         AppliedWeightView: {
             key?: string;

@@ -37,8 +37,8 @@ import se.klubb.groupplanner.solver.domain.PlayerAssignment;
  * MoveProbe}) — every suggestion is a probed, data-derived fact (never a guess), matching the same
  * truthfulness discipline as {@link ExplanationService} itself (kravspec §17.4).
  *
- * <p>Three suggestion families, tried in priority order (A, then B, then C — the order the final
- * response list is built in):
+ * <p>Four suggestion families, tried in priority order (A, then B, then C, then D — the order the
+ * final response list is built in):
  *
  * <ol>
  *   <li><b>A — waitlisted players:</b> for each waitlisted {@code PlayerAssignment}, probe every
@@ -57,10 +57,18 @@ import se.klubb.groupplanner.solver.domain.PlayerAssignment;
  *       {@code GROUP_MAX_WISH} (deduped into an existing group-A {@code GROUP_MAX} suggestion for
  *       the SAME group, if any — a group only ever gets one max-size suggestion), a sole {@code
  *       timeAvailabilityHard} blocker becomes {@code PLAYER_TIME_WISH}.
+ *   <li><b>D — priority-order reorder (v0.6.0 E5, {@link PriorityOrderSuggestionBuilder}):</b> ONE
+ *       plan-level suggestion family (not per-player/per-group like A/B/C) — "how many placed players'
+ *       unmet {@code PriorityOrder}-bucket wishes would stop costing points under a different priority
+ *       order", kind {@code PRIORITY_ORDER}. Skipped entirely when the plan's weights don't match one
+ *       of the 24 permutations ({@code customWeightsActive}) or there are no unmet bucket wishes at
+ *       all; see that class's own javadoc for the full algorithm.
  * </ol>
  *
- * <p>The response is capped at {@link #MAX_SUGGESTIONS} entries ({@code omittedCount} carries the
- * drop count) and cached per {@code (runId, planRevision)} via {@link ImprovementSuggestionCache} —
+ * <p>A/B/C ("data" suggestions) are capped at {@link #DATA_SUGGESTIONS_CAP} entries ({@code
+ * omittedCount} carries the drop count); D reserves its own separate slots on top (at most 2, by
+ * construction — never truncated, never counted in {@code omittedCount}). The whole response is
+ * cached per {@code (runId, planRevision)} via {@link ImprovementSuggestionCache} —
  * see that class's javadoc for why it is a parallel cache rather than a reuse of {@link
  * ExplanationCache}. Every list this class builds is iterated in a stable, DB-id-derived order
  * (CLAUDE.md determinism rule): the same run always yields the same suggestion list.
@@ -73,8 +81,14 @@ import se.klubb.groupplanner.solver.domain.PlayerAssignment;
 @Service
 public class ImprovementSuggestionService {
 
-    /** Response-level cap (task brief: "Cap the response at 10 suggestions"). */
-    private static final int MAX_SUGGESTIONS = 10;
+    /** Reserved-slot cap (v0.6.0 E5): families A/B/C ("data" suggestions - a small change unlocks a
+     *  placement) get at most {@link #DATA_SUGGESTIONS_CAP} slots; family D ({@code PRIORITY_ORDER},
+     *  {@link PriorityOrderSuggestionBuilder}) gets its own separate reservation on top, capped at 2
+     *  entries BY CONSTRUCTION (that builder never returns more than 2) - so the response as a whole
+     *  never exceeds {@code DATA_SUGGESTIONS_CAP + 2} entries, but {@code omittedCount} only ever counts
+     *  DATA suggestions dropped by the 8-slot cap (family D is never truncated, so it never contributes
+     *  to omittedCount - see the class javadoc's "8 data + up to 2 priority" split). */
+    private static final int DATA_SUGGESTIONS_CAP = 8;
 
     /** Per-coachless-group cap on B-kind candidates (task brief: "at most 2 coach candidates per
      *  group"). */
@@ -134,11 +148,21 @@ public class ImprovementSuggestionService {
             all.add(resolve(ctx, item));
         }
 
-        int omittedCount = Math.max(0, all.size() - MAX_SUGGESTIONS);
-        List<SuggestionView> capped = all.size() > MAX_SUGGESTIONS ? List.copyOf(all.subList(0, MAX_SUGGESTIONS)) : List.copyOf(all);
+        // v0.6.0 E5: family D (PRIORITY_ORDER, plan-level) reserves its OWN slots on top of the 8-slot
+        // data cap, never competing with A/B/C for a spot and never itself truncated (it already caps
+        // itself at <=2 entries) - see DATA_SUGGESTIONS_CAP's javadoc.
+        List<SuggestionView> priorityOrderSuggestions =
+                PriorityOrderSuggestionBuilder.build(ctx, moveProbe).suggestions();
+
+        int omittedCount = Math.max(0, all.size() - DATA_SUGGESTIONS_CAP);
+        List<SuggestionView> cappedData =
+                all.size() > DATA_SUGGESTIONS_CAP ? List.copyOf(all.subList(0, DATA_SUGGESTIONS_CAP)) : List.copyOf(all);
+
+        List<SuggestionView> combined = new ArrayList<>(cappedData);
+        combined.addAll(priorityOrderSuggestions);
 
         ImprovementSuggestionsResponse response = new ImprovementSuggestionsResponse(
-                ctx.run().id(), ctx.run().planRevision(), ctx.currentRevision(), ctx.stale(), capped, omittedCount);
+                ctx.run().id(), ctx.run().planRevision(), ctx.currentRevision(), ctx.stale(), List.copyOf(combined), omittedCount);
         cache.put(cacheKey, response);
         return response;
     }
@@ -226,7 +250,7 @@ public class ImprovementSuggestionService {
         return new SuggestionView(
                 "PLAYER_TIME", title, null, "1 spelare färre på kölistan",
                 explanationService.groupDbId(ctx, group), explanationService.participantDbId(ctx, player.getId()), null,
-                timeSlotDbIdFor(ctx, scheduleByGroupId, group));
+                timeSlotDbIdFor(ctx, scheduleByGroupId, group), null);
     }
 
     /** Mutable accumulator for a "raise this group's max size" suggestion — merges BOTH the
@@ -302,7 +326,7 @@ public class ImprovementSuggestionService {
         String detail = n > 1
                 ? "Berörda spelare: %s.".formatted(String.join(", ", agg.waitlistedPlayers.stream().map(PlayerAssignment::getDisplayName).toList()))
                 : null;
-        return new SuggestionView(kind, title, detail, impact, groupDbId, participantId, null, null);
+        return new SuggestionView(kind, title, detail, impact, groupDbId, participantId, null, null, null);
     }
 
     // ─────────────────────────────────────────────────────────────────────── B: coachless groups
@@ -390,13 +414,13 @@ public class ImprovementSuggestionService {
                     out.add(new SuggestionView(
                             "COACH_TIME",
                             "Om %s kunde ta %s skulle %s få en tränare.".formatted(coach.displayName(), timeLabel, group.name()),
-                            null, "1 grupp utan tränare åtgärdas", groupDbId, null, coachDbId, timeSlotDbId));
+                            null, "1 grupp utan tränare åtgärdas", groupDbId, null, coachDbId, timeSlotDbId, null));
                 } else {
                     out.add(new SuggestionView(
                             "COACH_MAX",
                             "Om %s kunde ta fler grupper (max nu %d) skulle %s få en tränare.".formatted(
                                     coach.displayName(), coach.maxGroups(), group.name()),
-                            null, "1 grupp utan tränare åtgärdas", groupDbId, null, coachDbId, timeSlotDbId));
+                            null, "1 grupp utan tränare åtgärdas", groupDbId, null, coachDbId, timeSlotDbId, null));
                 }
                 emitted++;
             }
@@ -594,7 +618,7 @@ public class ImprovementSuggestionService {
         cRaw.add(new SuggestionView(
                 "PLAYER_TIME_WISH", title, null, "1 spelpar kan spela ihop",
                 explanationService.groupDbId(ctx, targetGroup), explanationService.participantDbId(ctx, mover.getId()), null,
-                timeSlotDbIdFor(ctx, scheduleByGroupId, targetGroup)));
+                timeSlotDbIdFor(ctx, scheduleByGroupId, targetGroup), null));
         return true;
     }
 

@@ -382,7 +382,7 @@ class ImprovementSuggestionServiceTest {
     // ─────────────────────────────────────────────────────────────────────── (vi) cap + omittedCount
 
     @Test
-    void capsAtTenSuggestionsAndReportsOmittedCount() {
+    void capsAtEightDataSuggestionsAndReportsOmittedCount() {
         ExplanationTestFixture fx = newFixture();
         List<String> blocks = fx.addTimeSlotWithBlocks("Torsdag 18.00-19.30", 1);
         String groupA = fx.addGroup("Grupp A", 1, 1, 50, 50, blocks.get(0)); // never full.
@@ -397,8 +397,11 @@ class ImprovementSuggestionServiceTest {
         String runId = fx.insertFinishedRun();
         ImprovementSuggestionsResponse response = improvementSuggestionService.suggestions(fx.planId, runId);
 
-        assertThat(response.suggestions()).hasSize(10);
-        assertThat(response.omittedCount()).isEqualTo(2);
+        // v0.6.0 E5: A/B/C ("data") suggestions are capped at 8, not 10 - the other 2 response slots
+        // are reserved for family D (PRIORITY_ORDER), which this fixture never produces (every
+        // participant here is waitlisted, never PLACED - family D only ever looks at PLACED players).
+        assertThat(response.suggestions()).hasSize(8);
+        assertThat(response.omittedCount()).isEqualTo(4);
         assertThat(response.suggestions()).allMatch(s -> "PLAYER_TIME".equals(s.kind()) && groupA.equals(s.groupId()));
     }
 

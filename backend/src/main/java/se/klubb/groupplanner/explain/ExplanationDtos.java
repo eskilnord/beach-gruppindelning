@@ -378,13 +378,20 @@ public final class ExplanationDtos {
     /**
      * One "small data change would unlock a big improvement" suggestion ({@link
      * ImprovementSuggestionService}, WI-D — user feedback v0.4 #2). {@code kind} is one of {@code
-     * PLAYER_TIME | GROUP_MAX | COACH_TIME | COACH_MAX | GROUP_MAX_WISH | PLAYER_TIME_WISH}.
+     * PLAYER_TIME | GROUP_MAX | COACH_TIME | COACH_MAX | GROUP_MAX_WISH | PLAYER_TIME_WISH |
+     * PRIORITY_ORDER} (the last added by v0.6.0 E5 — see {@link PriorityOrderSuggestionBuilder}).
      * {@code titleSv}/{@code detailSv}/{@code impactSv} are finished Swedish sentences, rendered
      * server-side like every other message field in this API (same "no client-side copy" pattern as
      * {@link BrokenWishView}/{@link IndirectFactorView}) — {@code detailSv} is {@code null} whenever
      * the title+impact already say everything (most suggestions). The four reference ids are
      * whichever of {groupId, participantProfileId, coachProfileId, timeSlotId} are relevant to that
-     * {@code kind}; irrelevant ones are {@code null}, never fabricated.
+     * {@code kind}; irrelevant ones are {@code null}, never fabricated — a {@code PRIORITY_ORDER}
+     * suggestion is plan-level and carries all four as {@code null}.
+     *
+     * @param suggestedOrder (E5, additive, nullable) the {@link
+     *     se.klubb.groupplanner.fields.PriorityOrder.Priority} names in rank-1-first order this
+     *     suggestion proposes — non-null ONLY for {@code kind = PRIORITY_ORDER}; every OTHER kind's
+     *     value is {@code null}, never fabricated, exactly like the four reference ids above.
      */
     public record SuggestionView(
             String kind,
@@ -394,7 +401,8 @@ public final class ExplanationDtos {
             String groupId,
             String participantProfileId,
             String coachProfileId,
-            String timeSlotId) {
+            String timeSlotId,
+            List<String> suggestedOrder) {
     }
 
     public record ImprovementSuggestionsResponse(

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ActionIcon, Alert, Badge, Card, Collapse, Group, Loader, Stack, Text, Title } from "@mantine/core";
-import { IconChevronDown, IconChevronUp, IconClock, IconResize, IconUserStar } from "@tabler/icons-react";
+import { IconArrowsSort, IconChevronDown, IconChevronUp, IconClock, IconResize, IconUserStar } from "@tabler/icons-react";
 import type { Icon } from "@tabler/icons-react";
 import { useImprovementSuggestions } from "../../../api/explanations";
 import { ApiError } from "../../../api/client";
@@ -19,7 +19,9 @@ interface ImprovementSuggestionsProps {
 /** One icon per suggestion `kind` (task brief: "clock for *_TIME, users/resize for GROUP_MAX*,
  *  user-star for COACH_*") - COACH_TIME is listed under both the "*_TIME" and "COACH_*" patterns in
  *  that brief; explicit per-kind mapping (rather than a suffix/prefix match) resolves the ambiguity
- *  in favor of the more specific "it's about a coach" signal. */
+ *  in favor of the more specific "it's about a coach" signal. PRIORITY_ORDER (v0.6.0 E5) gets its own
+ *  reorder icon - it names a DIFFERENT kind of small change (the four priorities' ranking) than any
+ *  of the other six kinds. */
 const KIND_ICON: Record<SuggestionKind, Icon> = {
   PLAYER_TIME: IconClock,
   PLAYER_TIME_WISH: IconClock,
@@ -27,12 +29,16 @@ const KIND_ICON: Record<SuggestionKind, Icon> = {
   GROUP_MAX_WISH: IconResize,
   COACH_TIME: IconUserStar,
   COACH_MAX: IconUserStar,
+  PRIORITY_ORDER: IconArrowsSort,
 };
 
 /** User feedback v0.4.1: GROUP_MAX/GROUP_MAX_WISH name a fixed limit (court capacity/plan max size)
  *  that cannot actually be changed from this screen - they are rendered as an explanation of the
  *  result ("limitation"), never alongside the genuinely actionable "ask a person" suggestions
- *  (PLAYER_TIME/PLAYER_TIME_WISH/COACH_TIME/COACH_MAX). */
+ *  (PLAYER_TIME/PLAYER_TIME_WISH/COACH_TIME/COACH_MAX). PRIORITY_ORDER (v0.6.0 E5) is NOT a
+ *  limitation either - reordering the four priorities is something the council genuinely CAN do (on
+ *  the priorities screen; full CTA wiring there is a later milestone) - it renders in the actionable
+ *  list, like an unrecognized/future kind would by design (see `KindIcon` fallback below). */
 const LIMITATION_KINDS: ReadonlySet<SuggestionKind> = new Set(["GROUP_MAX", "GROUP_MAX_WISH"]);
 
 function isLimitation(kind: SuggestionKind): boolean {

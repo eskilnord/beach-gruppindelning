@@ -201,6 +201,66 @@ describe("ImprovementSuggestions", () => {
     expect(await screen.findByTestId("improvement-suggestions-error")).toHaveTextContent("Run not found in plan plan-1: run-1");
   });
 
+  it("renders a PRIORITY_ORDER suggestion in the actionable list, never as a limitation", async () => {
+    const response: ImprovementSuggestionsResponse = {
+      ...BASE_RESPONSE,
+      suggestions: [
+        {
+          kind: "PRIORITY_ORDER",
+          titleSv: "Fler skulle kunna få sina önskemål uppfyllda med en annan prioritetsordning",
+          detailSv:
+            "2 av 2 granskade spelare med ouppfyllda önskemål skulle kunna flyttas som önskat utan att planen blir "
+            + "sämre, om ordningen ändras till Tidigare grupp, Önskad träningstid, Träna tillsammans och Träningsnivå.",
+          impactSv: "Vad optimeringen faktiskt väljer avgörs först när du kör om den.",
+          groupId: undefined,
+          participantProfileId: undefined,
+          coachProfileId: undefined,
+          timeSlotId: undefined,
+          suggestedOrder: ["PREVIOUS_GROUP", "PREFERRED_TIME", "TRAIN_TOGETHER", "LEVEL"],
+        },
+      ],
+    };
+    server.use(http.get(SUGGESTIONS_URL, () => HttpResponse.json(response)));
+
+    renderWithProviders(<ImprovementSuggestions planId="plan-1" runId="run-1" />);
+
+    expect(await screen.findAllByTestId("improvement-suggestion-row")).toHaveLength(1);
+    expect(screen.queryByTestId("improvement-limitation-row")).not.toBeInTheDocument();
+    expect(screen.getByText(response.suggestions[0].titleSv)).toBeInTheDocument();
+    expect(screen.getByText(response.suggestions[0].detailSv!)).toBeInTheDocument();
+    expect(screen.getByText(response.suggestions[0].impactSv)).toBeInTheDocument();
+  });
+
+  it("falls back to the actionable list (never a limitation, never a crash) for a kind unknown to this frontend build", async () => {
+    // v0.4.1 design note: an unrecognized `kind` (e.g. a newer backend than this frontend build knows
+    // about) must never be treated as a limitation and must never crash the icon lookup - it falls to
+    // the actionable list with a fallback icon. Cast past the SuggestionKind union deliberately, since
+    // this simulates a value this frontend build has never heard of.
+    const response: ImprovementSuggestionsResponse = {
+      ...BASE_RESPONSE,
+      suggestions: [
+        {
+          kind: "SOME_FUTURE_KIND" as ImprovementSuggestionsResponse["suggestions"][number]["kind"],
+          titleSv: "Ett framtida förslag denna frontend inte känner till.",
+          detailSv: undefined,
+          impactSv: "okänd effekt",
+          groupId: undefined,
+          participantProfileId: undefined,
+          coachProfileId: undefined,
+          timeSlotId: undefined,
+          suggestedOrder: undefined,
+        },
+      ],
+    };
+    server.use(http.get(SUGGESTIONS_URL, () => HttpResponse.json(response)));
+
+    renderWithProviders(<ImprovementSuggestions planId="plan-1" runId="run-1" />);
+
+    expect(await screen.findAllByTestId("improvement-suggestion-row")).toHaveLength(1);
+    expect(screen.queryByTestId("improvement-limitation-row")).not.toBeInTheDocument();
+    expect(screen.getByText(response.suggestions[0].titleSv)).toBeInTheDocument();
+  });
+
   it("collapses and re-expands the suggestion list via the toggle button, defaulting open", async () => {
     const response: ImprovementSuggestionsResponse = {
       ...BASE_RESPONSE,

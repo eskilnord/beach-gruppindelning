@@ -396,7 +396,10 @@ final class PrioritySensitivityCalculator {
      * HardMediumSoftLongScore.ofSoft(weight)} with a plain positive {@code int}, for every constraint
      * regardless of penalize/reward) — the exact same positive convention {@link PriorityOrder
      * #weightsFor} itself returns, so the two compare directly with NO sign adjustment. */
-    private static Optional<List<Priority>> matchCurrentPermutation(Map<String, HardMediumSoftLongScore> currentWeights) {
+    /** Package-visible (not private) so {@link PriorityOrderSuggestionBuilder} (E5 family D) can
+     * reuse this EXACT {@code customWeightsActive} detection rather than reimplementing it - the same
+     * "REUSE it, don't reimplement" rule this milestone's brief applies to the rest of this class. */
+    static Optional<List<Priority>> matchCurrentPermutation(Map<String, HardMediumSoftLongScore> currentWeights) {
         for (List<Priority> order : ALL_ORDERS) {
             Map<String, Integer> expected = PriorityOrder.weightsFor(order);
             boolean matches = true;
