@@ -10,6 +10,12 @@ package se.klubb.groupplanner.domain;
  * reserved for the solver's own {@code unassignedPlayer} waitlist penalty, introduced in M6 — none
  * of the 24 standard constraints are MEDIUM, and this record/table impose no DB-level restriction
  * so the guardrail can generalize once a MEDIUM-classified constraint_definition row exists).
+ *
+ * <p>{@code updatedAt} (v0.6.0 milestone B7, V14__constraint_weight_config_updated_at.sql) is an
+ * ISO-8601 {@link java.time.Instant#toString()} set by {@code ConstraintWeightConfigRepository
+ * #upsert} on every insert/update; {@code null} for a row written before V14 (never backfilled — see
+ * that migration's comment). Consumed by {@code se.klubb.groupplanner.fields.PriorityOrderService}
+ * to report "when did this plan last diverge from the shipped priority-order defaults".
  */
 public record ConstraintWeightConfig(
         String id,
@@ -17,5 +23,6 @@ public record ConstraintWeightConfig(
         String constraintKey,
         String hardOrSoft,
         int weight,
-        boolean enabled) {
+        boolean enabled,
+        String updatedAt) {
 }

@@ -194,10 +194,11 @@ public class ConstraintWeightService {
         if (override == null) {
             return new ConstraintWeightView(
                     def.key(), def.label(), def.description(), def.constraintCategory(),
-                    def.hardOrSoft(), def.defaultWeight(), def.enabled(), false, unit, direction);
+                    def.hardOrSoft(), def.defaultWeight(), def.enabled(), false, unit, direction, null);
         }
         return new ConstraintWeightView(
                 def.key(), def.label(), def.description(), def.constraintCategory(),
-                override.hardOrSoft(), override.weight(), override.enabled(), true, unit, direction);
+                override.hardOrSoft(), override.weight(), override.enabled(), true, unit, direction,
+                override.updatedAt());
     }
 }

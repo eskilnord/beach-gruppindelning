@@ -62,7 +62,7 @@ class FlywayMigrationTest {
                 "core", "seed constraints and standard fields", "import", "resources", "solver runs",
                 "soft constraints locks saved plan", "explainability", "activity plan level min default",
                 "explanation record indirect factors", "coach unknown time constraint", "reviewed done",
-                "app settings", "priority order default weights");
+                "app settings", "priority order default weights", "constraint weight config updated at");
     }
 
     /**
@@ -81,6 +81,21 @@ class FlywayMigrationTest {
                 .query((rs, rowNum) -> rs.getString("name"))
                 .list();
         assertThat(coachProfileColumns).contains("reviewed_done");
+    }
+
+    /**
+     * B7 (v0.6.0, V14): {@code constraint_weight_config} gained an {@code updated_at} column, read by
+     * {@code PriorityOrderService#latestUpdatedAt} for the priority-order GET response's {@code
+     * updatedAt} field. Mirrors {@link #reviewedDoneColumnExistsOnParticipantAndCoachProfile}'s
+     * pragma_table_info convention — the same guardrail-style schema-level check for a column with no
+     * {@code field_definition} row of its own.
+     */
+    @Test
+    void constraintWeightConfigUpdatedAtColumnExists() {
+        List<String> constraintWeightConfigColumns = jdbcClient.sql("SELECT name FROM pragma_table_info('constraint_weight_config')")
+                .query((rs, rowNum) -> rs.getString("name"))
+                .list();
+        assertThat(constraintWeightConfigColumns).contains("updated_at");
     }
 
     /** B3 (v0.6.0, V12): the app_setting table seeds a default ui.mode = SIMPLE row on migration. */

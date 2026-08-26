@@ -86,6 +86,24 @@ public class OptimizationRunRepository {
                 .optional();
     }
 
+    /** Most recent FINISHED run for a plan (B7 review fix, {@code
+     * se.klubb.groupplanner.fields.PriorityOrderService#isStaleSinceLastRun}) — unlike {@link
+     * #findLatestByActivityPlanId}, this ignores any QUEUED/SOLVING/FAILED row. Those statuses carry
+     * a {@code planRevision} of 0 (see {@link OptimizationRun} javadoc: "null/0 for a run that never
+     * finished") rather than a real "basedOnRevision", so comparing against one of them as if it were
+     * "the plan's latest run" can permanently pin a staleness flag {@code true} once the plan has ever
+     * had a single revision bump, even with nothing actually amiss. */
+    public Optional<OptimizationRun> findLatestFinishedByActivityPlanId(String activityPlanId) {
+        return jdbcClient.sql("""
+                        SELECT * FROM optimization_run WHERE activity_plan_id = :activityPlanId AND status = :status
+                        ORDER BY started_at DESC, id DESC LIMIT 1
+                        """)
+                .param("activityPlanId", activityPlanId)
+                .param("status", OptimizationRun.STATUS_FINISHED)
+                .query(OptimizationRunRepository::mapRow)
+                .optional();
+    }
+
     /** WI-C unchanged-result detection ({@code se.klubb.groupplanner.solver.run.OptimizationRunService
      * #hasFinishedRun}): whether this plan has any run that reached {@link OptimizationRun
      * #STATUS_FINISHED} (excludes CANCELLED/FAILED and any currently-SOLVING row). */

@@ -2,6 +2,7 @@ package se.klubb.groupplanner.repo;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -46,6 +47,8 @@ public class ConstraintWeightConfigRepository {
      * constraintKey)} pair (the table's UNIQUE constraint) — callers always pass a fully-resolved
      * row (see {@code ConstraintWeightService}, which merges the request onto the
      * currently-effective values before calling this), so there is no partial-update path here.
+     * {@code updated_at} (v0.6.0 milestone B7, V14) is stamped with {@link Instant#now()} on every
+     * insert/update, same pattern as {@code AppSettingsRepository#upsert}.
      */
     public ConstraintWeightConfig upsert(String activityPlanId, String constraintKey, String hardOrSoft, int weight, boolean enabled) {
         Optional<String> existingId = jdbcClient.sql(
@@ -56,12 +59,14 @@ public class ConstraintWeightConfigRepository {
                 .query(String.class)
                 .optional();
         String id = existingId.orElseGet(Uuid7::generate);
+        String updatedAt = Instant.now().toString();
 
         jdbcClient.sql("""
-                        INSERT INTO constraint_weight_config (id, activity_plan_id, constraint_key, hard_or_soft, weight, enabled)
-                        VALUES (:id, :activityPlanId, :constraintKey, :hardOrSoft, :weight, :enabled)
+                        INSERT INTO constraint_weight_config (id, activity_plan_id, constraint_key, hard_or_soft, weight, enabled, updated_at)
+                        VALUES (:id, :activityPlanId, :constraintKey, :hardOrSoft, :weight, :enabled, :updatedAt)
                         ON CONFLICT (activity_plan_id, constraint_key)
-                        DO UPDATE SET hard_or_soft = excluded.hard_or_soft, weight = excluded.weight, enabled = excluded.enabled
+                        DO UPDATE SET hard_or_soft = excluded.hard_or_soft, weight = excluded.weight, enabled = excluded.enabled,
+                            updated_at = excluded.updated_at
                         """)
                 .param("id", id)
                 .param("activityPlanId", activityPlanId)
@@ -69,8 +74,9 @@ public class ConstraintWeightConfigRepository {
                 .param("hardOrSoft", hardOrSoft)
                 .param("weight", weight)
                 .param("enabled", enabled ? 1 : 0)
+                .param("updatedAt", updatedAt)
                 .update();
-        return new ConstraintWeightConfig(id, activityPlanId, constraintKey, hardOrSoft, weight, enabled);
+        return new ConstraintWeightConfig(id, activityPlanId, constraintKey, hardOrSoft, weight, enabled, updatedAt);
     }
 
     private static ConstraintWeightConfig mapRow(ResultSet rs, int rowNum) throws SQLException {
@@ -80,6 +86,7 @@ public class ConstraintWeightConfigRepository {
                 rs.getString("constraint_key"),
                 rs.getString("hard_or_soft"),
                 rs.getInt("weight"),
-                rs.getInt("enabled") != 0);
+                rs.getInt("enabled") != 0,
+                rs.getString("updated_at"));
     }
 }

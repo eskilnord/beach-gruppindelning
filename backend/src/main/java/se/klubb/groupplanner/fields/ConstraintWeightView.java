@@ -8,6 +8,11 @@ package se.klubb.groupplanner.fields;
  * ({@code "PENALIZE"|"REWARD"}) are machine-readable semantics looked up from {@link
  * se.klubb.groupplanner.explain.ConstraintMetadata} (WP4) so the UI can render a plain-language
  * "what does this weight mean" sentence per row without hardcoding per-key logic.
+ *
+ * <p>{@code updatedAt} (v0.6.0 milestone B7) is the override row's {@code updated_at}, or {@code
+ * null} when {@code overridden} is {@code false} (pure {@code constraint_definition} default) or the
+ * override row predates V14. Consumed by {@code PriorityOrderService} to compute the priority-order
+ * GET response's {@code updatedAt} field.
  */
 public record ConstraintWeightView(
         String key,
@@ -19,5 +24,6 @@ public record ConstraintWeightView(
         boolean enabled,
         boolean overridden,
         String unit,
-        String direction) {
+        String direction,
+        String updatedAt) {
 }

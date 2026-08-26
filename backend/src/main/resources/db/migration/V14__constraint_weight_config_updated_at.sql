@@ -1,0 +1,14 @@
+-- V14__constraint_weight_config_updated_at.sql
+--
+-- v0.6.0 milestone B7 (GET|PUT /api/plans/{planId}/priority-order): the priority-order GET response
+-- reports "updatedAt" = the latest updated_at among the six priority-ladder bucket keys' override
+-- rows (null when the plan still has pure constraint_definition defaults, i.e. no override rows at
+-- all for those six keys) - the "when did this plan last diverge from the shipped defaults" signal
+-- the frontend uses next to the priority list.
+--
+-- constraint_weight_config (V2) never carried a timestamp column - only weight/hardOrSoft/enabled
+-- mattered until now. Nullable (no DEFAULT/backfill): any override row that predates this migration
+-- has no meaningful "last touched" instant to report, so it stays NULL rather than being backfilled
+-- to a fabricated timestamp; ConstraintWeightConfigRepository.upsert (see that class) sets it on
+-- every future insert/update via Instant.now(), same pattern as AppSettingsRepository.upsert.
+ALTER TABLE constraint_weight_config ADD COLUMN updated_at TEXT;
