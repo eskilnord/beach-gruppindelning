@@ -5,6 +5,7 @@ import { useFieldDefinitions } from "../../../api/fieldDefinitions";
 import { useImportColumns, useSetImportMapping, type ImportColumnMapping } from "../../../api/import";
 import { ApiError, isNotFoundError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
+import { useIsSimpleMode } from "../../../lib/uiMode/useUiMode";
 import { SessionExpiredPanel } from "../SessionExpiredPanel";
 import { NewCustomFieldModal } from "../NewCustomFieldModal";
 
@@ -41,6 +42,16 @@ const STANDARD_TARGETS: { value: string; label: string }[] = [
 
 const SENSITIVE_TARGETS = new Set(["comment", "internalNote"]);
 
+/** v0.6.0 F4 (M-S4): the two coach-related standard targets - ADVANCED-only (STANDARD_TARGETS is
+ *  filtered to exclude these as CHOOSABLE options in SIMPLE mode; a column the backend already
+ *  auto-suggested one of these for renders as a disabled row instead - see MappingStep's render
+ *  below - the mapping itself is never dropped).
+ *
+ *  Exported (v0.6.0 F4 review fix, FIX 6) so ReviewStep.tsx's one-click decisions table can filter
+ *  the SAME coach-target columns out of its own rendering - one shared vocabulary for "is this
+ *  column a coach-target row" rather than two independently maintained Sets. */
+export const COACH_TARGETS = new Set(["coachName", "isCoach"]);
+
 /** Wizard step 3 (spec §8.4): one row per source column, a target dropdown pre-filled from the
  *  backend's suggestion (template match or synonym/fuzzy match), custom-field targets from the
  *  plan's CUSTOM-storage field definitions, and a sensitive-data badge for comment targets. */
@@ -48,6 +59,7 @@ export function MappingStep({ planId, sessionId, onNext, onExpired }: MappingSte
   const columns = useImportColumns(planId, sessionId);
   const fieldDefinitions = useFieldDefinitions(planId);
   const setMapping = useSetImportMapping(planId, sessionId);
+  const isSimple = useIsSimpleMode();
 
   const [targets, setTargets] = useState<Record<number, string>>({});
   const [newFieldModalColumn, setNewFieldModalColumn] = useState<number | null>(null);
@@ -82,8 +94,13 @@ export function MappingStep({ planId, sessionId, onNext, onExpired }: MappingSte
     .filter((field) => field.storageKind === "CUSTOM")
     .map((field) => ({ value: `customField:${field.key}`, label: field.label }));
 
+  // v0.6.0 F4: coachName/isCoach are never CHOOSABLE targets in SIMPLE mode - a column already
+  // suggested for one of them still renders (as a disabled row, see below), just not selectable
+  // via this dropdown for any OTHER column either.
+  const visibleStandardTargets = isSimple ? STANDARD_TARGETS.filter((target) => !COACH_TARGETS.has(target.value)) : STANDARD_TARGETS;
+
   const selectData = [
-    { group: sv.importWizard.mapping.standardGroup, items: STANDARD_TARGETS },
+    { group: sv.importWizard.mapping.standardGroup, items: visibleStandardTargets },
     ...(customFieldOptions.length > 0
       ? [{ group: sv.importWizard.mapping.customGroup, items: customFieldOptions }]
       : []),
@@ -140,6 +157,11 @@ export function MappingStep({ planId, sessionId, onNext, onExpired }: MappingSte
             {columns.data.columns.map((column) => {
               const target = targets[column.columnIndex] ?? IGNORE_VALUE;
               const columnLabel = column.headerText || `#${column.columnIndex + 1}`;
+              // v0.6.0 F4: a column the backend already auto-suggested coachName/isCoach for is
+              // shown as a DISABLED row in SIMPLE mode rather than silently dropping the mapping -
+              // the underlying `targets` state (and what gets submitted to the backend on "Nästa")
+              // is untouched either way.
+              const isCoachRow = isSimple && COACH_TARGETS.has(target);
               return (
                 <Table.Tr key={column.columnIndex}>
                   <Table.Td>
@@ -152,33 +174,53 @@ export function MappingStep({ planId, sessionId, onNext, onExpired }: MappingSte
                       )}
                     </Group>
                   </Table.Td>
-                  <Table.Td>
-                    <Text size="sm" c="dimmed">
-                      {column.sampleValues.join(", ") || "—"}
-                    </Text>
-                    {column.synthetic && (
-                      <Text size="xs" c="dimmed" fs="italic">
-                        {sv.importWizard.mapping.derivedHint}
-                      </Text>
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap="xs" wrap="nowrap">
-                      <Select
-                        aria-label={`Mappning för kolumn ${columnLabel}`}
-                        data={selectData}
-                        value={target}
-                        onChange={(value) => handleTargetChange(column.columnIndex, value)}
-                        w={280}
-                        comboboxProps={{ withinPortal: false }}
-                      />
-                      {SENSITIVE_TARGETS.has(target) && (
-                        <Badge color="orange" variant="light">
-                          {sv.importWizard.mapping.sensitiveBadge}
-                        </Badge>
-                      )}
-                    </Group>
-                  </Table.Td>
+                  {/* v0.6.0 F4 review fix (FIX 6, MAJOR): a disabled coach row used to still leak
+                      its sample value (e.g. a real coach's name from the file) AND its target label
+                      ("Önskad tränare (fritext)"/"Är tränare") even while "disabled" - both are
+                      coach-identifying content that SIMPLE mode must never display, regardless of
+                      whether the underlying mapping/import behavior stays unchanged (it does - see
+                      COACH_TARGETS' own doc comment). Column header stays (it's the FILE's generic
+                      column name, e.g. "Önskad tränare" - not a person). */}
+                  {isCoachRow ? (
+                    <>
+                      <Table.Td />
+                      <Table.Td>
+                        <Text size="xs" c="dimmed" data-testid="mapping-coach-row-note">
+                          {sv.uiMode.handledInAdvanced}
+                        </Text>
+                      </Table.Td>
+                    </>
+                  ) : (
+                    <>
+                      <Table.Td>
+                        <Text size="sm" c="dimmed">
+                          {column.sampleValues.join(", ") || "—"}
+                        </Text>
+                        {column.synthetic && (
+                          <Text size="xs" c="dimmed" fs="italic">
+                            {sv.importWizard.mapping.derivedHint}
+                          </Text>
+                        )}
+                      </Table.Td>
+                      <Table.Td>
+                        <Group gap="xs" wrap="nowrap">
+                          <Select
+                            aria-label={`Mappning för kolumn ${columnLabel}`}
+                            data={selectData}
+                            value={target}
+                            onChange={(value) => handleTargetChange(column.columnIndex, value)}
+                            w={280}
+                            comboboxProps={{ withinPortal: false }}
+                          />
+                          {SENSITIVE_TARGETS.has(target) && (
+                            <Badge color="orange" variant="light">
+                              {sv.importWizard.mapping.sensitiveBadge}
+                            </Badge>
+                          )}
+                        </Group>
+                      </Table.Td>
+                    </>
+                  )}
                 </Table.Tr>
               );
             })}

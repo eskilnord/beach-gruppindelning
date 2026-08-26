@@ -13,6 +13,7 @@ import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
 import { DeleteConfirmModal } from "../../../components/DeleteConfirmModal";
 import { EmptyState } from "../../../components/EmptyState";
+import { SimpleOnly } from "../../../components/uimode/AdvancedOnly";
 import { describeLevelConfidence } from "./levelConfidence";
 import { ParticipantDrawer } from "./ParticipantDrawer";
 import type { ParticipantRow } from "./participantRow";
@@ -214,6 +215,9 @@ export function ParticipantsPanel() {
 
   const isEmpty = (participants.data ?? []).length === 0;
   const selectedParticipant = rows.find((row) => row.id === selectedId) ?? null;
+  // v0.6.0 F4 (M-S4): "no level at all" - both the imported estimate AND a manual override are
+  // absent. Feeds the summary strip below.
+  const withoutLevelCount = rows.filter((row) => row.estimatedLevel == null && row.manualLevelScore == null).length;
 
   return (
     <Card withBorder padding="lg">
@@ -258,6 +262,25 @@ export function ParticipantsPanel() {
 
       {!isEmpty && (
         <>
+          {/* v0.6.0 F4 (M-S4): summary strip, SIMPLE-only. Only "N deltagare" and "N utan nivå" are
+              cheaply derivable from data ParticipantsPanel already has loaded (ParticipantProfile's
+              own estimatedLevel/manualLevelScore) - "har önskat tid"/"kompisönskemål" would need
+              per-participant field-value data this grid never bulk-loads (only usePlanCommentSuggestions'
+              counts-only summary, which carries no per-kind breakdown - see commentSuggestions.ts's
+              "comment minimization" doc comment), so those two segments are deliberately dropped
+              rather than adding a new backend call. */}
+          <SimpleOnly>
+            <Group gap={6} mb="sm" data-testid="simple-participants-summary">
+              <Text size="sm">{sv.simple.participants.summary.total(rows.length)}</Text>
+              <Text size="sm" c="dimmed">
+                ·
+              </Text>
+              <Text size="sm" c={withoutLevelCount > 0 ? "orange" : undefined}>
+                {sv.simple.participants.summary.withoutLevel(withoutLevelCount)}
+              </Text>
+            </Group>
+          </SimpleOnly>
+
           <TextInput
             placeholder={sv.participants.quickFilterPlaceholder}
             value={quickFilter}

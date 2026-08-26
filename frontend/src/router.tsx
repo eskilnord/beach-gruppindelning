@@ -9,7 +9,7 @@ import { FieldsPanel } from "./routes/plan/fields/FieldsPanel";
 import { ResourcesPanel } from "./routes/plan/resources/ResourcesPanel";
 import { CoachesPanel } from "./routes/plan/coaches/CoachesPanel";
 import { CapacityPanel } from "./routes/plan/capacity/CapacityPanel";
-import { OptimizePanel } from "./routes/plan/optimize/OptimizePanel";
+import { OptimizeRoute } from "./routes/plan/optimize/OptimizeRoute";
 import { ResultsPanel } from "./routes/plan/results/ResultsPanel";
 import { SavedPlansPanel } from "./routes/plan/savedplans/SavedPlansPanel";
 import { PrioritiesPanel } from "./routes/plan/priorities/PrioritiesPanel";
@@ -66,7 +66,7 @@ export const router = createBrowserRouter([
               </AdvancedRouteGate>
             ),
           },
-          { path: "optimering", element: <OptimizePanel /> },
+          { path: "optimering", element: <OptimizeRoute /> },
           { path: "resultat", element: <ResultsPanel /> },
           {
             path: "planer",

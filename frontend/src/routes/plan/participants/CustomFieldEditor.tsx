@@ -1,5 +1,6 @@
 import { MultiSelect, NumberInput, Select, Stack, Switch, TagsInput, Text, TextInput } from "@mantine/core";
 import { sv } from "../../../i18n/sv";
+import { useIsSimpleMode } from "../../../lib/uiMode/useUiMode";
 import type { FieldDefinition, FieldValueView, TimeSlot } from "../../../api/types";
 import type { ParticipantRow } from "./participantRow";
 
@@ -97,6 +98,7 @@ export function CustomFieldEditor({
   selfId,
 }: CustomFieldEditorProps) {
   const label = fieldValue.label;
+  const isSimple = useIsSimpleMode();
 
   switch (fieldValue.fieldType) {
     case "text":
@@ -208,6 +210,21 @@ export function CustomFieldEditor({
     }
 
     case "coachRelation": {
+      // v0.6.0 F4 (M-S4): coach wishes are ADVANCED-only surface - the value is never touched here
+      // (this same branch backs both ParticipantDrawer's coach-wish MultiSelects and CoachDrawer's
+      // own coachRelation fields), only hidden behind an info note in SIMPLE mode.
+      if (isSimple) {
+        return (
+          <div>
+            <Text size="sm" fw={500}>
+              {label}
+            </Text>
+            <Text size="sm" c="dimmed">
+              {sv.uiMode.handledInAdvanced}
+            </Text>
+          </div>
+        );
+      }
       const options = coaches
         .filter((coach) => coach.id !== selfId)
         .map((coach) => ({ value: coach.id, label: coach.name }));

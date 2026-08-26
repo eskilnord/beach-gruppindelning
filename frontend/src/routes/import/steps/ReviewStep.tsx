@@ -20,8 +20,11 @@ import {
 } from "../../../api/import";
 import { ApiError, isNotFoundError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
+import { AdvancedOnly, SimpleOnly } from "../../../components/uimode/AdvancedOnly";
+import { useIsSimpleMode } from "../../../lib/uiMode/useUiMode";
 import { SessionExpiredPanel } from "../SessionExpiredPanel";
 import { ImportResultView } from "../ImportResultView";
+import { COACH_TARGETS } from "./MappingStep";
 
 interface ReviewStepProps {
   planId: string;
@@ -38,6 +41,7 @@ interface ReviewStepProps {
 export function ReviewStep({ planId, sessionId, onAdjust, onExpired }: ReviewStepProps) {
   const analysisQuery = useImportAnalysis(planId, sessionId);
   const commit = useCommitImport(planId, sessionId);
+  const isSimple = useIsSimpleMode();
   const [templateName, setTemplateName] = useState("");
   const [result, setResult] = useState<ImportCommitResult | null>(null);
 
@@ -105,6 +109,14 @@ export function ReviewStep({ planId, sessionId, onAdjust, onExpired }: ReviewSte
     return labels[target] ?? target;
   };
 
+  // v0.6.0 F4 review fix (FIX 6, MAJOR, decided): SIMPLE mode hides coach-target rows from this
+  // decisions table entirely (never renders the column header, target label, or reason for a
+  // coachName/isCoach mapping) - same COACH_TARGETS vocabulary MappingStep's own disabled-row
+  // filtering uses, exported from there for exactly this reuse. Deliberately UNCHANGED: the commit
+  // payload/mapping submission below (handleCommit) - simple mode hides, it never changes semantics,
+  // so imported coach data still lands in the DB and stays visible in ADVANCED mode.
+  const visibleColumns = isSimple ? analysis.columns.filter((column) => !COACH_TARGETS.has(column.target)) : analysis.columns;
+
   return (
     <Stack gap="md">
       <Title order={4}>{sv.importWizard.review.heading}</Title>
@@ -169,7 +181,7 @@ export function ReviewStep({ planId, sessionId, onAdjust, onExpired }: ReviewSte
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {analysis.columns.map((column) => (
+          {visibleColumns.map((column) => (
             <Table.Tr key={column.columnIndex}>
               <Table.Td>
                 <Group gap="xs">
@@ -205,10 +217,25 @@ export function ReviewStep({ planId, sessionId, onAdjust, onExpired }: ReviewSte
         <Button loading={commit.isPending} onClick={() => void handleCommit()}>
           {sv.importWizard.review.importButton}
         </Button>
-        <Button variant="default" onClick={onAdjust} disabled={commit.isPending}>
-          {sv.importWizard.review.adjustButton}
-        </Button>
+        {/* v0.6.0 F4 (M-S4): "Justera" is the escape hatch into the classic step-by-step wizard on
+            the CONFIDENT path only - this component only ever renders once analysis.readyToCommit is
+            true (the effect above redirects via onAdjust() otherwise), so the non-confident fallback
+            wizard stays reachable regardless of uiMode; only this shortcut is ADVANCED-only. */}
+        <AdvancedOnly>
+          <Button variant="default" onClick={onAdjust} disabled={commit.isPending}>
+            {sv.importWizard.review.adjustButton}
+          </Button>
+        </AdvancedOnly>
       </Group>
+
+      {/* v0.6.0 F4 review fix (minor): SIMPLE mode drops the "Justera" escape hatch above - this
+          dimmed hint tells an admin who spots a mapping mistake in the table how to actually fix it,
+          instead of leaving no path at all. */}
+      <SimpleOnly>
+        <Text size="xs" c="dimmed" data-testid="review-simple-adjust-hint">
+          {sv.importWizard.review.simpleAdjustHint}
+        </Text>
+      </SimpleOnly>
     </Stack>
   );
 }

@@ -320,6 +320,21 @@ function ParticipantDrawerBody({ planId, participant, allParticipants, onClose }
               }))
             }
           />
+          {/* v0.6.0 F4 (M-S4): the solver's own trailing-integer parse of previousGroupName, when the
+              backend exposes it (see api/types.ts's ParticipantProfile doc - additive/nullable ahead
+              of typegen catching up). Neither field is editable here - it's a read-only hint about
+              what the continuity constraint will actually use for the CURRENTLY SAVED value, not the
+              draft above (matches the backend's own re-parse-on-solve timing). */}
+          {participant.previousGroupOrder != null && (
+            <Text size="xs" c="dimmed" data-testid="previous-group-order-hint">
+              {sv.participants.drawer.previousGroupOrderParsed(participant.previousGroupOrder)}
+            </Text>
+          )}
+          {participant.previousGroupParseWarning && (
+            <Text size="xs" c="orange" data-testid="previous-group-parse-warning">
+              {participant.previousGroupParseWarning}
+            </Text>
+          )}
           <NumberInput
             label={sv.participants.drawer.previousGroupLevelLabel}
             value={structuredDraft.previousGroupLevel ?? ""}

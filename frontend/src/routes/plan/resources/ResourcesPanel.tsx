@@ -7,9 +7,12 @@ import { useTrainingBlocksForPlan, useSetCourts, useUpdateTrainingBlockActive } 
 import { useDeleteTimeSlot } from "../../../api/timeSlots";
 import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
+import { AdvancedOnly, SimpleOnly } from "../../../components/uimode/AdvancedOnly";
 import { DeleteConfirmModal } from "../../../components/DeleteConfirmModal";
 import { EmptyState } from "../../../components/EmptyState";
 import { HelpTip } from "../../../components/HelpTip";
+import { useIsSimpleMode } from "../../../lib/uiMode/useUiMode";
+import { SimpleCapacitySummary } from "./SimpleCapacitySummary";
 import { TimeSlotModal } from "./TimeSlotModal";
 import type { SlotBlocksView, TimeSlot, TrainingBlockView } from "../../../api/types";
 
@@ -134,7 +137,14 @@ function SlotRow({ planId, entry, onEdit, onDelete }: SlotRowProps) {
       </Group>
 
       {entry.blocks.length > 0 && (
-        <>
+        // v0.6.0 F4 (M-S4): the per-court active/inactive Switch chips are ADVANCED-only (their
+        // state - a manual exception like "Bana 4 är inte tillgänglig ikväll" - is never touched
+        // here in SIMPLE mode). v0.6.0 F4 review fix (minor, "triple-stated court count"): SIMPLE
+        // used to ALSO get its own read-only "N av M banor aktiva" text block here - redundant with
+        // the blocksCount line already rendered above (unconditionally, both modes) - so an
+        // ADVANCED-set inactive court stays visible in SIMPLE via that existing line alone; this
+        // block itself simply doesn't render anything in SIMPLE now.
+        <AdvancedOnly>
           <Group gap={4} mt="md" mb={4}>
             <Text size="xs" fw={600} c="dimmed">
               {sv.resources.blocksHeading}
@@ -151,7 +161,7 @@ function SlotRow({ planId, entry, onEdit, onDelete }: SlotRowProps) {
               />
             ))}
           </Group>
-        </>
+        </AdvancedOnly>
       )}
     </Card>
   );
@@ -167,6 +177,7 @@ export function ResourcesPanel() {
   const { planId } = useParams<{ planId: string }>();
   const blocksByPlan = useTrainingBlocksForPlan(planId);
   const deleteSlot = useDeleteTimeSlot(planId ?? "");
+  const isSimple = useIsSimpleMode();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<TimeSlot | null>(null);
@@ -189,7 +200,18 @@ export function ResourcesPanel() {
   return (
     <Card withBorder padding="lg">
       <Group justify="space-between" mb="sm">
-        <Title order={4}>{sv.resources.heading}</Title>
+        {/* v0.6.0 F4 (M-S4): simple mode's own heading - the underlying data and every action below
+            (edit/delete/court count/new slot) stay identical, only the framing copy changes.
+            v0.6.0 F4 review fix (minor, "advanced DOM drift"): the wrapping <div> only exists for
+            SIMPLE (where it used to also hold the subheading, now moved below - see FIX 4) - ADVANCED
+            renders the bare Title exactly as it did before this milestone touched this panel. */}
+        {isSimple ? (
+          <div>
+            <Title order={4}>{sv.simple.resources.heading}</Title>
+          </div>
+        ) : (
+          <Title order={4}>{sv.resources.heading}</Title>
+        )}
         <Button
           onClick={() => {
             setEditingSlot(null);
@@ -204,6 +226,14 @@ export function ResourcesPanel() {
 
       {!isEmpty && (
         <>
+          {/* v0.6.0 F4 review fix (FIX 4, MAJOR): only rendered once slots actually exist - the old
+              placement (always under the heading, even for an empty plan) implied slots that weren't
+              there yet. */}
+          {isSimple && (
+            <Text c="dimmed" size="sm" mb="sm" data-testid="simple-resources-subheading">
+              {sv.simple.resources.subheading}
+            </Text>
+          )}
           <Stack gap="md">
             {entries.map((entry) => (
               <SlotRow
@@ -219,9 +249,15 @@ export function ResourcesPanel() {
             ))}
           </Stack>
 
-          <Text size="xs" c="dimmed" mt="md">
-            {sv.resources.exceptionHint}
-          </Text>
+          {/* The manual-exception hint below only makes sense once the (now ADVANCED-only) per-court
+              toggle it explains is visible. */}
+          <AdvancedOnly>
+            <Text size="xs" c="dimmed" mt="md">
+              {sv.resources.exceptionHint}
+            </Text>
+          </AdvancedOnly>
+
+          <SimpleOnly>{planId && <SimpleCapacitySummary planId={planId} />}</SimpleOnly>
         </>
       )}
 

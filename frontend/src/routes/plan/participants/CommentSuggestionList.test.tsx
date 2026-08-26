@@ -5,7 +5,7 @@ import { http, HttpResponse } from "msw";
 import { server } from "../../../test/server";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { sv } from "../../../i18n/sv";
-import { CommentSuggestionList, type SuggestionApplied } from "./CommentSuggestionList";
+import { CommentSuggestionList, visibleSuggestionKinds, type SuggestionApplied } from "./CommentSuggestionList";
 import type { CommentSuggestion, FieldValueView, ParticipantCommentSuggestions, TargetCandidate } from "../../../api/types";
 
 const SUGGESTIONS_URL = "/api/plans/plan-1/participants/participant-1/comment-suggestions";
@@ -212,5 +212,48 @@ describe("CommentSuggestionList", () => {
     renderList();
 
     await waitFor(() => expect(screen.queryByText(sv.participants.suggestions.heading)).not.toBeInTheDocument());
+  });
+});
+
+// v0.6.0 F4 (M-S4): pure filter unit tests for the coach-hiding gate - see the sibling
+// uiModeCoachHiding.test.tsx sweep for the full component-level assertion.
+describe("visibleSuggestionKinds", () => {
+  const ALL_KINDS = [
+    "PLAY_WITH",
+    "MUST_PLAY_WITH",
+    "AVOID_PLAY_WITH",
+    "COACH_WISH",
+    "COACH_AVOID",
+    "TIME_CANNOT",
+    "TIME_PREFER",
+    "NEW_TO_CLUB",
+    "LEVEL_CHANGE",
+    "INJURY_NOTE",
+  ];
+
+  it("passes every kind through unchanged in ADVANCED mode", () => {
+    expect(visibleSuggestionKinds(ALL_KINDS, false)).toEqual(ALL_KINDS);
+  });
+
+  it("drops every COACH_-prefixed kind in SIMPLE mode, keeping the rest in order", () => {
+    expect(visibleSuggestionKinds(ALL_KINDS, true)).toEqual([
+      "PLAY_WITH",
+      "MUST_PLAY_WITH",
+      "AVOID_PLAY_WITH",
+      "TIME_CANNOT",
+      "TIME_PREFER",
+      "NEW_TO_CLUB",
+      "LEVEL_CHANGE",
+      "INJURY_NOTE",
+    ]);
+  });
+
+  it("is a no-op on a list with no COACH_ kinds at all", () => {
+    expect(visibleSuggestionKinds(["PLAY_WITH", "NEW_TO_CLUB"], true)).toEqual(["PLAY_WITH", "NEW_TO_CLUB"]);
+  });
+
+  it("returns an empty array unchanged", () => {
+    expect(visibleSuggestionKinds([], true)).toEqual([]);
+    expect(visibleSuggestionKinds([], false)).toEqual([]);
   });
 });

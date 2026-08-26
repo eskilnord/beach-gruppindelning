@@ -8,6 +8,7 @@ import { useUpdateParticipant } from "../../../api/participants";
 import type { CommentSuggestion, FieldValueView } from "../../../api/types";
 import { HelpTip } from "../../../components/HelpTip";
 import { sv } from "../../../i18n/sv";
+import { useIsSimpleMode } from "../../../lib/uiMode/useUiMode";
 
 /** What changed on successful apply, so the drawer can keep its OWN draft state consistent without
  *  losing unrelated unsaved edits (review fix MAJOR 5) - see {@link CommentSuggestionListProps
@@ -30,6 +31,17 @@ interface CommentSuggestionListProps {
    *  this, the drawer's own resync effect either clobbers unsaved edits (fixed by the dirty-guard
    *  there) or leaves the Switch/field showing a stale value until the next full reload. */
   onApplied: (change: SuggestionApplied) => void;
+}
+
+/**
+ * v0.6.0 F4 (M-S4): pure filter for which suggestion `kind`s should render in the current uiMode -
+ * COACH_WISH/COACH_AVOID (the only two kinds with a "COACH_" prefix, see CommentSuggestion.kind's
+ * schema) are ADVANCED-only, matching CustomFieldEditor's coachRelation gating one screen over.
+ * Exported (rather than inlined in the component) so it's independently unit-testable without a full
+ * CommentSuggestion fixture - see CommentSuggestionList.test.tsx.
+ */
+export function visibleSuggestionKinds(kinds: string[], isSimple: boolean): string[] {
+  return isSimple ? kinds.filter((kind) => !kind.startsWith("COACH_")) : kinds;
 }
 
 function currentArray(fieldValues: FieldValueView[], fieldKey: string | undefined): string[] {
@@ -84,12 +96,16 @@ export function CommentSuggestionList({ planId, participantId, fieldValues, fiel
   const updateParticipant = useUpdateParticipant(planId);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [chosenByFingerprint, setChosenByFingerprint] = useState<Record<string, string>>({});
+  const isSimple = useIsSimpleMode();
 
   if (suggestionsQuery.isLoading) {
     return <Loader size="xs" />;
   }
 
-  const suggestions = (suggestionsQuery.data?.suggestions ?? []).filter((s) => !dismissed.has(s.fingerprint));
+  const allowedKinds = new Set(visibleSuggestionKinds((suggestionsQuery.data?.suggestions ?? []).map((s) => s.kind), isSimple));
+  const suggestions = (suggestionsQuery.data?.suggestions ?? []).filter(
+    (s) => !dismissed.has(s.fingerprint) && allowedKinds.has(s.kind),
+  );
   if (suggestions.length === 0) {
     return null;
   }

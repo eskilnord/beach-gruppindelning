@@ -51,10 +51,20 @@ export type Person = WithRequired<
   components["schemas"]["Person"],
   "id" | "firstName" | "lastName" | "canBeParticipant" | "canBeCoach"
 >;
+/** v0.6.0 F4 (M-S4): `previousGroupOrder`/`previousGroupParseWarning` mirror the solver's own
+ *  `SolverInputAssembler#previousGroupOrderOf` (backend, PlayerAssignment.previousGroupOrder) - the
+ *  trailing-integer parse of `previousGroupName` ("Herr 3" -> 3) the group-continuity soft
+ *  constraint uses. Not in schema.d.ts yet (only the solver-internal domain object has it today,
+ *  not the ParticipantProfile API DTO) - hand-added here as additive/nullable ahead of typegen
+ *  catching up, per this milestone's brief; ParticipantDrawer renders them only when present, so a
+ *  checkout without the backend field yet degrades to simply not showing the hint. */
 export type ParticipantProfile = WithRequired<
   components["schemas"]["ParticipantProfile"],
   "id" | "personId" | "activityPlanId" | "manualReviewFlag" | "waitlisted" | "reviewedDone"
->;
+> & {
+  previousGroupOrder?: number | null;
+  previousGroupParseWarning?: string | null;
+};
 export type FieldDefinition = WithRequired<
   components["schemas"]["FieldDefinition"],
   "id" | "key" | "label" | "fieldType" | "isStandard" | "storageKind" | "affectsOptimization" | "constraintType"

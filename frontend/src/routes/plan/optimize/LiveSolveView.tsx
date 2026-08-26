@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Anchor, Badge, Card, Group as MantineGroup, SimpleGrid, Stack, Text, Title } from "@mantine/core";
 import type { LiveGroup, LivePlayer, LiveSnapshot } from "../../../api/types";
+import { AdvancedOnly } from "../../../components/uimode/AdvancedOnly";
 import { sv } from "../../../i18n/sv";
 import { formatScoreLine } from "./scoreFormat";
 
@@ -218,10 +219,16 @@ export function LiveSolveView({ planId, snapshot, running }: LiveSolveViewProps)
       </MantineGroup>
       {/* Distinct testid from the existing solve-progress card's `live-score-line` (OptimizePanel.tsx)
           - both render simultaneously while a solve is running, so reusing that id would create a
-          duplicate on the page and break its Playwright selector's single-match assumption. */}
-      <Text size="sm" c="dimmed" mb="sm" data-testid="live-solve-score-line">
-        {formatScoreLine({ hard: snapshot.hard, soft: snapshot.soft, unassignedCount: snapshot.waitlist.length })}
-      </Text>
+          duplicate on the page and break its Playwright selector's single-match assumption.
+          v0.6.0 F4 (M-S4): wrapped <AdvancedOnly> - this raw hard/waitlist/soft score line is exactly
+          the jargon OptimizePanelSimple.tsx replaces with calm copy (sv.simple.optimize.working) for
+          its own progress card; ADVANCED is pixel-identical (AdvancedOnly renders children unchanged
+          there). */}
+      <AdvancedOnly>
+        <Text size="sm" c="dimmed" mb="sm" data-testid="live-solve-score-line">
+          {formatScoreLine({ hard: snapshot.hard, soft: snapshot.soft, unassignedCount: snapshot.waitlist.length })}
+        </Text>
+      </AdvancedOnly>
 
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xs" mb="sm">
         {snapshot.groups.map((group) => (

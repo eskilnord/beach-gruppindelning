@@ -245,6 +245,11 @@ export const sv = {
       structuredHeading: "Strukturerade fält",
       manualLevelScoreLabel: "Manuell nivåscore",
       previousGroupNameLabel: "Tidigare grupp",
+      // v0.6.0 F4 (M-S4): the solver's own trailing-integer parse of previousGroupName ("Herr 3" ->
+      // 3, SolverInputAssembler#previousGroupOrderOf) - shown under the input so it's clear what the
+      // continuity constraint will actually use. previousGroupParseWarning (when present) is the
+      // backend's own Swedish text, rendered verbatim - see api/types.ts's ParticipantProfile doc.
+      previousGroupOrderParsed: (n: number) => `Tolkas som grupp ${n}`,
       previousGroupLevelLabel: "Tidigare gruppnivå",
       waitlistedLabel: "Kölista",
       manualReviewFlagLabel: "Behöver granskning",
@@ -328,6 +333,10 @@ export const sv = {
       reasonHeader: "Varför",
       importButton: "Importera",
       adjustButton: "Justera",
+      // v0.6.0 F4 review fix (minor): SIMPLE mode hides "Justera" entirely (the escape hatch into the
+      // step-by-step wizard is ADVANCED-only, see ReviewStep.tsx) - this dimmed hint tells a SIMPLE
+      // admin who spots a mapping mistake in the table how to actually fix it.
+      simpleAdjustHint: "Fel i tabellen? Byt till avancerat läge för att justera.",
     },
     sessionExpired: {
       title: "Sessionen har gått ut",
@@ -1519,6 +1528,71 @@ export const sv = {
     priorities: {
       placeholder: "Prioriteringar kommer i nästa steg av ombyggnaden.",
     },
+    // v0.6.0 F4 (M-S4): OptimizePanelSimple.tsx - the reduced "Skapa grupper" primary flow that
+    // replaces OptimizePanel's full advanced surface in SIMPLE mode.
+    optimize: {
+      heading: "Skapa grupper",
+      intro: "Skapa och fördela grupperna automatiskt utifrån deltagare, tider och prioriteringar.",
+      readinessHeading: "Redo att skapa grupper?",
+      readiness: {
+        participants: (n: number) => pluralize(n, "deltagare", "deltagare"),
+        resources: (slots: number, courts: number) => `${pluralize(slots, "tid", "tider")}, ${pluralize(courts, "bana", "banor")}`,
+      },
+      // v0.6.0 F4 review fix (minor): a separate actionable CTA for the not-ready state of each
+      // readiness row, instead of reusing the descriptive "0 deltagare"/"0 tider, 0 banor" text as
+      // the clickable link label - those read like a stat, not an instruction.
+      missingLabel: {
+        participants: "Lägg till deltagare",
+        resources: "Lägg till träningstider",
+      },
+      notReadyTooltip: "Lägg till det som saknas i listan ovan innan grupperna kan skapas.",
+      createButton: "Skapa grupper",
+      durationEstimate: (n: number) => `Tar ungefär ${n} sekunder.`,
+      durationCalculating: "Beräknar…",
+      // Calm replacement for the advanced progress card's jargon-heavy score line (hårda brott/
+      // kölista/mjukt) while a solve is running - see LiveSolveView.tsx's own score line, which is
+      // wrapped <AdvancedOnly> for the same reason.
+      working: "Optimeringen arbetar för att hitta de bästa grupperna…",
+      // v0.6.0 F4 review fix (FIX 1, BLOCKER): honest terminal-state copy - see OptimizePanelSimple's
+      // outcome switch. successAlert is the ONLY one of these that gets to say "Klart!".
+      successAlert: (n: number) => (n === 1 ? "Klart! 1 grupp skapad." : `Klart! ${n} grupper skapade.`),
+      failedAlert: "Optimeringen misslyckades. Försök igen.",
+      cancelledAlert: "Optimeringen avbröts. Grupperna som hann bli klara är sparade.",
+      infeasibleAlert: "Grupperna är skapade, men de har regelbrott – öppna Resultat för detaljer.",
+      viewGroupsButton: "Visa grupperna →",
+      customWeightsHint: "Anpassade vikter används – se Prioriteringar",
+      lastRunWhen: (text: string) => `Senast körd: ${text}`,
+      generateGroupsFailed: "Kunde inte skapa grupperna",
+      startFailed: "Kunde inte starta optimeringen",
+      // v0.6.0 F4 review fix (FIX 7): generic prerequisite-load-failed state (participants/resources/
+      // groups/sync-status) - the checklist is suppressed entirely while this shows, so it never
+      // implies "0 deltagare" for a plan that failed to load rather than one that's genuinely empty.
+      loadFailed: "Det gick inte att läsa in det som behövs för att skapa grupper.",
+      retryButton: "Försök igen",
+    },
+    // v0.6.0 F4 (M-S4): ResourcesPanel's simple-mode heading/subheading + the per-slot "N (av M)
+    // banor" summary replacing the advanced per-court Switch chips.
+    resources: {
+      heading: "Kontrollera träningstiderna",
+      // v0.6.0 F4 review fix (FIX 4, MAJOR): was "Vi har lagt in klubbens vanliga torsdagstider..." -
+      // false for a plan whose slots were edited, imported from a template, or never touched the
+      // seeded Thursday defaults at all. Honest framing: an instruction, not a claim about origin.
+      subheading: "Kontrollera att tiderna stämmer. Ändra om det behövs.",
+    },
+    // v0.6.0 F4 (M-S4): SimpleCapacitySummary.tsx, rendered under ResourcesPanel's slot list.
+    capacity: {
+      summary: (capacity: number, groups: number, registered: number) =>
+        `Plats för ungefär ${capacity} deltagare i ${pluralize(groups, "grupp", "grupper")}. Ni har ${registered} anmälda.`,
+      summaryUnknown: (registered: number) =>
+        `Standardstorlekar för grupper är inte satta ännu, så kapaciteten kan inte beräknas. Ni har ${registered} anmälda.`,
+    },
+    // v0.6.0 F4 (M-S4): the summary strip above ParticipantsPanel's grid in SIMPLE mode.
+    participants: {
+      summary: {
+        total: (n: number) => pluralize(n, "deltagare", "deltagare"),
+        withoutLevel: (n: number) => `${n} utan nivå`,
+      },
+    },
   },
   uiMode: {
     navLabel: "Avancerat läge",
@@ -1538,6 +1612,11 @@ export const sv = {
     },
     saveFailedNoticeTitle: "Kunde inte spara centralt",
     saveFailedNotice: "Läget gäller den här datorn, men kunde inte sparas centralt.",
+    // v0.6.0 F4 (M-S4): shared note for a coach-related control that's hidden/disabled (never its
+    // underlying value touched) in SIMPLE mode - CustomFieldEditor's coachRelation case,
+    // ParticipantDrawer's coach wish MultiSelects (the same CustomFieldEditor case, rendered there),
+    // and MappingStep's auto-suggested coach-target row.
+    handledInAdvanced: "Hanteras i avancerat läge",
   },
 } as const;
 
