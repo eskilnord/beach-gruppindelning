@@ -90,6 +90,26 @@ export interface StepCompletionInput {
   participantsCount: number | undefined;
   timeSlotsCount: number | undefined;
   optimizationRunsCount: number | undefined;
+  /** v0.6.0 F3 (M-S3): the loaded `GET /api/plans/{planId}/priority-order` view, reduced to just
+   *  the two fields {@link priorityCompletion} needs - `undefined` while that query hasn't resolved
+   *  yet (same "no signal" treatment as the other three inputs above). See PlanSimpleStepper.tsx for
+   *  how this is derived from `usePriorityOrder`'s full response. */
+  priorityOrder: PriorityOrderCompletionInput | undefined;
+}
+
+/** See {@link StepCompletionInput.priorityOrder}'s doc comment. */
+export interface PriorityOrderCompletionInput {
+  customWeightsActive: boolean;
+  /** The current rank-1 priority's backend-supplied `labelSv` (e.g. "Träna tillsammans") - rendered
+   *  verbatim in the step description, same "no client-side wording" rule the real Prioriteringar
+   *  screen (PrioritiesPanel.tsx) follows. */
+  topPriorityLabelSv: string;
+  /** v0.6.0 F3 review fix (FIX 4, MAJOR): `PriorityOrderView.updatedAt` - `null` until the order has
+   *  ever been explicitly saved (api/priorityOrder.ts's doc comment). Drives {@link priorityCompletion}
+   *  below: gates the checkmark on an ACTUAL save having happened, not merely on the query having
+   *  resolved (every plan's GET resolves immediately with a seeded default order, even one nobody has
+   *  ever looked at). */
+  updatedAt: string | null;
 }
 
 function countCompletion(count: number | undefined, singular: string, plural: string): StepCompletion {
@@ -97,6 +117,35 @@ function countCompletion(count: number | undefined, singular: string, plural: st
     return { completed: undefined, description: undefined };
   }
   return { completed: count > 0, description: pluralize(count, singular, plural) };
+}
+
+/**
+ * v0.6.0 F3 (M-S3), review fix FIX 4 (MAJOR): unlike the three live-COUNT steps above (which are
+ * "not completed" until a count is actually positive), every plan is seeded with a default
+ * priority order the moment the query resolves - so "the GET resolved" is never by itself evidence
+ * the admin has actually engaged with this screen. `completed` therefore gates on
+ * `updatedAt !== null` (api/priorityOrder.ts's doc comment: `null` until the order has ever been
+ * explicitly PUT, either via a reorder or the "Återställ till prioriteringsordning" reset flow) -
+ * the same bar this milestone's other completion signals use ("has the admin actually done
+ * something here", not "did a query resolve").
+ *
+ * The DESCRIPTION is deliberately unconditional on that gate: it always shows the live current
+ * state (top priority, or "Anpassade vikter" once advanced-mode weight edits have moved the plan
+ * off the order-driven ladder - see PriorityOrderView.customWeightsActive's own doc comment) the
+ * moment the query has resolved, regardless of whether a save has ever happened - an un-saved
+ * default order is still real, current information worth showing, even without a checkmark next to
+ * it.
+ */
+function priorityCompletion(input: PriorityOrderCompletionInput | undefined): StepCompletion {
+  if (input === undefined) {
+    return { completed: undefined, description: sv.simple.stepDescriptions.prioriteringar };
+  }
+  return {
+    completed: input.updatedAt !== null,
+    description: input.customWeightsActive
+      ? sv.simple.stepDescriptions.prioritiesCustomWeights
+      : sv.simple.stepDescriptions.prioritiesTopPriority(input.topPriorityLabelSv),
+  };
 }
 
 /**
@@ -108,8 +157,7 @@ export function completionFor(input: StepCompletionInput): StepCompletion[] {
   return [
     countCompletion(input.participantsCount, "deltagare", "deltagare"),
     countCompletion(input.timeSlotsCount, "tid", "tider"),
-    // Prioriteringar: placeholder route (F3 replaces it) - no signal to derive completion from yet.
-    { completed: undefined, description: sv.simple.stepDescriptions.prioriteringar },
+    priorityCompletion(input.priorityOrder),
     countCompletion(input.optimizationRunsCount, "körning", "körningar"),
     // Resultat: mirrors "has an optimization run" too closely to be a meaningfully distinct signal
     // without an extra backend call (e.g. "does the latest run have assigned groups") - left

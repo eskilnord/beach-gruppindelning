@@ -658,6 +658,9 @@ export const sv = {
   constraintWeights: {
     heading: "Konfiguration",
     subheading: "Standardconstraints som styr optimeringen för den här planen.",
+    // v0.6.0 F3 (M-S3): anchor above the table pointing at the new Prioriteringar screen, which owns
+    // the six bucket constraints' weights by default - see ConstraintWeightsTable.tsx.
+    priorityOrderLink: "Ordningen styrs av Prioriteringar",
     // Adversarial review (post-WP4): every sentence here must be checked against what the app
     // ACTUALLY does before shipping - this tool has a strict never-lie-in-UI history.
     //  - "bryts aldrig" was false: several HARD rows ARE disableable, HARD rows are penalties (not
@@ -1517,7 +1520,13 @@ export const sv = {
     // (planSimpleSteps.ts) has no cheap live-number signal for, so every step in the stepper still
     // renders a description line (even heights) instead of three of the six looking randomly blank.
     stepDescriptions: {
+      // v0.6.0 F3 (M-S3): "prioriteringar" is now only the fallback shown while the real
+      // priority-order query hasn't resolved yet (loading/erroring) - PlanSimpleStepper.tsx switches
+      // to prioritiesTopPriority/prioritiesCustomWeights below once it has (planSimpleSteps.ts's
+      // completionFor).
       prioriteringar: "Ordna vad som är viktigast",
+      prioritiesTopPriority: (topPriorityLabelSv: string) => `Viktigast: ${topPriorityLabelSv}`,
+      prioritiesCustomWeights: "Anpassade vikter",
       resultat: "Granska grupperna",
       exportera: "Exportera resultatet",
     },
@@ -1525,8 +1534,65 @@ export const sv = {
       back: "Tillbaka",
       next: (label: string) => `Nästa: ${label} →`,
     },
+    // v0.6.0 F3 (M-S3): PrioritiesPanel.tsx/PriorityRankList.tsx - the real "Vad är viktigast?"
+    // ranking screen replacing the F2 placeholder. Row TITLES come from the backend's own labelSv
+    // (single source of truth, rendered verbatim) - only the four one-line EXPLANATIONS below are
+    // frontend copy, keyed by PriorityKey.
     priorities: {
-      placeholder: "Prioriteringar kommer i nästa steg av ombyggnaden.",
+      heading: "Vad är viktigast?",
+      intro: "Dra eller använd pilarna för att ordna. Det som står högst upp får störst betydelse när grupperna sätts.",
+      explanations: {
+        TRAIN_TOGETHER:
+          "Spelare som önskat varandra hamnar i samma grupp – gäller även önskemål att inte spela ihop.",
+        PREVIOUS_GROUP: "Spelare får fortsätta i den grupp de tränade i förra terminen.",
+        PREFERRED_TIME: "Spelare får den träningstid de önskat.",
+        LEVEL: "Grupperna hålls jämna i nivå.",
+      },
+      moveUpAriaLabel: (labelSv: string) => `Flytta ${labelSv} uppåt`,
+      moveDownAriaLabel: (labelSv: string) => `Flytta ${labelSv} nedåt`,
+      saving: "Sparar…",
+      saved: "Sparat ✓",
+      saveFailed: "Det gick inte att spara ordningen.",
+      retryButton: "Försök igen",
+      loadFailed: "Det gick inte att läsa in prioriteringarna.",
+      interpretationHeading: "Så här tolkas ordningen",
+      staleAlert: {
+        // v0.6.0 F3 review fix (FIX 7, MAJOR, honest stale-callout copy): the backend's
+        // `staleSinceLastRun` flag bumps on ANY plan change (participants, tider, fält, prioriteringar
+        // - all of it), not specifically the priority order. The old copy ("Prioriteringarna har
+        // ändrats...") claimed a cause this screen can't actually verify - reworded to the true,
+        // narrower claim.
+        message:
+          "Planen har ändrats efter den senaste optimeringen. Kör optimeringen igen så att resultatet stämmer med dagens inställningar.",
+        button: "Gå till Optimera",
+      },
+      overridesAlert: {
+        title: "Anpassade vikter används",
+        // v0.6.0 F3 review fix (FIX 6, MAJOR, inference honesty): the trailing sentence makes clear
+        // the order shown below is the backend's best-effort INFERENCE from the custom weights, not
+        // an admin-confirmed ranking - see PriorityOrderView.customWeightsActive's doc comment.
+        body: "Den här planen har inställningar som gjorts i avancerat läge. Prioriteringsordningen nedan styr därför inte optimeringen just nu. Ordningen nedan är vår tolkning av de anpassade vikterna.",
+        openAdvancedButton: "Öppna avancerat läge",
+        resetButton: "Återställ till prioriteringsordning",
+      },
+      otherOverridesNote: "Planen har även egna inställningar utanför prioriteringarna (avancerat läge).",
+      // v0.6.0 F3 review fix (FIX 5, MAJOR): shown under a row's explanation when its `enabled` is
+      // false - the row still renders (never hidden), but explicitly disclaims that it doesn't
+      // currently affect optimization, so the ranking doesn't silently imply an effect that isn't
+      // there.
+      disabledRuleNote:
+        "En regel i den här prioriteringen är avstängd i avancerat läge – den påverkar inte optimeringen just nu.",
+      resetConfirm: {
+        title: "Återställ till prioriteringsordning",
+        // v0.6.0 F3 review fix (FIX 6, MAJOR): states plainly that the reset PUTs the order AS SHOWN
+        // on screen (PrioritiesPanel.tsx's handleResetConfirm sends `displayOrder`, not the raw
+        // `data.order` - FIX 3) - so an admin who has an unsaved local reorder pending sees exactly
+        // what they're about to confirm, not a silent surprise.
+        message:
+          "Detta återställer de sex prioriteringsreglerna till vikterna som ordningen nedan ger. Ordningen som visas blir då den som gäller, och de anpassade vikterna ersätts. Andra inställningar i avancerat läge påverkas inte.",
+        confirmLabel: "Återställ",
+      },
+      resetFailed: "Det gick inte att återställa prioriteringsordningen.",
     },
     // v0.6.0 F4 (M-S4): OptimizePanelSimple.tsx - the reduced "Skapa grupper" primary flow that
     // replaces OptimizePanel's full advanced surface in SIMPLE mode.

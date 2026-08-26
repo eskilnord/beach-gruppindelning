@@ -49,6 +49,7 @@ describe("completionFor", () => {
     participantsCount: undefined,
     timeSlotsCount: undefined,
     optimizationRunsCount: undefined,
+    priorityOrder: undefined,
   };
 
   it("leaves the three live-count steps un-checked with no description when nothing has loaded yet", () => {
@@ -85,12 +86,49 @@ describe("completionFor", () => {
     });
   });
 
-  // v0.6.0 F2 review fix (FIX 8): Prioriteringar/Resultat/Exportera never have a live count to derive
-  // completion from, but they now DO get a static fallback description (sv.simple.stepDescriptions)
-  // so every step in the stepper renders a description line - not just the three with a cheap signal.
-  it("Prioriteringar: always un-checked, static fallback description (F3 placeholder route)", () => {
-    const result = completionFor({ participantsCount: 260, timeSlotsCount: 3, optimizationRunsCount: 2 });
+  // v0.6.0 F2 review fix (FIX 8): Resultat/Exportera never have a live count to derive completion
+  // from, but they DO get a static fallback description (sv.simple.stepDescriptions) so every step
+  // in the stepper renders a description line - not just the ones with a cheap signal.
+  it("Prioriteringar: no signal (query not loaded) - un-checked, static fallback description", () => {
+    const result = completionFor({ participantsCount: 260, timeSlotsCount: 3, optimizationRunsCount: 2, priorityOrder: undefined });
     expect(result[2]).toEqual({ completed: undefined, description: sv.simple.stepDescriptions.prioriteringar });
+  });
+
+  // v0.6.0 F3 (M-S3), review fix FIX 4 (MAJOR): once the real priority-order query resolves, the
+  // DESCRIPTION always reflects the actual current state, not a static placeholder - but `completed`
+  // now gates on `updatedAt !== null` (the order has actually been explicitly saved at least once),
+  // not merely on the query having resolved - see priorityCompletion's own doc comment for why
+  // "resolved" alone isn't evidence of anything (every plan is seeded with a default order).
+  describe("Prioriteringar: once the priority-order query has resolved", () => {
+    it("shows the top priority AND checks the step once the order has actually been saved (updatedAt set)", () => {
+      const result = completionFor({
+        participantsCount: 260,
+        timeSlotsCount: 3,
+        optimizationRunsCount: 2,
+        priorityOrder: { customWeightsActive: false, topPriorityLabelSv: "Träna tillsammans", updatedAt: "2026-01-01T00:00:00Z" },
+      });
+      expect(result[2]).toEqual({ completed: true, description: "Viktigast: Träna tillsammans" });
+    });
+
+    it("shows the top priority but does NOT check the step while the order has never been saved (updatedAt null)", () => {
+      const result = completionFor({
+        participantsCount: 260,
+        timeSlotsCount: 3,
+        optimizationRunsCount: 2,
+        priorityOrder: { customWeightsActive: false, topPriorityLabelSv: "Träna tillsammans", updatedAt: null },
+      });
+      expect(result[2]).toEqual({ completed: false, description: "Viktigast: Träna tillsammans" });
+    });
+
+    it("shows 'Anpassade vikter' when advanced-mode weight edits have moved the plan off the order ladder", () => {
+      const result = completionFor({
+        participantsCount: 260,
+        timeSlotsCount: 3,
+        optimizationRunsCount: 2,
+        priorityOrder: { customWeightsActive: true, topPriorityLabelSv: "Träna tillsammans", updatedAt: "2026-01-01T00:00:00Z" },
+      });
+      expect(result[2]).toEqual({ completed: true, description: sv.simple.stepDescriptions.prioritiesCustomWeights });
+    });
   });
 
   it("Optimera: completed + run count once runs are loaded", () => {
@@ -109,7 +147,7 @@ describe("completionFor", () => {
   });
 
   it("Resultat: always un-checked, static fallback description (no cheap distinct signal)", () => {
-    const result = completionFor({ participantsCount: 260, timeSlotsCount: 3, optimizationRunsCount: 2 });
+    const result = completionFor({ ...EMPTY, participantsCount: 260, timeSlotsCount: 3, optimizationRunsCount: 2 });
     expect(result[4]).toEqual({ completed: undefined, description: sv.simple.stepDescriptions.resultat });
   });
 
@@ -118,7 +156,7 @@ describe("completionFor", () => {
   // the export route this milestone). Now behaves like Prioriteringar/Resultat: always un-checked,
   // static fallback description, regardless of input.
   it("Exportera: always un-checked, static fallback description (saving not reachable from this step yet)", () => {
-    const result = completionFor({ participantsCount: 260, timeSlotsCount: 3, optimizationRunsCount: 2 });
+    const result = completionFor({ ...EMPTY, participantsCount: 260, timeSlotsCount: 3, optimizationRunsCount: 2 });
     expect(result[5]).toEqual({ completed: undefined, description: sv.simple.stepDescriptions.exportera });
   });
 });

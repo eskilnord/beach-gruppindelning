@@ -3,6 +3,7 @@ import { Stepper, type MantineColor } from "@mantine/core";
 import { IconCheck } from "@tabler/icons-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useParticipants } from "../../api/participants";
+import { usePriorityOrder } from "../../api/priorityOrder";
 import { useTimeSlots } from "../../api/timeSlots";
 import { useOptimizationRuns } from "../../api/runs";
 import { sv } from "../../i18n/sv";
@@ -38,6 +39,7 @@ export function PlanSimpleStepper({ planId }: PlanSimpleStepperProps) {
   const participants = useParticipants(planId);
   const timeSlots = useTimeSlots(planId);
   const runs = useOptimizationRuns(planId);
+  const priorityOrder = usePriorityOrder(planId);
 
   // v0.6.0 F2 review fix (FIX 9): a failed query renders exactly like a still-loading one here
   // (`.data` stays undefined either way, so completionFor sees the same "no signal") - by design.
@@ -47,6 +49,20 @@ export function PlanSimpleStepper({ planId }: PlanSimpleStepperProps) {
     participantsCount: participants.data?.length,
     timeSlotsCount: timeSlots.data?.length,
     optimizationRunsCount: runs.data?.length,
+    // v0.6.0 F3 (M-S3): reduced to just what completionFor needs - the top-ranked priority's
+    // backend-supplied labelSv (rank 1 in the `priorities` array, which is index-aligned with
+    // `order`) plus customWeightsActive. `order[0]` (not a `.find(rank === 1)`) since that's the
+    // exact same "current top priority" PrioritiesPanel.tsx itself renders first.
+    priorityOrder: priorityOrder.data
+      ? {
+          customWeightsActive: priorityOrder.data.customWeightsActive,
+          topPriorityLabelSv:
+            priorityOrder.data.priorities.find((row) => row.key === priorityOrder.data!.order[0])?.labelSv ?? "",
+          // v0.6.0 F3 review fix (FIX 4): drives priorityCompletion's checkmark gate - see
+          // planSimpleSteps.ts's doc comment.
+          updatedAt: priorityOrder.data.updatedAt,
+        }
+      : undefined,
   });
 
   const active = resolveSimpleStepIndex(location.pathname);

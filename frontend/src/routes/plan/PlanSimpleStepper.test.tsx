@@ -7,6 +7,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { server } from "../../test/server";
 import { sv } from "../../i18n/sv";
+import type { PriorityOrderView } from "../../api/priorityOrder";
 import { SIMPLE_STEPS } from "./planSimpleSteps";
 import { PlanSimpleStepper } from "./PlanSimpleStepper";
 
@@ -37,10 +38,42 @@ function renderStepper(initialPath: string) {
   );
 }
 
+// v0.6.0 F3 (M-S3): a fully-resolved, "normal" priority-order response - top priority TRAIN_TOGETHER
+// ("Träna tillsammans"), weights matching the order (customWeightsActive: false). `updatedAt` is a
+// real timestamp (v0.6.0 F3 review fix, FIX 4: this fixture represents a plan whose order HAS been
+// explicitly saved at least once, which is what actually drives the step's checkmark - see
+// planSimpleSteps.ts's priorityCompletion doc comment) - `mockPlanData({ priorityOrder: { ...
+// DEFAULT_PRIORITY_ORDER, updatedAt: null } })` is used instead wherever a test specifically needs
+// the "never saved" (no checkmark) state. Individual tests override just this handler
+// (mockPriorityOrderError below) when they need a different state.
+const DEFAULT_PRIORITY_ORDER: PriorityOrderView = {
+  order: ["TRAIN_TOGETHER", "PREVIOUS_GROUP", "PREFERRED_TIME", "LEVEL"],
+  defaultOrder: ["TRAIN_TOGETHER", "PREVIOUS_GROUP", "PREFERRED_TIME", "LEVEL"],
+  matchesOrder: true,
+  customWeightsActive: false,
+  otherOverridesActive: false,
+  staleSinceLastRun: false,
+  updatedAt: "2026-01-01T00:00:00Z",
+  priorities: [
+    { key: "TRAIN_TOGETHER", rank: 1, labelSv: "Träna tillsammans", summarySv: "", constraintKeys: [], weights: {}, enabled: true },
+    { key: "PREVIOUS_GROUP", rank: 2, labelSv: "Fortsätta i samma grupp", summarySv: "", constraintKeys: [], weights: {}, enabled: true },
+    { key: "PREFERRED_TIME", rank: 3, labelSv: "Önskad tid", summarySv: "", constraintKeys: [], weights: {}, enabled: true },
+    { key: "LEVEL", rank: 4, labelSv: "Jämn nivå", summarySv: "", constraintKeys: [], weights: {}, enabled: true },
+  ],
+};
+
 /** `participants`/`timeSlots`/`runs` default to a "fully loaded, non-empty" plan (260/3/0 - matches
  *  the pre-existing live-number description assertions below). saved-plans is deliberately NOT
- *  mocked here any more (v0.6.0 F2 review fix, FIX 3): PlanSimpleStepper no longer queries it. */
-function mockPlanData({ participants = 260, timeSlots = 3, runs = 0 } = {}) {
+ *  mocked here any more (v0.6.0 F2 review fix, FIX 3): PlanSimpleStepper no longer queries it.
+ *  `priorityOrder` (v0.6.0 F3) defaults to {@link DEFAULT_PRIORITY_ORDER} - pass `null` to instead
+ *  make that endpoint error, for tests that need Prioriteringar's completion signal to stay
+ *  unresolved (`undefined`, same as a still-loading query). */
+function mockPlanData({
+  participants = 260,
+  timeSlots = 3,
+  runs = 0,
+  priorityOrder = DEFAULT_PRIORITY_ORDER as PriorityOrderView | null,
+} = {}) {
   server.use(
     http.get(`/api/plans/${PLAN_ID}/participants`, () =>
       HttpResponse.json(Array.from({ length: participants }, (_, i) => ({ id: `p${i}` }))),
@@ -49,6 +82,9 @@ function mockPlanData({ participants = 260, timeSlots = 3, runs = 0 } = {}) {
       HttpResponse.json(Array.from({ length: timeSlots }, (_, i) => ({ id: `t${i}` }))),
     ),
     http.get(`/api/plans/${PLAN_ID}/runs`, () => HttpResponse.json(Array.from({ length: runs }, (_, i) => ({ id: `r${i}` })))),
+    http.get(`/api/plans/${PLAN_ID}/priority-order`, () =>
+      priorityOrder ? HttpResponse.json(priorityOrder) : HttpResponse.json({ error: "not found" }, { status: 404 }),
+    ),
   );
 }
 
@@ -90,18 +126,30 @@ describe("PlanSimpleStepper", () => {
     expect(await within(screen.getByTestId("plan-simple-step-tider")).findByText("3 tider")).toBeInTheDocument();
   });
 
-  it("Prioriteringar/Resultat/Exportera fall back to a static description - all six steps render one (FIX 8)", async () => {
+  it("Resultat/Exportera fall back to a static description; Prioriteringar (F3) shows its live top priority - all six steps render one (FIX 8)", async () => {
     mockPlanData();
     renderStepper(`/plans/${PLAN_ID}/deltagare`);
 
+    // v0.6.0 F3: once the real priority-order query resolves, Prioriteringar's description is the
+    // current top priority's backend labelSv, not the static F2 placeholder fallback any more - see
+    // planSimpleSteps.ts's priorityCompletion doc comment.
     expect(
-      await within(screen.getByTestId("plan-simple-step-prioriteringar")).findByText(sv.simple.stepDescriptions.prioriteringar),
+      await within(screen.getByTestId("plan-simple-step-prioriteringar")).findByText("Viktigast: Träna tillsammans"),
     ).toBeInTheDocument();
     expect(
       await within(screen.getByTestId("plan-simple-step-resultat")).findByText(sv.simple.stepDescriptions.resultat),
     ).toBeInTheDocument();
     expect(
       await within(screen.getByTestId("plan-simple-step-exportera")).findByText(sv.simple.stepDescriptions.exportera),
+    ).toBeInTheDocument();
+  });
+
+  it("Prioriteringar falls back to the static placeholder description while its query hasn't resolved yet (F3)", async () => {
+    mockPlanData({ priorityOrder: null });
+    renderStepper(`/plans/${PLAN_ID}/deltagare`);
+
+    expect(
+      await within(screen.getByTestId("plan-simple-step-prioriteringar")).findByText(sv.simple.stepDescriptions.prioriteringar),
     ).toBeInTheDocument();
   });
 
@@ -121,18 +169,31 @@ describe("PlanSimpleStepper", () => {
   // fix: the rendered checkmark now tracks `completed`, not just position.
   describe("checkmarks track completed data, not just step position (FIX 1)", () => {
     it("an empty plan on the last step (Exportera) shows no checkmarks at all", async () => {
-      mockPlanData({ participants: 0, timeSlots: 0, runs: 0 });
+      // v0.6.0 F3 review fix (FIX 4, MAJOR): a REAL, resolved priority-order fixture (not a 404) with
+      // `updatedAt: null` - the order has never actually been saved, so Prioriteringar must show no
+      // checkmark either, same as every other un-passed/unconfirmed step. (Previously this test used
+      // `priorityOrder: null` - a 404 - to neuter Prioriteringar's signal instead of actually
+      // asserting the real "never saved" state; that's no longer necessary now that `completed` is
+      // gated on `updatedAt`, not just "the query resolved".)
+      mockPlanData({
+        participants: 0,
+        timeSlots: 0,
+        runs: 0,
+        priorityOrder: { ...DEFAULT_PRIORITY_ORDER, updatedAt: null },
+      });
       renderStepper(`/plans/${PLAN_ID}/export`);
 
       // Wait for the live-number queries to settle (0 deltagare) so we're not just observing the
       // still-loading state, which also has no checkmarks for an unrelated reason.
       await within(screen.getByTestId("plan-simple-step-deltagare")).findByText("0 deltagare");
+      await within(screen.getByTestId("plan-simple-step-prioriteringar")).findByText("Viktigast: Träna tillsammans");
 
       const stepper = screen.getByTestId("plan-simple-stepper");
       expect(stepper.querySelectorAll(CHECK_ICON_SELECTOR)).toHaveLength(0);
       // Every already-"passed" step (Deltagare..Resultat, all before the active Exportera step)
       // shows its plain number instead - the neutral fallback, not a checkmark.
       expect(within(screen.getByTestId("plan-simple-step-deltagare")).getByText("1")).toBeInTheDocument();
+      expect(within(screen.getByTestId("plan-simple-step-prioriteringar")).getByText("3")).toBeInTheDocument();
       expect(within(screen.getByTestId("plan-simple-step-resultat")).getByText("5")).toBeInTheDocument();
     });
 
@@ -144,9 +205,14 @@ describe("PlanSimpleStepper", () => {
 
       expect(screen.getByTestId("plan-simple-step-deltagare").querySelector(CHECK_ICON_SELECTOR)).not.toBeNull();
       expect(screen.getByTestId("plan-simple-step-tider").querySelector(CHECK_ICON_SELECTOR)).not.toBeNull();
-      // The active step itself (Prioriteringar) and everything after it are never "passed" yet, so
-      // neither has a checkmark regardless of `completed`.
-      expect(screen.getByTestId("plan-simple-step-prioriteringar").querySelector(CHECK_ICON_SELECTOR)).toBeNull();
+      // v0.6.0 F3, review fix FIX 4 (MAJOR): Prioriteringar (the ACTIVE step here) also shows a
+      // checkmark - `completed` drives the icon in EVERY state (stepVisual's own doc comment), even
+      // the currently-active one, unlike the position-only Mantine default - but only because
+      // DEFAULT_PRIORITY_ORDER's `updatedAt` is a real timestamp (the order HAS been saved). See the
+      // "no checkmarks at all" test above for the `updatedAt: null` (never saved) counterpart.
+      await within(screen.getByTestId("plan-simple-step-prioriteringar")).findByText("Viktigast: Träna tillsammans");
+      expect(screen.getByTestId("plan-simple-step-prioriteringar").querySelector(CHECK_ICON_SELECTOR)).not.toBeNull();
+      // Exportera is neither "passed" by position nor has a completed signal of its own.
       expect(screen.getByTestId("plan-simple-step-exportera").querySelector(CHECK_ICON_SELECTOR)).toBeNull();
     });
   });

@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Anchor,
   Badge,
   Button,
   Group,
@@ -16,6 +17,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { useNavigate } from "react-router-dom";
 import { useConstraintDefinitions } from "../../../api/constraintDefinitions";
 import { useConstraintWeights, useUpdateConstraintWeights } from "../../../api/constraintWeights";
 import { ApiError } from "../../../api/client";
@@ -85,6 +87,7 @@ function meaningSentenceFor(constraint: ConstraintWeightView): string | undefine
  * rows (MEDIUM and HARD aren't on the same scale, so they're excluded - see the intro card).
  */
 export function ConstraintWeightsTable({ planId }: ConstraintWeightsTableProps) {
+  const navigate = useNavigate();
   const weights = useConstraintWeights(planId);
   const definitions = useConstraintDefinitions();
 
@@ -136,6 +139,20 @@ export function ConstraintWeightsTable({ planId }: ConstraintWeightsTableProps) 
           {sv.constraintWeights.subheading}
         </Text>
       </div>
+
+      {/* v0.6.0 F3 (M-S3): the six bucket constraints' weights are now normally OWNED by the
+          Prioriteringar screen's ranking (PrioritiesPanel.tsx) - this points an admin editing weights
+          here straight at it, rather than leaving the relationship between the two screens implicit. */}
+      <Anchor
+        component="button"
+        type="button"
+        size="sm"
+        onClick={() => navigate(`/plans/${planId}/prioriteringar`)}
+        data-testid="constraint-weights-priority-order-link"
+        style={{ alignSelf: "flex-start" }}
+      >
+        {sv.constraintWeights.priorityOrderLink}
+      </Anchor>
 
       <Alert variant="light" color="blue">
         {sv.constraintWeights.intro}
