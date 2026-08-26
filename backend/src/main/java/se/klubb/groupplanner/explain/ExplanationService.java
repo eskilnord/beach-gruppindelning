@@ -94,7 +94,10 @@ public class ExplanationService {
 
     /** Constraint keys always shown in a person's {@code appliedWeights} regardless of whether they
      * happened to fire a match for this specific player — every placement is implicitly subject to
-     * these (design §17's own worked example: "Nivåbalans: soft 100, Gruppstorlek: hard, ..."). */
+     * these (design §17's own worked example: "Nivåbalans: soft 100, Gruppstorlek: hard, ..." — a
+     * PRE-v0.6.0 illustrative weight kept verbatim here as a quote of the design doc's own wording;
+     * the actually-seeded {@code levelBalance} default is 85 as of milestone B6, see {@code
+     * backend/docs/priority-order-notes.md}). */
     private static final List<String> ALWAYS_RELEVANT_WEIGHT_KEYS = List.of(
             ConstraintKeys.GROUP_MAX_SIZE_HARD, ConstraintKeys.GROUP_SIZE_TARGET, ConstraintKeys.GROUP_MIN_SIZE_SOFT,
             ConstraintKeys.LEVEL_BALANCE, ConstraintKeys.GROUP_ORDER_BY_LEVEL, ConstraintKeys.UNASSIGNED_PLAYER);

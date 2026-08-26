@@ -37,15 +37,22 @@ import se.klubb.groupplanner.solver.domain.WishType;
  *   <li><b>Split</b> (one to each group): both groups land exactly at target (groupSizeTarget cost
  *       0), but the friend wish is broken (sameGroupSoft cost = 1 x weight).
  *   <li><b>Unite</b> (both into the same group): that group overflows to 4 (+1 over target), the
- *       other stays at 2 (-1 under target) — groupSizeTarget cost = 2 x weight(50) = 100 — but the
- *       friend wish is satisfied (sameGroupSoft cost 0).
+ *       other stays at 2 (-1 under target) — groupSizeTarget cost = 2 x weight — but the friend
+ *       wish is satisfied (sameGroupSoft cost 0).
  * </ul>
  *
- * <p>At the default weights (groupSizeTarget 50, sameGroupSoft 80) splitting is cheaper (80 &lt;
- * 2x50=100), so the solver keeps the pair apart. Cranking {@code sameGroupSoft} above 100 (e.g.
- * 150) flips the trade-off: uniting becomes cheaper, and the solver unites them, deterministically
- * paying the groupSizeTarget cost instead. Every other constraint is deliberately made inert (equal
- * levels, no time/coach data, LateTimePolicy disabled) so this is a clean two-constraint trade-off.
+ * <p><b>v0.6.0 milestone B6 note</b>: this test's numbers flipped from the pre-B6 version. Under
+ * the OLD defaults (groupSizeTarget 50, sameGroupSoft 80), splitting was cheaper (80 &lt; 2x50=100)
+ * — the class javadoc used to crank {@code sameGroupSoft} UP to flip to uniting. Under the NEW
+ * priority-order defaults ({@code fields.PriorityOrder}: groupSizeTarget 800 — retempered 400
+ * &#8594; 800 by the "size discipline" review fix, see backend/docs/priority-order-notes.md —
+ * sameGroupSoft 2400), UNITING is still cheaper by default (2x800=1600 &lt; 2400) — a direct,
+ * deliberate consequence of {@code sameGroupSoft} dominating {@code groupSizeTarget} at default
+ * order. This test now cranks {@code groupSizeTarget} UP instead, to flip FROM the new default
+ * (unite) back TO splitting — the same "one weight change flips a documented trade-off
+ * deterministically" gate, just with the roles of the two constraints reversed relative to the
+ * pre-B6 version. Every other constraint is deliberately made inert (equal levels, no time/coach
+ * data, LateTimePolicy disabled) so this is a clean two-constraint trade-off.
  */
 class WeightOverrideFlipTest {
 
@@ -54,7 +61,7 @@ class WeightOverrideFlipTest {
     private static final long PARTICIPANT_B = 6L;
 
     @Test
-    void crankingSameGroupSoftWeightFlipsTheFriendUnionVsSizeBalanceTradeOff() {
+    void crankingGroupSizeTargetWeightFlipsTheFriendUnionVsSizeBalanceTradeOff() {
         // Wall-clock sanity gate (m6a-notes.md "Review fix 1" pathology): with only 2 free entities
         // this fixture reaches its optimum almost immediately, after which it is exactly the
         // "converged fixture" pathology (every remaining move strictly worsens the score) - see
@@ -64,27 +71,27 @@ class WeightOverrideFlipTest {
         GroupPlanSolution defaultSolved = solve(ConstraintWeightOverrides.none());
         assertThat(defaultSolved.getScore().hardScore()).isZero();
         assertThat(groupOrderOf(defaultSolved, PARTICIPANT_A))
-                .as("under default weights (80 < 2x50) splitting the pair is cheaper")
-                .isNotEqualTo(groupOrderOf(defaultSolved, PARTICIPANT_B));
+                .as("under default weights (2x800=1600 < 2400) uniting the pair is cheaper")
+                .isEqualTo(groupOrderOf(defaultSolved, PARTICIPANT_B));
 
         // Note: groupBy(PlayerAssignment::getGroup, count()) always produces one tuple PER GROUP
         // regardless of whether its deviation is 0 - matchCount() is therefore always 2 here either
         // way. The trade-off flip shows up in the constraint's SCORE contribution (weight x
         // matchWeight, zero when a group sits exactly at target), which is what "applied" means.
         ScoreAnalysis<HardMediumSoftLongScore> defaultAnalysis = analyze(defaultSolved);
-        assertThat(scoreOf(defaultAnalysis, ConstraintKeys.SAME_GROUP_SOFT)).isEqualTo(HardMediumSoftLongScore.ofSoft(-80));
-        assertThat(scoreOf(defaultAnalysis, ConstraintKeys.GROUP_SIZE_TARGET)).isEqualTo(HardMediumSoftLongScore.ZERO);
+        assertThat(scoreOf(defaultAnalysis, ConstraintKeys.SAME_GROUP_SOFT)).isEqualTo(HardMediumSoftLongScore.ZERO);
+        assertThat(scoreOf(defaultAnalysis, ConstraintKeys.GROUP_SIZE_TARGET)).isEqualTo(HardMediumSoftLongScore.ofSoft(-1600));
 
         GroupPlanSolution crankedSolved = solve(ConstraintWeightOverrides.of(Map.of(
-                ConstraintKeys.SAME_GROUP_SOFT, HardMediumSoftLongScore.ofSoft(150))));
+                ConstraintKeys.GROUP_SIZE_TARGET, HardMediumSoftLongScore.ofSoft(1300))));
         assertThat(crankedSolved.getScore().hardScore()).isZero();
         assertThat(groupOrderOf(crankedSolved, PARTICIPANT_A))
-                .as("cranked sameGroupSoft (150 > 2x50=100) makes uniting cheaper")
-                .isEqualTo(groupOrderOf(crankedSolved, PARTICIPANT_B));
+                .as("cranked groupSizeTarget (2x1300=2600 > 2400) makes splitting cheaper")
+                .isNotEqualTo(groupOrderOf(crankedSolved, PARTICIPANT_B));
 
         ScoreAnalysis<HardMediumSoftLongScore> crankedAnalysis = analyze(crankedSolved);
-        assertThat(scoreOf(crankedAnalysis, ConstraintKeys.SAME_GROUP_SOFT)).isEqualTo(HardMediumSoftLongScore.ZERO);
-        assertThat(scoreOf(crankedAnalysis, ConstraintKeys.GROUP_SIZE_TARGET)).isEqualTo(HardMediumSoftLongScore.ofSoft(-100));
+        assertThat(scoreOf(crankedAnalysis, ConstraintKeys.SAME_GROUP_SOFT)).isEqualTo(HardMediumSoftLongScore.ofSoft(-2400));
+        assertThat(scoreOf(crankedAnalysis, ConstraintKeys.GROUP_SIZE_TARGET)).isEqualTo(HardMediumSoftLongScore.ZERO);
 
         assertThat(System.currentTimeMillis() - startMillis).isLessThan(10_000L);
     }

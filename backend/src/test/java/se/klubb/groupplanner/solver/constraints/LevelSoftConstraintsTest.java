@@ -58,12 +58,14 @@ class LevelSoftConstraintsTest {
     @Test
     void group1MeanFiveHundredBelowGroup2MeanSevenHundredPenalizes() {
         // Grupp 1 (order 1, "better") mean 500 < Grupp 2 (order 2) mean 700 -> inversion.
-        // numerator = 70000*1 - 50000*1 = 20000; denominator = 1*1*100 = 100 -> 200 + 1 = 201.
+        // v0.6.0 milestone B6: matchWeight is in spread units (LevelMath.SPREAD_UNIT_SCALED = 1000),
+        // the same unit levelBalance uses - was whole level points (denominator *100) before.
+        // numerator = 70000*1 - 50000*1 = 20000; denominator = 1*1*1000 = 1000 -> 20 + 1 = 21.
         Group g1 = group(1);
         Group g2 = group(2);
         verifier.verifyThat(GroupPlanConstraintProvider::groupOrderByLevel)
                 .given(player(1, 50_000, g1), player(2, 70_000, g2))
-                .penalizesBy(201);
+                .penalizesBy(21);
     }
 
     @Test
@@ -92,18 +94,33 @@ class LevelSoftConstraintsTest {
         Group g2 = group(2);
         verifier.verifyThat(GroupPlanConstraintProvider::groupOrderByLevel)
                 .given(player(1, 50_000, g1), player(2, 70_000, g2))
-                .justifiesWith(new GroupOrderInversionJustification(1L, 2L, 201));
+                .justifiesWith(new GroupOrderInversionJustification(1L, 2L, 21));
     }
 
     // ─────────────────────────────────────────────────────────── §10.8 previousGroupContinuity
 
     @Test
-    void previousGroupFourPlacedInGroupSevenPenalizesByThree() {
+    void previousGroupFourPlacedInGroupSevenPenalizesByOne() {
+        // v0.6.0 milestone B6: continuity became capped binary (min(abs(diff), 1)) instead of
+        // per-step distance - a 3-step move (4 -> 7) still only costs matchWeight 1, same as a
+        // 1-step move, so the ladder's rank ordering can't be inverted by drift magnitude.
         Group g7 = new Group(7, "Grupp 7", 7, 4, 5, 6, 1, 0, 100_000);
         PlayerAssignment p = new PlayerAssignment(1L, 1L, "P1", 60_000, 3, 4, new long[0], new long[0], g7, false);
         verifier.verifyThat(GroupPlanConstraintProvider::previousGroupContinuity)
                 .given(p)
-                .penalizesBy(3);
+                .penalizesBy(1);
+    }
+
+    @Test
+    void previousGroupOneStepAwayAlsoPenalizesByOne() {
+        // Same binary cap: a 1-step move (4 -> 5) costs the SAME matchWeight (1) as any other
+        // nonzero move - pins that the binary cap applies at the smallest possible drift too, not
+        // just the large one above.
+        Group g5 = new Group(5, "Grupp 5", 5, 4, 5, 6, 1, 0, 100_000);
+        PlayerAssignment p = new PlayerAssignment(1L, 1L, "P1", 60_000, 3, 4, new long[0], new long[0], g5, false);
+        verifier.verifyThat(GroupPlanConstraintProvider::previousGroupContinuity)
+                .given(p)
+                .penalizesBy(1);
     }
 
     @Test

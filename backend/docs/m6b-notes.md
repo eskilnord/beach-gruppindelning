@@ -157,6 +157,16 @@ direction uniformly monotone.
 
 ## Weight reconciliation vs design §4 (M6b review fix F1 — decision recorded)
 
+**2026-08-26 (v0.6.0 milestone B6) update — SUPERSEDED, do not treat this section's decision as
+current.** Migration `V13__priority_order_default_weights.sql` retempers 13 of the weights this
+section reconciles (including `levelBalance` 100→85 and `sameGroupSoft` 80→2400), INVERTING the
+very ordering this section's kravspec §17.2 citation established ("level balance dominates friend
+wishes" becomes "friend wishes dominate level balance" at the new default priority order). This is
+a deliberate v0.6.0 product-direction change, not a correction of this section's reasoning at the
+time it was written — see `backend/docs/priority-order-notes.md` (the new authority on default
+weights) for the full rationale and its own SUPERSESSION notice. History below is kept as-is, not
+rewritten.
+
 **Decision: the V2/V5/V6 seed weights SUPERSEDE the design §4 table's per-constraint defaults.**
 Rationale: kravspec §17.2's own worked example is the authority on intended priority ordering —
 *"Kompisönskemål var soft 60, medan nivåbalans var soft 100 och maxstorlek var hard"* — i.e. level

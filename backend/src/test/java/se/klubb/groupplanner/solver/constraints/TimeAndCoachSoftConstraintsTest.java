@@ -134,7 +134,10 @@ class TimeAndCoachSoftConstraintsTest {
     // ───────────────────────────────────────────────────────────────── §10.20 coachLevelFit
 
     @Test
-    void coachMaxSixHundredGroupMeanSevenHundredPenalizesByOneHundred() {
+    void coachMaxSixHundredGroupMeanSevenHundredPenalizesByTen() {
+        // v0.6.0 milestone B6: coachDistancePoints is in spread units (LevelMath
+        // .SPREAD_UNIT_SCALED = 1000), the same unit levelBalance/groupOrderByLevel use - was whole
+        // level points (÷100) before. diff = |60000*1 - 70000*1| = 10000; floorDiv(10000, 1*1000) = 10.
         CoachFact coach = new CoachFact(1L, 200L, "Coach", 50_000, 0, 60_000, new long[0], Integer.MAX_VALUE, new long[0], new long[0]);
         Group g = group(1);
         CoachSlot cs = new CoachSlot(CoachSlot.syntheticId(1, 0), g, 0, coach, false);
@@ -142,7 +145,7 @@ class TimeAndCoachSoftConstraintsTest {
 
         verifier.verifyThat(GroupPlanConstraintProvider::coachLevelFit)
                 .given(cs, p)
-                .penalizesBy(100);
+                .penalizesBy(10);
     }
 
     @Test

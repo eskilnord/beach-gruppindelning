@@ -87,6 +87,18 @@ class WeightSensitivityLinearityTest {
     private static final long PARTICIPANT_A = 5L;
     private static final long PARTICIPANT_B = 6L;
 
+    // v0.6.0 milestone B6: groupOrderByLevel's matchWeight formula moved from whole level points to
+    // LevelMath.SPREAD_UNIT_SCALED spread units (GroupPlanConstraintProvider#meanDiffPoints), so its
+    // units_k for the fixed A: G1->G2 move below changed too - re-derived and pinned honestly (not
+    // hand-computed) by running moveDeltaIsExactlyLinearInConstraintWeights_acrossSevenWeightVectors
+    // and reading deriveUnits' actual output; PLACEHOLDER updated by re-running the test.
+    private static final long GROUP_ORDER_BY_LEVEL_UNITS = 14L;
+    // groupSizeTarget -800x-2=1600, sameGroupSoft -2400x1=-2400, timePreferenceSoft -950x1=-950,
+    // levelBalance -85x12=-1020, groupOrderByLevel -42x14=-588; sum = 1600-2400-950-1020-588 = -3358
+    // (mechanically re-derived by running this test and reading deriveUnits' actual output, per
+    // CLAUDE.md "recompute honestly" - not hand-derived from the pre-B6 -14960 by inspection).
+    private static final long EXPECTED_DIFF_DEFAULT_SOFT_SCORE = -3_358L;
+
     // ─────────────────────────────────────────────────────────────────── (a) overrides + rebuild
 
     /**
@@ -229,14 +241,22 @@ class WeightSensitivityLinearityTest {
                 ConstraintKeys.GROUP_ORDER_BY_LEVEL);
 
         // Sanity anchors (signs follow ConstraintAnalysis.weight()'s convention - see class javadoc):
-        // groupSizeTarget's weight is reported NEGATIVE (-50, a .penalize constraint) and its delta is
-        // POSITIVE (+100, an improvement), so units_k = 100 / -50 = -2, etc.
+        // groupSizeTarget's weight is reported NEGATIVE (-800, a .penalize constraint) and its delta
+        // is POSITIVE (+1600, an improvement), so units_k = 1600 / -800 = -2, etc. units_k is a pure
+        // matchWeight-count ratio (see deriveUnits' javadoc) so it is unaffected by ANY weight-value
+        // change (including this milestone's) - only groupOrderByLevel's units_k moved, because ITS
+        // MATCHWEIGHT FORMULA (not just its weight) changed in v0.6.0 milestone B6 (spread units
+        // instead of whole level points - see GroupPlanConstraintProvider#meanDiffPoints).
         assertThat(unitsByKey.get(ConstraintKeys.GROUP_SIZE_TARGET).units()).isEqualTo(-2L);
         assertThat(unitsByKey.get(ConstraintKeys.SAME_GROUP_SOFT).units()).isEqualTo(1L);
         assertThat(unitsByKey.get(ConstraintKeys.TIME_PREFERENCE_SOFT).units()).isEqualTo(1L);
         assertThat(unitsByKey.get(ConstraintKeys.LEVEL_BALANCE).units()).isEqualTo(12L);
-        assertThat(unitsByKey.get(ConstraintKeys.GROUP_ORDER_BY_LEVEL).units()).isEqualTo(134L);
-        assertThat(diffDefault.score()).isEqualTo(HardMediumSoftLongScore.of(0, 0, -7_920));
+        assertThat(unitsByKey.get(ConstraintKeys.GROUP_ORDER_BY_LEVEL).units()).isEqualTo(GROUP_ORDER_BY_LEVEL_UNITS);
+        // v0.6.0 milestone B6: the summed score under DEFAULT weights shifts with the new
+        // PriorityOrder defaults (groupSizeTarget -800x-2=1600, sameGroupSoft -2400x1=-2400,
+        // timePreferenceSoft -950x1=-950, levelBalance -85x12=-1020, groupOrderByLevel
+        // -42xGROUP_ORDER_BY_LEVEL_UNITS) - see EXPECTED_DIFF_DEFAULT_SOFT_SCORE's own derivation.
+        assertThat(diffDefault.score()).isEqualTo(HardMediumSoftLongScore.of(0, 0, EXPECTED_DIFF_DEFAULT_SOFT_SCORE));
 
         // --- Step 2: predict Δscore for seven fixed weight vectors, verify against a real re-analyze ---
         List<Map<String, HardMediumSoftLongScore>> vectors = List.of(
@@ -264,9 +284,9 @@ class WeightSensitivityLinearityTest {
                         ConstraintKeys.SAME_GROUP_SOFT, HardMediumSoftLongScore.ofSoft(3),
                         ConstraintKeys.TIME_PREFERENCE_SOFT, HardMediumSoftLongScore.ofSoft(6_000),
                         ConstraintKeys.LEVEL_BALANCE, HardMediumSoftLongScore.ofSoft(17)),
-                // Mixed, one left at its code-default value on purpose (groupSizeTarget=50).
+                // Mixed, one left at its code-default value on purpose (groupSizeTarget=400).
                 Map.of(
-                        ConstraintKeys.GROUP_SIZE_TARGET, HardMediumSoftLongScore.ofSoft(50),
+                        ConstraintKeys.GROUP_SIZE_TARGET, HardMediumSoftLongScore.ofSoft(400),
                         ConstraintKeys.SAME_GROUP_SOFT, HardMediumSoftLongScore.ofSoft(1),
                         ConstraintKeys.TIME_PREFERENCE_SOFT, HardMediumSoftLongScore.ofSoft(10_000),
                         ConstraintKeys.LEVEL_BALANCE, HardMediumSoftLongScore.ofSoft(250)),
@@ -332,22 +352,22 @@ class WeightSensitivityLinearityTest {
             Map.entry(ConstraintKeys.SAVED_PLAN_COACH_BLOCKED, HardMediumSoftLongScore.ofHard(1)),
             Map.entry(ConstraintKeys.SAVED_PLAN_COURT_BLOCKED, HardMediumSoftLongScore.ofHard(1)),
             Map.entry(ConstraintKeys.UNASSIGNED_PLAYER, HardMediumSoftLongScore.ofMedium(100)),
-            Map.entry(ConstraintKeys.GROUP_SIZE_TARGET, HardMediumSoftLongScore.ofSoft(50)),
-            Map.entry(ConstraintKeys.GROUP_SIZE_TARGET_EMPTY, HardMediumSoftLongScore.ofSoft(50)),
-            Map.entry(ConstraintKeys.GROUP_MIN_SIZE_SOFT, HardMediumSoftLongScore.ofSoft(50)),
-            Map.entry(ConstraintKeys.GROUP_MIN_SIZE_EMPTY, HardMediumSoftLongScore.ofSoft(50)),
-            Map.entry(ConstraintKeys.LEVEL_BALANCE, HardMediumSoftLongScore.ofSoft(100)),
-            Map.entry(ConstraintKeys.GROUP_ORDER_BY_LEVEL, HardMediumSoftLongScore.ofSoft(50)),
-            Map.entry(ConstraintKeys.PREVIOUS_GROUP_CONTINUITY, HardMediumSoftLongScore.ofSoft(30)),
-            Map.entry(ConstraintKeys.TIME_PREFERENCE_SOFT, HardMediumSoftLongScore.ofSoft(40)),
-            Map.entry(ConstraintKeys.SAME_GROUP_SOFT, HardMediumSoftLongScore.ofSoft(80)),
-            Map.entry(ConstraintKeys.DIFFERENT_GROUP_SOFT, HardMediumSoftLongScore.ofSoft(60)),
-            Map.entry(ConstraintKeys.COACH_LEVEL_FIT, HardMediumSoftLongScore.ofSoft(50)),
-            Map.entry(ConstraintKeys.COACH_PREFERENCE_SOFT, HardMediumSoftLongScore.ofSoft(50)),
-            Map.entry(ConstraintKeys.LATE_TIME_TOP_GROUPS, HardMediumSoftLongScore.ofSoft(30)),
-            Map.entry(ConstraintKeys.LATE_TIME_BOTTOM_GROUPS, HardMediumSoftLongScore.ofSoft(30)),
-            Map.entry(ConstraintKeys.COACH_PREFERRED_TIME_SLOT, HardMediumSoftLongScore.ofSoft(20)),
-            Map.entry(ConstraintKeys.COACH_UNKNOWN_TIME_SLOT, HardMediumSoftLongScore.ofSoft(20)));
+            Map.entry(ConstraintKeys.GROUP_SIZE_TARGET, HardMediumSoftLongScore.ofSoft(800)),
+            Map.entry(ConstraintKeys.GROUP_SIZE_TARGET_EMPTY, HardMediumSoftLongScore.ofSoft(800)),
+            Map.entry(ConstraintKeys.GROUP_MIN_SIZE_SOFT, HardMediumSoftLongScore.ofSoft(2000)),
+            Map.entry(ConstraintKeys.GROUP_MIN_SIZE_EMPTY, HardMediumSoftLongScore.ofSoft(2000)),
+            Map.entry(ConstraintKeys.LEVEL_BALANCE, HardMediumSoftLongScore.ofSoft(85)),
+            Map.entry(ConstraintKeys.GROUP_ORDER_BY_LEVEL, HardMediumSoftLongScore.ofSoft(42)),
+            Map.entry(ConstraintKeys.PREVIOUS_GROUP_CONTINUITY, HardMediumSoftLongScore.ofSoft(1500)),
+            Map.entry(ConstraintKeys.TIME_PREFERENCE_SOFT, HardMediumSoftLongScore.ofSoft(950)),
+            Map.entry(ConstraintKeys.SAME_GROUP_SOFT, HardMediumSoftLongScore.ofSoft(2400)),
+            Map.entry(ConstraintKeys.DIFFERENT_GROUP_SOFT, HardMediumSoftLongScore.ofSoft(1800)),
+            Map.entry(ConstraintKeys.COACH_LEVEL_FIT, HardMediumSoftLongScore.ofSoft(42)),
+            Map.entry(ConstraintKeys.COACH_PREFERENCE_SOFT, HardMediumSoftLongScore.ofSoft(600)),
+            Map.entry(ConstraintKeys.LATE_TIME_TOP_GROUPS, HardMediumSoftLongScore.ofSoft(300)),
+            Map.entry(ConstraintKeys.LATE_TIME_BOTTOM_GROUPS, HardMediumSoftLongScore.ofSoft(300)),
+            Map.entry(ConstraintKeys.COACH_PREFERRED_TIME_SLOT, HardMediumSoftLongScore.ofSoft(250)),
+            Map.entry(ConstraintKeys.COACH_UNKNOWN_TIME_SLOT, HardMediumSoftLongScore.ofSoft(250)));
 
     /** Whether a constraint key is coded as {@code .penalize(...)} or {@code .reward(...)} in {@code
      * GroupPlanConstraintProvider} - the executable form of the class javadoc's sign-convention
@@ -765,7 +785,7 @@ class WeightSensitivityLinearityTest {
                 analysisOf(nonZeroWeightAnalysis, ConstraintKeys.SAME_GROUP_SOFT);
         assertThat(nonZeroCa.matchCount()).isEqualTo(1);
         assertThat(nonZeroCa.matches()).hasSize(1);
-        assertThat(nonZeroCa.score()).isEqualTo(HardMediumSoftLongScore.ofSoft(-80));
+        assertThat(nonZeroCa.score()).isEqualTo(HardMediumSoftLongScore.ofSoft(-2400));
         // Review fix, FIX 5: the full baseline count - see the 32-count comment above.
         assertThat(nonZeroWeightAnalysis.constraintMap()).hasSize(33);
     }

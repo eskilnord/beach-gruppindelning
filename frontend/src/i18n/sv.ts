@@ -716,10 +716,14 @@ export const sv = {
     //    milestone B2 (LevelMath.SPREAD_UNIT_SCALED = 1000 scaled = 10 level points/unit,
     //    GroupPlanConstraintProvider#levelBalance) - the generic PER_POINT_PENALIZE sentence
     //    ("per nivåpoäng") would overstate the weight's effect by 10x, so it gets its own sentence.
+    //  - groupOrderByLevel and coachLevelFit moved to the SAME spread-unit basis as levelBalance in
+    //    v0.6.0 milestone B6 (LEVEL-family unit coherence review fix) - same reasoning, same fix.
     meaningByKey: {
       lateTimeForLowerGroups: (weight: number) =>
         `${weight} poäng – belönar sen tid för lägre grupper och straffar sen tid för toppgrupper`,
       levelBalance: (weight: number) => `${weight} poäng straff per 10 nivåpoängs spridning i en grupp`,
+      groupOrderByLevel: (weight: number) => `${weight} poäng straff per 10 nivåpoängs skillnad mellan angränsande grupper`,
+      coachLevelFit: (weight: number) => `${weight} poäng straff per 10 nivåpoängs avstånd från tränarens nivåspann`,
     } as Record<string, (weight: number) => string>,
     resetButton: "Återställ till standard",
     overriddenBadge: "Anpassad",

@@ -71,7 +71,7 @@ class ConstraintWeightControllerTest {
         mockMvc.perform(get("/api/plans/" + planId + "/constraint-weights").header("X-GP-Token", VALID_TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(33))
-                .andExpect(jsonPath("$[?(@.key=='sameGroupSoft')].weight").value(80))
+                .andExpect(jsonPath("$[?(@.key=='sameGroupSoft')].weight").value(2400))
                 .andExpect(jsonPath("$[?(@.key=='sameGroupSoft')].overridden").value(false));
     }
 
@@ -93,7 +93,7 @@ class ConstraintWeightControllerTest {
         assertWeight(overridden, 95, true, "SOFT");
 
         JsonNode untouched = findByKey(json, "levelBalance");
-        assertWeight(untouched, 100, false, "SOFT");
+        assertWeight(untouched, 85, false, "SOFT");
 
         // GET reflects the same merged state.
         mockMvc.perform(get("/api/plans/" + planId + "/constraint-weights").header("X-GP-Token", VALID_TOKEN))
@@ -241,7 +241,7 @@ class ConstraintWeightControllerTest {
                 .andExpect(jsonPath("$.error").exists());
 
         mockMvc.perform(get("/api/plans/" + planId + "/constraint-weights").header("X-GP-Token", VALID_TOKEN))
-                .andExpect(jsonPath("$[?(@.key=='sameGroupSoft')].weight").value(80))
+                .andExpect(jsonPath("$[?(@.key=='sameGroupSoft')].weight").value(2400))
                 .andExpect(jsonPath("$[?(@.key=='sameGroupSoft')].overridden").value(false));
     }
 

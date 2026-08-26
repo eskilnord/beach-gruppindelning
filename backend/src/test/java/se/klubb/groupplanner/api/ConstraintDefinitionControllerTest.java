@@ -58,7 +58,7 @@ class ConstraintDefinitionControllerTest {
                 .filter(c -> "sameGroupSoft".equals(c.get("key")))
                 .findFirst()
                 .orElseThrow();
-        assertThat(sameGroupSoft.get("defaultWeight")).isEqualTo(80);
+        assertThat(sameGroupSoft.get("defaultWeight")).isEqualTo(2400);
         assertThat(sameGroupSoft.get("hardOrSoft")).isEqualTo("SOFT");
     }
 

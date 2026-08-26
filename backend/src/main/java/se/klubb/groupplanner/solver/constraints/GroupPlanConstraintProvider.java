@@ -356,7 +356,7 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
     Constraint groupSizeTarget(ConstraintFactory f) {
         return f.forEach(PlayerAssignment.class)
                 .groupBy(PlayerAssignment::getGroup, ConstraintCollectors.count())
-                .penalize(HardMediumSoftLongScore.ofSoft(50), (group, count) -> Math.abs(count - group.targetSize()))
+                .penalize(HardMediumSoftLongScore.ofSoft(800), (group, count) -> Math.abs(count - group.targetSize()))
                 .justifyWith((group, count, score) -> new GroupSizeDeviationJustification(group.id(), count, group.targetSize()))
                 .asConstraint(ConstraintKeys.GROUP_SIZE_TARGET);
     }
@@ -369,7 +369,7 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
     Constraint groupSizeTargetEmpty(ConstraintFactory f) {
         return f.forEach(Group.class)
                 .ifNotExists(PlayerAssignment.class, Joiners.equal(group -> group, PlayerAssignment::getGroup))
-                .penalize(HardMediumSoftLongScore.ofSoft(50), Group::targetSize)
+                .penalize(HardMediumSoftLongScore.ofSoft(800), Group::targetSize)
                 .justifyWith((group, score) -> new GroupSizeDeviationJustification(group.id(), 0, group.targetSize()))
                 .asConstraint(ConstraintKeys.GROUP_SIZE_TARGET_EMPTY);
     }
@@ -380,7 +380,7 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
         return f.forEach(PlayerAssignment.class)
                 .groupBy(PlayerAssignment::getGroup, ConstraintCollectors.count())
                 .filter((group, count) -> count < group.minSize())
-                .penalize(HardMediumSoftLongScore.ofSoft(50), (group, count) -> group.minSize() - count)
+                .penalize(HardMediumSoftLongScore.ofSoft(2000), (group, count) -> group.minSize() - count)
                 .justifyWith((group, count, score) -> new GroupUnderMinJustification(group.id(), count, group.minSize()))
                 .asConstraint(ConstraintKeys.GROUP_MIN_SIZE_SOFT);
     }
@@ -391,7 +391,7 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
         return f.forEach(Group.class)
                 .ifNotExists(PlayerAssignment.class, Joiners.equal(group -> group, PlayerAssignment::getGroup))
                 .filter(group -> group.minSize() > 0)
-                .penalize(HardMediumSoftLongScore.ofSoft(50), Group::minSize)
+                .penalize(HardMediumSoftLongScore.ofSoft(2000), Group::minSize)
                 .justifyWith((group, score) -> new GroupUnderMinJustification(group.id(), 0, group.minSize()))
                 .asConstraint(ConstraintKeys.GROUP_MIN_SIZE_EMPTY);
     }
@@ -405,7 +405,7 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
         // stay byte-identical to before this unit change.
         return f.forEach(PlayerAssignment.class)
                 .groupBy(PlayerAssignment::getGroup, ConstraintCollectors.toList(pa -> pa))
-                .penalize(HardMediumSoftLongScore.ofSoft(100), (group, members) -> spreadUnitsOf(members))
+                .penalize(HardMediumSoftLongScore.ofSoft(85), (group, members) -> spreadUnitsOf(members))
                 .justifyWith((group, members, score) -> new LevelSpreadJustification(
                         group.id(), sadPointsOf(members), LevelMath.floorMean(sumScaledOf(members), members.size())))
                 .asConstraint(ConstraintKeys.LEVEL_BALANCE);
@@ -443,8 +443,16 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
      * whose {@code groupOrder} differ by exactly 1 ({@code hi} = the better/lower-numbered group,
      * {@code lo} = the next one down), penalize when {@code hi}'s mean level is NOT above {@code
      * lo}'s — an inversion of the "higher groups have higher level" expectation (spec §10.7). No
-     * division except the final {@code floorDiv} back to level points; the comparison itself is pure
-     * cross-multiplication (a·d {@literal <} c·b instead of a/b {@literal <} c/d).
+     * division except the final {@code floorDiv}; the comparison itself is pure cross-multiplication
+     * (a·d {@literal <} c·b instead of a/b {@literal <} c/d).
+     *
+     * <p><b>v0.6.0 milestone B6 (LEVEL-family unit coherence)</b>: {@code meanDiffPoints}'
+     * matchWeight is in {@link LevelMath#SPREAD_UNIT_SCALED} spread units (10 level points/unit), the
+     * SAME unit {@code levelBalance}'s matchWeight already uses (since milestone B2) — before this
+     * change the two LEVEL-bucket constraints' matchWeights disagreed by a factor of ~10 despite
+     * sharing one {@link se.klubb.groupplanner.fields.PriorityOrder} ladder rank, which silently
+     * over-weighted ordering inversions relative to spread. The `+1` floor is unchanged: any inversion
+     * still costs at least 1 unit.
      */
     Constraint groupOrderByLevel(ConstraintFactory f) {
         return groupLevelStats(f)
@@ -452,7 +460,7 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
                         groupLevelStats(f),
                         Joiners.equal(s -> s.group().groupOrder() + 1, s -> s.group().groupOrder()))
                 .filter((hi, lo) -> hi.sumScaled() * lo.count() < lo.sumScaled() * hi.count())
-                .penalize(HardMediumSoftLongScore.ofSoft(50), (hi, lo) -> meanDiffPoints(hi, lo))
+                .penalize(HardMediumSoftLongScore.ofSoft(42), (hi, lo) -> meanDiffPoints(hi, lo))
                 .justifyWith((hi, lo, score) -> new GroupOrderInversionJustification(
                         hi.group().id(), lo.group().id(), meanDiffPoints(hi, lo)))
                 .asConstraint(ConstraintKeys.GROUP_ORDER_BY_LEVEL);
@@ -460,18 +468,29 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
 
     private static int meanDiffPoints(GroupLevelStat hi, GroupLevelStat lo) {
         long numerator = lo.sumScaled() * hi.count() - hi.sumScaled() * lo.count();
-        long denominator = (long) hi.count() * lo.count() * 100;
+        long denominator = (long) hi.count() * lo.count() * LevelMath.SPREAD_UNIT_SCALED;
         return Math.toIntExact(Math.floorDiv(numerator, denominator)) + 1;
     }
 
     // ─────────────────────────────────────────────────────────────────────── §10.8
 
+    /**
+     * v0.6.0 milestone B6 (continuity becomes binary): matchWeight is capped binary — 1 if the
+     * player did NOT land back in their previous group's order, 0 if they did — rather than the
+     * per-step distance. A per-step matchWeight breaks the rank ordering PriorityOrder's ladder
+     * promises at every magnitude but the first: at UNIT_LADDER rank 2 (1500), just 2 steps of drift
+     * (3000) would already outweigh a rank-1 friend wish (2400), inverting the priority the ranking
+     * was supposed to express. A nearness *gradient* (as opposed to a flat yes/no) is already
+     * supplied by the LEVEL-bucket constraints — {@code previousGroupLevel} feeds a player's {@code
+     * estimatedLevel}, which {@code levelBalance}/{@code groupOrderByLevel} already optimize for —
+     * so this constraint only needs to say "kept together or not", not "how far".
+     */
     Constraint previousGroupContinuity(ConstraintFactory f) {
         return f.forEach(PlayerAssignment.class)
                 .filter(pa -> pa.getPreviousGroupOrder() != null)
                 .penalize(
-                        HardMediumSoftLongScore.ofSoft(30),
-                        pa -> Math.abs(pa.getGroup().groupOrder() - pa.getPreviousGroupOrder()))
+                        HardMediumSoftLongScore.ofSoft(1500),
+                        pa -> Math.min(Math.abs(pa.getGroup().groupOrder() - pa.getPreviousGroupOrder()), 1))
                 .justifyWith((pa, score) -> new ContinuityJustification(
                         pa.getId(), pa.getPreviousGroupOrder(), pa.getGroup().groupOrder()))
                 .asConstraint(ConstraintKeys.PREVIOUS_GROUP_CONTINUITY);
@@ -488,7 +507,7 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
         return f.forEach(PlayerAssignment.class)
                 .join(GroupSchedule.class, Joiners.equal(PlayerAssignment::getGroup, GroupSchedule::getGroup))
                 .filter((pa, gs) -> pa.hasPreferences() && !pa.prefers(gs.getTrainingBlock().timeSlotId()))
-                .penalize(HardMediumSoftLongScore.ofSoft(40))
+                .penalize(HardMediumSoftLongScore.ofSoft(950))
                 .justifyWith((pa, gs, score) -> new TimePreferenceMissedJustification(
                         pa.getId(), gs.getGroup().id(), gs.getTrainingBlock().timeSlotId()))
                 .asConstraint(ConstraintKeys.TIME_PREFERENCE_SOFT);
@@ -502,7 +521,7 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
                 .join(PlayerAssignment.class, Joiners.equal(PersonPairWish::aParticipantProfileId, PlayerAssignment::getId))
                 .join(PlayerAssignment.class, Joiners.equal((w, a) -> w.bParticipantProfileId(), PlayerAssignment::getId))
                 .filter((w, a, b) -> a.getGroup() != b.getGroup())
-                .penalize(HardMediumSoftLongScore.ofSoft(80))
+                .penalize(HardMediumSoftLongScore.ofSoft(2400))
                 .justifyWith((w, a, b, score) -> new PairWishSoftJustification(
                         w.fieldDefinitionId(), a.getId(), b.getId(), "WANT_SAME"))
                 .asConstraint(ConstraintKeys.SAME_GROUP_SOFT);
@@ -514,7 +533,7 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
                 .join(PlayerAssignment.class, Joiners.equal(PersonPairWish::aParticipantProfileId, PlayerAssignment::getId))
                 .join(PlayerAssignment.class, Joiners.equal((w, a) -> w.bParticipantProfileId(), PlayerAssignment::getId))
                 .filter((w, a, b) -> a.getGroup() == b.getGroup())
-                .penalize(HardMediumSoftLongScore.ofSoft(60))
+                .penalize(HardMediumSoftLongScore.ofSoft(1800))
                 .justifyWith((w, a, b, score) -> new PairWishSoftJustification(
                         w.fieldDefinitionId(), a.getId(), b.getId(), "WANT_DIFFERENT"))
                 .asConstraint(ConstraintKeys.DIFFERENT_GROUP_SOFT);
@@ -526,7 +545,7 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
         return f.forEach(CoachSlot.class)
                 .join(groupLevelStats(f), Joiners.equal(CoachSlot::getGroup, GroupLevelStat::group))
                 .filter((cs, stat) -> outsideCoachBand(cs.getCoach(), stat))
-                .penalize(HardMediumSoftLongScore.ofSoft(50), (cs, stat) -> coachDistancePoints(cs.getCoach(), stat))
+                .penalize(HardMediumSoftLongScore.ofSoft(42), (cs, stat) -> coachDistancePoints(cs.getCoach(), stat))
                 .justifyWith((cs, stat, score) -> new CoachLevelMismatchJustification(
                         cs.getCoach().personId(),
                         stat.group().id(),
@@ -542,12 +561,15 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
         return sum < (long) coach.canCoachMinScaled() * count || sum > (long) coach.canCoachMaxScaled() * count;
     }
 
+    /** v0.6.0 milestone B6: spread units ({@link LevelMath#SPREAD_UNIT_SCALED}), matching {@code
+     * levelBalance}/{@code groupOrderByLevel}'s unit — was whole level points (÷100) before this
+     * change, a ~10x unit mismatch against the other two LEVEL-family constraints. */
     private static int coachDistancePoints(CoachFact coach, GroupLevelStat stat) {
         long sum = stat.sumScaled();
         long count = stat.count();
         long boundScaled = sum < (long) coach.canCoachMinScaled() * count ? coach.canCoachMinScaled() : coach.canCoachMaxScaled();
         long diff = Math.abs(boundScaled * count - sum);
-        return Math.toIntExact(Math.floorDiv(diff, count * 100));
+        return Math.toIntExact(Math.floorDiv(diff, count * LevelMath.SPREAD_UNIT_SCALED));
     }
 
     // ─────────────────────────────────────────────────────────────────────── §10.21a
@@ -560,7 +582,7 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
                         CoachSlot.class,
                         Joiners.equal((w, pa) -> pa.getGroup(), CoachSlot::getGroup),
                         Joiners.filtering((w, pa, cs) -> cs.getCoach() != null && cs.getCoach().personId() == w.coachPersonId()))
-                .reward(HardMediumSoftLongScore.ofSoft(50))
+                .reward(HardMediumSoftLongScore.ofSoft(600))
                 .justifyWith((w, pa, score) -> new CoachWishJustification(pa.getId(), w.coachPersonId(), "WANT", true))
                 .asConstraint(ConstraintKeys.COACH_PREFERENCE_SOFT);
     }
@@ -585,7 +607,7 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
         return f.forEach(GroupSchedule.class)
                 .join(LateTimePolicy.class)
                 .filter((gs, policy) -> policy.enabled() && isLateTopGroup(gs, policy))
-                .penalize(HardMediumSoftLongScore.ofSoft(30))
+                .penalize(HardMediumSoftLongScore.ofSoft(300))
                 .justifyWith((gs, policy, score) -> new LateTimeJustification(
                         gs.getGroup().id(), gs.getGroup().groupOrder(), gs.getTrainingBlock().label(), "TOP_LATE_PENALIZED"))
                 .asConstraint(ConstraintKeys.LATE_TIME_TOP_GROUPS);
@@ -595,7 +617,7 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
         return f.forEach(GroupSchedule.class)
                 .join(LateTimePolicy.class)
                 .filter((gs, policy) -> policy.enabled() && isLateBottomGroup(gs, policy))
-                .reward(HardMediumSoftLongScore.ofSoft(30))
+                .reward(HardMediumSoftLongScore.ofSoft(300))
                 .justifyWith((gs, policy, score) -> new LateTimeJustification(
                         gs.getGroup().id(), gs.getGroup().groupOrder(), gs.getTrainingBlock().label(), "BOTTOM_LATE_REWARDED"))
                 .asConstraint(ConstraintKeys.LATE_TIME_BOTTOM_GROUPS);
@@ -621,7 +643,7 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
         return f.forEach(CoachSlot.class)
                 .join(GroupSchedule.class, Joiners.equal(CoachSlot::getGroup, GroupSchedule::getGroup))
                 .filter((cs, gs) -> cs.getCoach().prefersTimeSlot(gs.getTrainingBlock().timeSlotId()))
-                .reward(HardMediumSoftLongScore.ofSoft(20))
+                .reward(HardMediumSoftLongScore.ofSoft(250))
                 .justifyWith((cs, gs, score) -> new CoachPreferredTimeSlotJustification(
                         cs.getCoach().personId(), gs.getGroup().id(), gs.getTrainingBlock().timeSlotId()))
                 .asConstraint(ConstraintKeys.COACH_PREFERRED_TIME_SLOT);
@@ -643,7 +665,7 @@ public class GroupPlanConstraintProvider implements ConstraintProvider {
                     CoachFact coach = cs.getCoach();
                     return !coach.hasKnownAvailabilityAt(timeSlotId) && coach.availableAt(timeSlotId);
                 })
-                .penalize(HardMediumSoftLongScore.ofSoft(20))
+                .penalize(HardMediumSoftLongScore.ofSoft(250))
                 .justifyWith((cs, gs, score) -> new CoachUnknownTimeSlotJustification(
                         cs.getCoach().personId(), gs.getGroup().id(), gs.getTrainingBlock().timeSlotId()))
                 .asConstraint(ConstraintKeys.COACH_UNKNOWN_TIME_SLOT);

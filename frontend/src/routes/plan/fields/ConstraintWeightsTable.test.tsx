@@ -356,6 +356,43 @@ describe("ConstraintWeightsTable WP4 pedagogical weights", () => {
     expect(screen.queryByText(/poäng straff per enhet avvikelse/)).not.toBeInTheDocument();
   });
 
+  it("shows the 10-level-points sentence for groupOrderByLevel via the per-key override", async () => {
+    // v0.6.0 milestone B6 (LEVEL-family unit coherence review fix): groupOrderByLevel's matchWeight
+    // moved to the same spread-unit basis as levelBalance - same reasoning, same dedicated sentence.
+    const def = { ...DEFINITION, key: "groupOrderByLevel", label: "Gruppordning efter nivå" };
+    const weight = { ...WEIGHT_VIEW, key: "groupOrderByLevel", label: "Gruppordning efter nivå" };
+    mockApis([def], [weight]);
+    renderWithProviders(<ConstraintWeightsTable planId="plan-1" />);
+
+    await screen.findByText("100 poäng straff per 10 nivåpoängs skillnad mellan angränsande grupper");
+    expect(screen.queryByText(/poäng straff per enhet avvikelse/)).not.toBeInTheDocument();
+  });
+
+  it("shows the 10-level-points sentence for coachLevelFit via the per-key override", async () => {
+    const def = { ...DEFINITION, key: "coachLevelFit", label: "Tränarnivå passar grupp" };
+    const weight = { ...WEIGHT_VIEW, key: "coachLevelFit", label: "Tränarnivå passar grupp" };
+    mockApis([def], [weight]);
+    renderWithProviders(<ConstraintWeightsTable planId="plan-1" />);
+
+    await screen.findByText("100 poäng straff per 10 nivåpoängs avstånd från tränarens nivåspann");
+    expect(screen.queryByText(/poäng straff per enhet avvikelse/)).not.toBeInTheDocument();
+  });
+
+  it("computes the lessImportant preset for an odd default weight via Math.round (85 -> 43)", async () => {
+    // Pins the rounding behavior for buildImportancePresets' Math.max(1, Math.round(defaultWeight / 2))
+    // branch against a real odd v0.6.0 default (coachLevelFit/groupOrderByLevel = 42, levelBalance =
+    // 85): 85 / 2 = 42.5, Math.round rounds half-up to 43, not truncated to 42.
+    const def = { ...DEFINITION, defaultWeight: 85 };
+    const weight = { ...WEIGHT_VIEW, weight: 85 };
+    mockApis([def], [weight]);
+    renderWithProviders(<ConstraintWeightsTable planId="plan-1" />);
+
+    const user = userEvent.setup();
+    await screen.findByText("Nivåbalans");
+    const texts = await optionTexts(user, BETYDELSE_NIVABALANS);
+    expect(texts).toEqual(["Mindre viktig (43)", "Normal (85)", "Viktigare (170)", "Mycket viktigare (340)", "Egen…"]);
+  });
+
   it("hides the relative-importance bar when every SOFT row is disabled", async () => {
     mockApis([DEFINITION], [{ ...WEIGHT_VIEW, enabled: false, overridden: true }]);
     renderWithProviders(<ConstraintWeightsTable planId="plan-1" />);

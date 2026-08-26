@@ -62,7 +62,7 @@ class FlywayMigrationTest {
                 "core", "seed constraints and standard fields", "import", "resources", "solver runs",
                 "soft constraints locks saved plan", "explainability", "activity plan level min default",
                 "explanation record indirect factors", "coach unknown time constraint", "reviewed done",
-                "app settings");
+                "app settings", "priority order default weights");
     }
 
     /**

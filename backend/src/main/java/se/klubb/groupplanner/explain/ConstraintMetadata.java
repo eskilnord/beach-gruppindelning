@@ -151,8 +151,8 @@ public final class ConstraintMetadata {
                 "Minimera nivåspridning inom grupp (viktas per 10 nivåpoängs spridning).", HardOrSoft.SOFT,
                 Unit.PER_POINT, Direction.PENALIZE);
         add(ConstraintKeys.GROUP_ORDER_BY_LEVEL, "Gruppordning efter nivå",
-                "Högre grupper ska generellt ha högre nivå än lägre grupper.", HardOrSoft.SOFT, Unit.PER_POINT,
-                Direction.PENALIZE);
+                "Högre grupper ska generellt ha högre nivå än lägre grupper (viktas per 10 nivåpoängs skillnad).",
+                HardOrSoft.SOFT, Unit.PER_POINT, Direction.PENALIZE);
         add(ConstraintKeys.PREVIOUS_GROUP_CONTINUITY, "Kontinuitet från tidigare grupp",
                 "Belöna placering nära tidigare gruppnivå.", HardOrSoft.SOFT, Unit.PER_POINT, Direction.PENALIZE);
         add(ConstraintKeys.TIME_PREFERENCE_SOFT, "Tidspreferens (mjuk)",
@@ -162,8 +162,8 @@ public final class ConstraintMetadata {
         add(ConstraintKeys.DIFFERENT_GROUP_SOFT, "Olika grupper (mjuk)",
                 "Två spelare bör helst inte placeras i samma grupp.", HardOrSoft.SOFT, Unit.PER_MATCH, Direction.PENALIZE);
         add(ConstraintKeys.COACH_LEVEL_FIT, "Tränarnivå passar grupp",
-                "Straffa tränare som är för låg eller för hög nivå för gruppen.", HardOrSoft.SOFT, Unit.PER_POINT,
-                Direction.PENALIZE);
+                "Straffa tränare som är för låg eller för hög nivå för gruppen (viktas per 10 nivåpoängs avstånd).",
+                HardOrSoft.SOFT, Unit.PER_POINT, Direction.PENALIZE);
         add(ConstraintKeys.COACH_PREFERENCE_SOFT, "Tränarpreferens (mjuk)",
                 "Belöna om spelare/grupp får önskad tränare.", HardOrSoft.SOFT, Unit.PER_MATCH, Direction.REWARD);
         add(ConstraintKeys.LATE_TIME_TOP_GROUPS, "Sen tid för högre grupper (straff)",
