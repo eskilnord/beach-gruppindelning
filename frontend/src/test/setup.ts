@@ -1,12 +1,34 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
-import { afterAll, afterEach, beforeAll } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach } from "vitest";
 import { server } from "./server";
+import { setUiModeForTests } from "../lib/uiMode/uiModeStore";
+import { UI_MODE_STORAGE_KEY } from "../lib/uiMode/uiMode";
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+// Belt-and-suspenders alongside the afterEach reset below: a spec that renders WITHOUT
+// renderWithProviders (which itself calls setUiModeForTests per render - e.g. OptimizePanel/
+// ResourcesPanel/ExportPanel specs that build their own MantineProvider/QueryClientProvider/
+// MemoryRouter wrapper directly) would otherwise have its very FIRST test run against whatever
+// resolveInitialUiMode() resolved to at module-load time in jsdom, not the documented ADVANCED test
+// default - this beforeEach makes that first test's starting mode deterministic too.
+beforeEach(() => {
+  setUiModeForTests("ADVANCED");
+});
 afterEach(() => {
   server.resetHandlers();
   cleanup();
+  // Reset the global UI-mode store back to the ADVANCED test default (see
+  // renderWithProviders.tsx's doc comment) and clear its localStorage mirror, so a test that called
+  // setMode()/setUiModeForTests() directly (bypassing renderWithProviders) never leaks its mode
+  // into the next test.
+  setUiModeForTests("ADVANCED");
+  try {
+    window.localStorage.removeItem(UI_MODE_STORAGE_KEY);
+  } catch {
+    // jsdom's localStorage doesn't throw in practice - best-effort only, mirrors the app's own
+    // fail-safe storage helpers (src/lib/uiMode/uiModeStorage.ts).
+  }
 });
 afterAll(() => server.close());
 

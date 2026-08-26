@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { Anchor, Breadcrumbs, Button, Group, Stack, Stepper, Text, Title } from "@mantine/core";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { usePlan } from "../../api/plans";
-import { useDeleteImportSession } from "../../api/import";
+import { useDeleteImportSession, type ImportAnalysis } from "../../api/import";
 import { sv } from "../../i18n/sv";
 import { DeleteConfirmModal } from "../../components/DeleteConfirmModal";
 import { FileStep } from "./steps/FileStep";
@@ -10,9 +10,10 @@ import { SheetStep } from "./steps/SheetStep";
 import { MappingStep } from "./steps/MappingStep";
 import { ValidateStep } from "./steps/ValidateStep";
 import { CommitStep } from "./steps/CommitStep";
+import { ReviewStep } from "./steps/ReviewStep";
 import { SessionExpiredPanel } from "./SessionExpiredPanel";
 
-const STEP_KEYS = ["file", "sheet", "map", "validate", "commit"] as const;
+const STEP_KEYS = ["file", "review", "sheet", "map", "validate", "commit"] as const;
 type StepKey = (typeof STEP_KEYS)[number];
 
 function isStepKey(value: string | null): value is StepKey {
@@ -23,10 +24,14 @@ function isStepKey(value: string | null): value is StepKey {
  * The import wizard (spec §8.3/§19.3), reachable from Startvy's "Importera ny fil" (via
  * ImportEntryModal, which picks the season/plan first) and from a plan's Deltagare tab.
  *
+ * When upload auto-analysis is confident, the flow skips straight to a single "Granska och
+ * importera" review step. Otherwise (or when the user clicks "Justera") the classic five-step
+ * wizard runs with sheet/header/mapping already pre-filled on the session.
+ *
  * Wizard state lives server-side on the ImportSession (backend/docs/m3-notes.md); the client only
  * keeps `session` + `step` — as URL search params, so a page reload survives (re-fetching
- * preview/columns/validate fresh from the backend on every step). See importSessionStorage.ts for
- * the one exception (the step-2 sheet list, which the backend has no endpoint to re-list).
+ * preview/columns/validate/analysis fresh from the backend on every step). See importSessionStorage.ts for
+ * the one exception (the sheet list, which the backend has no endpoint to re-list).
  */
 export function ImportWizardPage() {
   const { planId } = useParams<{ planId: string }>();
@@ -37,7 +42,12 @@ export function ImportWizardPage() {
   const plan = usePlan(planId);
   const sessionId = searchParams.get("session");
   const step: StepKey = isStepKey(searchParams.get("step")) ? (searchParams.get("step") as StepKey) : "file";
-  const activeIndex = STEP_KEYS.indexOf(step);
+  // Only "review" is known to be on the one-click (2-step) path - readyToCommit isn't known yet
+  // while still on "file" (before upload analysis resolves), so showing the 2-step stepper there
+  // would visibly rewrite itself to 5 steps the instant a non-confident upload lands on "sheet".
+  // Render the classic 5-step stepper on "file" and switch to the 2-step variant only once "review"
+  // is actually reached.
+  const showOneClickStepper = step === "review";
 
   const deleteSession = useDeleteImportSession(planId ?? "");
 
@@ -51,8 +61,12 @@ export function ImportWizardPage() {
   );
 
   const handleUploaded = useCallback(
-    (newSessionId: string) => {
-      setSearchParams({ session: newSessionId, step: "sheet" });
+    (newSessionId: string, analysis: ImportAnalysis) => {
+      if (analysis.readyToCommit) {
+        setSearchParams({ session: newSessionId, step: "review" });
+      } else {
+        setSearchParams({ session: newSessionId, step: "sheet" });
+      }
     },
     [setSearchParams],
   );
@@ -79,6 +93,9 @@ export function ImportWizardPage() {
     return null;
   }
 
+  const wizardStepIndex =
+    step === "sheet" ? 1 : step === "map" ? 2 : step === "validate" ? 3 : step === "commit" ? 4 : 0;
+
   return (
     <Stack gap="lg" py="md">
       <Breadcrumbs>
@@ -94,16 +111,31 @@ export function ImportWizardPage() {
         </Button>
       </Group>
 
-      <Stepper active={activeIndex} allowNextStepsSelect={false}>
-        <Stepper.Step label={sv.importWizard.steps.file} />
-        <Stepper.Step label={sv.importWizard.steps.sheet} />
-        <Stepper.Step label={sv.importWizard.steps.map} />
-        <Stepper.Step label={sv.importWizard.steps.validate} />
-        <Stepper.Step label={sv.importWizard.steps.commit} />
-      </Stepper>
+      {showOneClickStepper ? (
+        <Stepper active={step === "review" ? 1 : 0} allowNextStepsSelect={false}>
+          <Stepper.Step label={sv.importWizard.steps.file} />
+          <Stepper.Step label={sv.importWizard.steps.review} />
+        </Stepper>
+      ) : (
+        <Stepper active={wizardStepIndex} allowNextStepsSelect={false}>
+          <Stepper.Step label={sv.importWizard.steps.file} />
+          <Stepper.Step label={sv.importWizard.steps.sheet} />
+          <Stepper.Step label={sv.importWizard.steps.map} />
+          <Stepper.Step label={sv.importWizard.steps.validate} />
+          <Stepper.Step label={sv.importWizard.steps.commit} />
+        </Stepper>
+      )}
 
       {step === "file" && <FileStep planId={planId} onUploaded={handleUploaded} />}
       {step !== "file" && !sessionId && <SessionExpiredPanel onRestart={handleRestart} />}
+      {step === "review" && sessionId && (
+        <ReviewStep
+          planId={planId}
+          sessionId={sessionId}
+          onAdjust={() => goToStep("sheet")}
+          onExpired={handleRestart}
+        />
+      )}
       {step === "sheet" && sessionId && (
         <SheetStep planId={planId} sessionId={sessionId} onNext={() => goToStep("map")} onExpired={handleRestart} />
       )}

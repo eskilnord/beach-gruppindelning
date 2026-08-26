@@ -28,9 +28,37 @@ export interface ImportSheetSummary {
   suggestedTemplateName: string | null;
 }
 
+export interface ImportColumnAnalysis {
+  columnIndex: number;
+  headerText: string;
+  target: string;
+  reason: string;
+  confidence: number;
+  synthetic: boolean;
+}
+
+export interface ImportAnalysis {
+  readyToCommit: boolean;
+  selectedSheet: string;
+  headerRowIndex: number;
+  sheetReason: string;
+  sheetConfidence: number;
+  usedTemplate: boolean;
+  templateId: string | null;
+  templateName: string | null;
+  columns: ImportColumnAnalysis[];
+  mappedCount: number;
+  ignoredCount: number;
+  playerRowCount: number;
+  warnRowCount: number;
+  skipRowCount: number;
+  warnings: string[];
+}
+
 export interface CreatedImportSession {
   sessionId: string;
   sheets: ImportSheetSummary[];
+  analysis: ImportAnalysis;
 }
 
 export interface ImportPreview {
@@ -111,6 +139,7 @@ const importColumnsKey = (sessionId: string) => ["import", sessionId, "columns"]
 const importPreviewKey = (sessionId: string, sheet: string, rows: number) =>
   ["import", sessionId, "preview", sheet, rows] as const;
 const importValidationKey = (sessionId: string) => ["import", sessionId, "validate"] as const;
+const importAnalysisKey = (sessionId: string) => ["import", sessionId, "analysis"] as const;
 
 // ---------------------------------------------------------------------------
 // Step 1 — Välj fil
@@ -123,6 +152,13 @@ export function useCreateImportSession(planId: string) {
       formData.append("file", file);
       return api.upload<CreatedImportSession>(`/api/plans/${planId}/import/sessions`, formData);
     },
+  });
+}
+
+export function useImportAnalysis(planId: string, sessionId: string) {
+  return useQuery({
+    queryKey: importAnalysisKey(sessionId),
+    queryFn: () => api.get<ImportAnalysis>(`/api/plans/${planId}/import/sessions/${sessionId}/analysis`),
   });
 }
 

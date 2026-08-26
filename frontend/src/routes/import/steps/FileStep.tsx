@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Box, Button, FileButton, Group, Loader, Stack, Text, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useCreateImportSession } from "../../../api/import";
+import { useCreateImportSession, type ImportAnalysis } from "../../../api/import";
 import { ApiError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
 import { cacheImportSheets } from "../importSessionStorage";
@@ -15,7 +15,7 @@ function hasAcceptedExtension(fileName: string): boolean {
 
 interface FileStepProps {
   planId: string;
-  onUploaded: (sessionId: string) => void;
+  onUploaded: (sessionId: string, analysis: ImportAnalysis) => void;
 }
 
 /** Wizard step 1 (spec §8.3): drag-drop or file-picker upload, .xlsx/.csv only. No @mantine/dropzone
@@ -40,7 +40,7 @@ export function FileStep({ planId, onUploaded }: FileStepProps) {
     try {
       const created = await createSession.mutateAsync(file);
       cacheImportSheets(created.sessionId, created.sheets);
-      onUploaded(created.sessionId);
+      onUploaded(created.sessionId, created.analysis);
     } catch (error) {
       notifications.show({
         color: "red",

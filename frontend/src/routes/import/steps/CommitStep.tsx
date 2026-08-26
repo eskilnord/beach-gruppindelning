@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Alert, Button, Group, Stack, Text, TextInput, Title } from "@mantine/core";
+import { Button, Group, Stack, Text, TextInput, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useCommitImport, useImportValidation, type ImportCommitResult } from "../../../api/import";
 import { ApiError, isNotFoundError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
 import { SessionExpiredPanel } from "../SessionExpiredPanel";
+import { ImportResultView } from "../ImportResultView";
 
 interface CommitStepProps {
   planId: string;
@@ -18,7 +18,6 @@ interface CommitStepProps {
  *  backend deletes the session as part of a successful commit (ImportController#commit), so this
  *  step's own local `result` state — not the session — drives the result view afterwards. */
 export function CommitStep({ planId, sessionId, onExpired }: CommitStepProps) {
-  const navigate = useNavigate();
   const validation = useImportValidation(planId, sessionId);
   const commit = useCommitImport(planId, sessionId);
   const [templateName, setTemplateName] = useState("");
@@ -53,28 +52,7 @@ export function CommitStep({ planId, sessionId, onExpired }: CommitStepProps) {
   };
 
   if (result) {
-    return (
-      <Stack gap="md">
-        <Title order={4}>{sv.importWizard.commit.resultHeading}</Title>
-        <Text>{sv.importWizard.commit.resultSummary(result.imported, result.skipped)}</Text>
-        {result.warnings.length > 0 && (
-          <Alert color="yellow" title={sv.importWizard.commit.warningsHeading}>
-            <Stack gap={2}>
-              {result.warnings.map((warning, index) => (
-                <Text size="sm" key={index}>
-                  {warning}
-                </Text>
-              ))}
-            </Stack>
-          </Alert>
-        )}
-        <Group>
-          <Button onClick={() => navigate(`/plans/${planId}/deltagare`)}>
-            {sv.importWizard.commit.goToParticipants}
-          </Button>
-        </Group>
-      </Stack>
-    );
+    return <ImportResultView planId={planId} result={result} />;
   }
 
   return (

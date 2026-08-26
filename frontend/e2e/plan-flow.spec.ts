@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
 import { sv } from "../src/i18n/sv";
+import { useAdvancedMode } from "./helpers/uiMode";
+
+test.beforeEach(async ({ page }) => {
+  await useAdvancedMode(page);
+});
 
 /**
  * End-to-end happy path against the real dev backend (docs/plan.md M2 exit criterion): create a

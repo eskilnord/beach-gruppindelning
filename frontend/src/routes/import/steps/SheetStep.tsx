@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Button, Group, Loader, NumberInput, Stack, Table, Tabs, Text, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useImportPreview, useSetImportHeader } from "../../../api/import";
+import { useImportPreview, useImportAnalysis, useSetImportHeader } from "../../../api/import";
 import { ApiError, isNotFoundError } from "../../../api/client";
 import { sv } from "../../../i18n/sv";
 import { readCachedImportSheets } from "../importSessionStorage";
@@ -19,8 +19,30 @@ interface SheetStepProps {
  *  registers "the selected sheet" server-side for every later step (see ImportSession javadoc). */
 export function SheetStep({ planId, sessionId, onNext, onExpired }: SheetStepProps) {
   const sheets = useMemo(() => readCachedImportSheets(sessionId), [sessionId]);
-  const [selectedSheet, setSelectedSheet] = useState<string | null>(sheets[0]?.name ?? null);
+  const analysis = useImportAnalysis(planId, sessionId);
+  const [selectedSheet, setSelectedSheet] = useState<string | null>(null);
   const [headerRowOverride, setHeaderRowOverride] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (selectedSheet !== null) {
+      return;
+    }
+    // Wait for the analysis query to settle before falling back to sheets[0] - otherwise, on a slow
+    // analysis response, this effect re-runs on every render while analysis.data is still undefined,
+    // picks sheets[0], and the `selectedSheet !== null` guard above then permanently blocks the
+    // analyzed sheet (once it arrives) from ever being selected.
+    if (analysis.isPending) {
+      return;
+    }
+    const fromAnalysis = analysis.data?.selectedSheet;
+    if (fromAnalysis && sheets.some((sheet) => sheet.name === fromAnalysis)) {
+      setSelectedSheet(fromAnalysis);
+      return;
+    }
+    if (sheets[0]) {
+      setSelectedSheet(sheets[0].name);
+    }
+  }, [analysis.data, analysis.isPending, sheets, selectedSheet]);
 
   const preview = useImportPreview(planId, sessionId, selectedSheet);
   const setHeader = useSetImportHeader(planId, sessionId);

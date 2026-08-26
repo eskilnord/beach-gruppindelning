@@ -2,7 +2,13 @@ import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { finishImportAfterUpload } from "./helpers/finishImport";
+import { useAdvancedMode } from "./helpers/uiMode";
 import { sv } from "../src/i18n/sv";
+
+test.beforeEach(async ({ page }) => {
+  await useAdvancedMode(page);
+});
 
 // package.json has "type": "module", so __dirname isn't available — derive it from import.meta.url
 // (same pattern as import-flow.spec.ts/playwright.config.ts).
@@ -94,21 +100,7 @@ test("Fältbyggare + Deltagarvy: create field → import → edit level → reco
     buffer: readFileSync(FIXTURE_PATH),
   });
 
-  await expect(page.getByRole("heading", { name: sv.importWizard.sheet.heading, level: 4 })).toBeVisible();
-  await page.getByRole("button", { name: sv.importWizard.sheet.nextButton }).click();
-
-  await expect(page.getByRole("heading", { name: sv.importWizard.mapping.heading, level: 4 })).toBeVisible();
-  await page.getByRole("button", { name: sv.importWizard.mapping.nextButton }).click();
-
-  await expect(page.getByRole("heading", { name: sv.importWizard.validate.heading, level: 4 })).toBeVisible();
-  await expect(page.getByText(sv.importWizard.validate.summary(3, 0, 0))).toBeVisible();
-  await page.getByRole("button", { name: sv.importWizard.validate.nextButton }).click();
-
-  await expect(page.getByRole("heading", { name: sv.importWizard.commit.heading, level: 4 })).toBeVisible();
-  await page.getByRole("button", { name: sv.importWizard.commit.submit, exact: true }).click();
-  await expect(page.getByRole("heading", { name: sv.importWizard.commit.resultHeading, level: 4 })).toBeVisible();
-  await page.getByRole("button", { name: sv.importWizard.commit.goToParticipants }).click();
-  await expect(page).toHaveURL(/\/deltagare$/);
+  await finishImportAfterUpload(page);
 
   const gridRow = (name: string) => page.locator('[role="row"]').filter({ hasText: name });
 

@@ -1,16 +1,19 @@
-import { ActionIcon, AppShell, Group, NavLink, Text, Title, Tooltip } from "@mantine/core";
+import { ActionIcon, AppShell, Badge, Group, NavLink, Text, Title, Tooltip } from "@mantine/core";
 import { IconCalendarWeek, IconClipboardList, IconHome2 } from "@tabler/icons-react";
 import { Outlet, useParams } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { useSeason } from "../api/seasons";
 import { usePlan } from "../api/plans";
 import { sv } from "../i18n/sv";
+import { useUiMode } from "../lib/uiMode/useUiMode";
 import { BackendStatusFooter } from "./BackendStatusFooter";
 import { BrandMark } from "./BrandMark";
 import { ReconnectOverlay } from "./ReconnectOverlay";
 import { PlayerSearchSpotlight } from "./playersearch/PlayerSearchSpotlight";
 import { TutorialModal } from "./tutorial/TutorialModal";
 import { useTutorialStore } from "./tutorial/tutorialStore";
+import { UiModeSwitch } from "./uimode/UiModeSwitch";
+import { UiModeSync } from "./uimode/UiModeSync";
 
 /** Shared icon sizing for every navbar NavLink (v0.3.0 WI-6) - kept as a constant so Hem/Säsong/Plan
  *  visually line up regardless of which entries are present. */
@@ -31,6 +34,7 @@ export function AppShellLayout() {
   const tutorialOpened = useTutorialStore((state) => state.opened);
   const openTutorial = useTutorialStore((state) => state.open);
   const closeTutorial = useTutorialStore((state) => state.close);
+  const { isAdvanced, setMode } = useUiMode();
 
   return (
     <AppShell header={{ height: 56 }} navbar={{ width: 240, breakpoint: "sm" }} padding="md">
@@ -42,18 +46,37 @@ export function AppShellLayout() {
             <BrandMark />
             <Title order={4}>{sv.app.title}</Title>
           </Group>
-          <Tooltip label={sv.tutorial.headerButtonTooltip}>
-            <ActionIcon
-              variant="default"
-              radius="xl"
-              size="lg"
-              aria-label={sv.tutorial.headerButtonTooltip}
-              onClick={openTutorial}
-              data-testid="tutorial-open-button"
-            >
-              ?
-            </ActionIcon>
-          </Tooltip>
+          <Group gap="xs">
+            {isAdvanced && (
+              <Tooltip label={sv.uiMode.backToSimpleTooltip}>
+                <Badge
+                  component="button"
+                  type="button"
+                  size="sm"
+                  variant="light"
+                  color="gray"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setMode("SIMPLE")}
+                  aria-label={sv.uiMode.backToSimpleTooltip}
+                  data-testid="ui-mode-advanced-badge"
+                >
+                  {sv.uiMode.advancedBadge}
+                </Badge>
+              </Tooltip>
+            )}
+            <Tooltip label={sv.tutorial.headerButtonTooltip}>
+              <ActionIcon
+                variant="default"
+                radius="xl"
+                size="lg"
+                aria-label={sv.tutorial.headerButtonTooltip}
+                onClick={openTutorial}
+                data-testid="tutorial-open-button"
+              >
+                ?
+              </ActionIcon>
+            </Tooltip>
+          </Group>
         </Group>
       </AppShell.Header>
 
@@ -83,6 +106,9 @@ export function AppShellLayout() {
           />
         )}
         <AppShell.Section grow />
+        <AppShell.Section>
+          <UiModeSwitch />
+        </AppShell.Section>
       </AppShell.Navbar>
 
       <AppShell.Main style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
@@ -96,6 +122,7 @@ export function AppShellLayout() {
 
       <ReconnectOverlay />
 
+      <UiModeSync />
       <TutorialModal opened={tutorialOpened} planId={planId} onClose={closeTutorial} />
       {planId && <PlayerSearchSpotlight planId={planId} />}
     </AppShell>

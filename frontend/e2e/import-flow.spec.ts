@@ -1,33 +1,34 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { sv } from "../src/i18n/sv";
+import { useAdvancedMode } from "./helpers/uiMode";
 
-// package.json has "type": "module", so __dirname isn't available — derive it from import.meta.url
-// (same pattern as playwright.config.ts).
+test.beforeEach(async ({ page }) => {
+  await useAdvancedMode(page);
+});
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Committed as `import-fixture.csv.txt`, NOT `.csv`: the repo's confidentiality firewall
 // (.gitignore + scripts/check-no-confidential.sh, see CLAUDE.md) denies *any* `.csv` file outside
-// `test-data/datasets/` by extension, to make it structurally hard to accidentally commit a real
-// member-data export. This fixture is synthetic (fake names/emails, generated for this test) but
-// still a plain CSV, so it's kept under a `.txt` extension to clear that gate. The backend picks
-// CSV vs xlsx parsing purely from the *uploaded* filename's extension (WorkbookParsers.parse), not
-// the on-disk path — so `setInputFiles({ name: "import-fixture.csv", ... })` below uploads this
-// file's bytes under a real `.csv` name, and the backend parses it exactly as it would any other
-// CSV upload.
+// `test-data/datasets/` by extension. Uploaded under a real `.csv` name so the backend parses it.
 const FIXTURE_PATH = path.join(__dirname, "fixtures/import-fixture.csv.txt");
 
-test("import wizard: upload → preview → map → validate → decide duplicate → commit → Deltagare", async ({
-  page,
-}) => {
-  const seasonName = `E2E-import-säsong-${Date.now()}`;
-  const planName = `E2E-import-plan-${Date.now()}`;
+// A separate, small, fully-clean fixture (2 unique participants, no blanks/duplicates - never
+// reused by another spec's or this file's OTHER test's fixture, same fixture-uniqueness rationale as
+// resources-coaches-capacity.spec.ts's own note) for the one-click test below. Person-matching is
+// global, not per-plan, and both tests in this file run against the same backend/DB within a run
+// (playwright.config.ts, fullyParallel: false) - reusing import-fixture.csv.txt's own names here
+// would have the one-click test's commit (which submits no per-row decisions, so every row - even
+// the in-file duplicate - defaults to "create new" and gets persisted) silently create Person rows
+// that then turn the "Justera" test's later upload of the SAME rows into "matched existing person"
+// WARNs instead of the clean OK/WARN/SKIP split its own assertions are written against.
+const ONECLICK_FIXTURE_PATH = path.join(__dirname, "fixtures/import-oneclick-fixture.csv.txt");
 
+async function createSeasonAndPlan(page: Page, seasonName: string, planName: string) {
   await page.goto("/");
-
-  // --- Create a season + activity plan to import into (same flow as plan-flow.spec.ts) ---
   await page.getByRole("button", { name: sv.start.createSeasonButton }).click();
   const createSeasonDialog = page.getByRole("dialog", { name: sv.createSeasonModal.title });
   await createSeasonDialog.getByLabel(sv.createSeasonModal.nameLabel).fill(seasonName);
@@ -41,28 +42,53 @@ test("import wizard: upload → preview → map → validate → decide duplicat
 
   await expect(page).toHaveURL(/\/deltagare$/);
   await expect(page.getByText(sv.participants.empty)).toBeVisible();
+}
 
-  // --- Enter the wizard from the Deltagare tab's "Importera" button ---
+async function uploadFixture(page: Page, fixturePath: string = FIXTURE_PATH, fileName = "import-fixture.csv") {
   await page.getByRole("button", { name: sv.participants.importButton }).click();
   await expect(page).toHaveURL(/\/import(\?.*)?$/);
-
-  // --- Step 1: Välj fil ---
-  // level: 4 disambiguates from the wizard's own page title ("Importera deltagare", an h2), which
-  // also renders on every step and would otherwise substring-match some step headings below.
   await expect(page.getByRole("heading", { name: sv.importWizard.file.heading, level: 4 })).toBeVisible();
   await page.locator('input[type="file"]').setInputFiles({
-    name: "import-fixture.csv",
+    name: fileName,
     mimeType: "text/csv",
-    buffer: readFileSync(FIXTURE_PATH),
+    buffer: readFileSync(fixturePath),
   });
+}
 
-  // --- Step 2: Välj blad & granska — CSV always parses to a single sheet named "CSV" ---
+test("one-click import: upload → granska → importera → Deltagare", async ({ page }) => {
+  const seasonName = `E2E-oneclick-säsong-${Date.now()}`;
+  const planName = `E2E-oneclick-plan-${Date.now()}`;
+  await createSeasonAndPlan(page, seasonName, planName);
+  await uploadFixture(page, ONECLICK_FIXTURE_PATH, "import-oneclick-fixture.csv");
+
+  await expect(page.getByRole("heading", { name: sv.importWizard.review.heading, level: 4 })).toBeVisible();
+  await expect(page.getByTestId("import-review-sheet")).toBeVisible();
+  await page.getByRole("button", { name: sv.importWizard.review.importButton, exact: true }).click();
+
+  await expect(page.getByRole("heading", { name: sv.importWizard.commit.resultHeading, level: 4 })).toBeVisible();
+  await expect(page.getByText(sv.importWizard.commit.resultSummary(2, 0))).toBeVisible();
+  await page.getByRole("button", { name: sv.importWizard.commit.goToParticipants }).click();
+  await expect(page).toHaveURL(/\/deltagare$/);
+  await expect(page.getByRole("gridcell", { name: "Signe Cederholm" })).toBeVisible();
+});
+
+test("import wizard via Justera: upload → justera → map → validate → decide duplicate → commit", async ({
+  page,
+}) => {
+  const seasonName = `E2E-import-säsong-${Date.now()}`;
+  const planName = `E2E-import-plan-${Date.now()}`;
+  await createSeasonAndPlan(page, seasonName, planName);
+  await uploadFixture(page);
+
+  // Confident auto-analysis lands on the review screen; drop into the classic wizard.
+  await expect(page.getByRole("heading", { name: sv.importWizard.review.heading, level: 4 })).toBeVisible();
+  await page.getByRole("button", { name: sv.importWizard.review.adjustButton }).click();
+
   await expect(page.getByRole("heading", { name: sv.importWizard.sheet.heading, level: 4 })).toBeVisible();
   await expect(page.getByText("Förnamn")).toBeVisible();
   await expect(page.getByText("Åkesson")).toBeVisible();
   await page.getByRole("button", { name: sv.importWizard.sheet.nextButton }).click();
 
-  // --- Step 3: Mappa kolumner — every column is auto-suggested from the header text alone ---
   await expect(page.getByRole("heading", { name: sv.importWizard.mapping.heading, level: 4 })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Mappning för kolumn Förnamn" })).toHaveValue(
     sv.importWizard.mapping.targets.firstName,
@@ -72,20 +98,14 @@ test("import wizard: upload → preview → map → validate → decide duplicat
   );
   await page.getByRole("button", { name: sv.importWizard.mapping.nextButton }).click();
 
-  // --- Step 4: Validera — blank row + missing-name row are skipped by default; the duplicate
-  //     email pair (Anna/Maria, both "anna.akesson@example.se") is flagged as a warning. ---
   await expect(page.getByRole("heading", { name: sv.importWizard.validate.heading, level: 4 })).toBeVisible();
   await expect(page.getByText(sv.importWizard.validate.summary(4, 2, 2))).toBeVisible();
 
-  // exact: true — otherwise Playwright's default substring match also picks up the summary
-  // sentence above ("... 2 hoppas över"), which literally contains the SKIP badge's label text.
   const skipBadges = page.getByText(sv.importWizard.validate.status.SKIP, { exact: true });
   const warnBadges = page.getByText(sv.importWizard.validate.status.WARN, { exact: true });
   await expect(skipBadges).toHaveCount(2);
   await expect(warnBadges).toHaveCount(2);
 
-  // --- Decide the duplicate: skip Maria's row (rowIndex 6 — row 1 is the header, so data rows
-  //     are 1-indexed; Anna is row 1, Maria is row 6) rather than importing her as a second person. ---
   const duplicateDecision = page.getByRole("textbox", { name: "Beslut för rad 6" });
   await expect(duplicateDecision).toHaveValue(sv.importWizard.validate.decision.createNew);
   await duplicateDecision.click();
@@ -94,21 +114,23 @@ test("import wizard: upload → preview → map → validate → decide duplicat
 
   await page.getByRole("button", { name: sv.importWizard.validate.nextButton }).click();
 
-  // --- Step 5: Importera — commit (Anna is kept, Maria is now also skipped: 5 imported, 3 skipped) ---
   await expect(page.getByRole("heading", { name: sv.importWizard.commit.heading, level: 4 })).toBeVisible();
-  // exact: true — otherwise this also substring-matches the Stepper's own "5 Importera" step button.
   await page.getByRole("button", { name: sv.importWizard.commit.submit, exact: true }).click();
 
   await expect(page.getByRole("heading", { name: sv.importWizard.commit.resultHeading, level: 4 })).toBeVisible();
+  // 8 rows total: the 2 nameless rows are SKIP outright, and the duplicate-email row (Maria, decided
+  // "Hoppa över" above) joins them, so 5 rows import and 3 are skipped.
   await expect(page.getByText(sv.importWizard.commit.resultSummary(5, 3))).toBeVisible();
-
-  // --- Back on Deltagare: the imported rows are listed, the skipped ones are not. ---
   await page.getByRole("button", { name: sv.importWizard.commit.goToParticipants }).click();
   await expect(page).toHaveURL(/\/deltagare$/);
 
-  for (const name of ["Anna Åkesson", "Björn Öberg", "Erik Käring", "Nils Fagerström", "Ida Håkansson"]) {
-    await expect(page.getByRole("gridcell", { name })).toBeVisible();
-  }
+  // The 5 non-skipped, non-duplicate rows landed as participants...
+  await expect(page.getByRole("gridcell", { name: "Anna Åkesson" })).toBeVisible();
+  await expect(page.getByRole("gridcell", { name: "Björn Öberg" })).toBeVisible();
+  await expect(page.getByRole("gridcell", { name: "Erik Käring" })).toBeVisible();
+  await expect(page.getByRole("gridcell", { name: "Nils Fagerström" })).toBeVisible();
+  await expect(page.getByRole("gridcell", { name: "Ida Håkansson" })).toBeVisible();
+  // ...while Maria (the duplicate the user chose to skip) did not.
   await expect(page.getByRole("gridcell", { name: "Maria Söderström" })).toHaveCount(0);
   await expect(page.getByText(sv.participants.empty)).toHaveCount(0);
 });

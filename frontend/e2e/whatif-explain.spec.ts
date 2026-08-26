@@ -3,6 +3,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { sv } from "../src/i18n/sv";
+import { finishImportAfterUpload } from "./helpers/finishImport";
+import { useAdvancedMode } from "./helpers/uiMode";
+
+test.beforeEach(async ({ page }) => {
+  await useAdvancedMode(page);
+});
 
 // package.json has "type": "module", so __dirname isn't available — derive it from import.meta.url
 // (same pattern as the other e2e specs).
@@ -64,17 +70,7 @@ test("Optimering (GREEDY, 2 grupper) → Analys/Förklara grupp/Förklara/Testa 
     mimeType: "text/csv",
     buffer: readFileSync(FIXTURE_PATH),
   });
-  await expect(page.getByRole("heading", { name: sv.importWizard.sheet.heading, level: 4 })).toBeVisible();
-  await page.getByRole("button", { name: sv.importWizard.sheet.nextButton }).click();
-  await expect(page.getByRole("heading", { name: sv.importWizard.mapping.heading, level: 4 })).toBeVisible();
-  await page.getByRole("button", { name: sv.importWizard.mapping.nextButton }).click();
-  await expect(page.getByRole("heading", { name: sv.importWizard.validate.heading, level: 4 })).toBeVisible();
-  await expect(page.getByText(sv.importWizard.validate.summary(12, 0, 0))).toBeVisible();
-  await page.getByRole("button", { name: sv.importWizard.validate.nextButton }).click();
-  await expect(page.getByRole("heading", { name: sv.importWizard.commit.heading, level: 4 })).toBeVisible();
-  await page.getByRole("button", { name: sv.importWizard.commit.submit, exact: true }).click();
-  await expect(page.getByRole("heading", { name: sv.importWizard.commit.resultHeading, level: 4 })).toBeVisible();
-  await page.getByRole("button", { name: sv.importWizard.commit.goToParticipants }).click();
+  await finishImportAfterUpload(page, { ok: 12, warn: 0, skip: 0 });
   await expect(page).toHaveURL(/\/deltagare$/);
 
   // --- Resurser: two time slots, 1 court each -> 2 active TrainingBlocks -> 2 generated groups ---

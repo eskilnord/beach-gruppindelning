@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShellLayout } from "./components/AppShellLayout";
+import { AdvancedRouteGate } from "./components/uimode/AdvancedRouteGate";
 import { StartPage } from "./routes/start/StartPage";
 import { SeasonPage } from "./routes/season/SeasonPage";
 import { PlanLayout } from "./routes/plan/PlanLayout";
@@ -13,6 +14,7 @@ import { ResultsPanel } from "./routes/plan/results/ResultsPanel";
 import { SavedPlansPanel } from "./routes/plan/savedplans/SavedPlansPanel";
 import { ExportPanel } from "./routes/plan/export/ExportPanel";
 import { ImportWizardPage } from "./routes/import/ImportWizardPage";
+import { sv } from "./i18n/sv";
 
 /**
  * Route tree (docs/design/02-product-data-ui.md §6, corrected paths): Startvy at "/", Säsongsvy at
@@ -35,13 +37,41 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="deltagare" replace /> },
           { path: "deltagare", element: <ParticipantsPanel /> },
-          { path: "falt", element: <FieldsPanel /> },
+          {
+            path: "falt",
+            element: (
+              <AdvancedRouteGate tabLabel={sv.plan.tabs.fields}>
+                <FieldsPanel />
+              </AdvancedRouteGate>
+            ),
+          },
           { path: "resurser", element: <ResourcesPanel /> },
-          { path: "tranare", element: <CoachesPanel /> },
-          { path: "kapacitet", element: <CapacityPanel /> },
+          {
+            path: "tranare",
+            element: (
+              <AdvancedRouteGate tabLabel={sv.plan.tabs.coaches}>
+                <CoachesPanel />
+              </AdvancedRouteGate>
+            ),
+          },
+          {
+            path: "kapacitet",
+            element: (
+              <AdvancedRouteGate tabLabel={sv.plan.tabs.capacity}>
+                <CapacityPanel />
+              </AdvancedRouteGate>
+            ),
+          },
           { path: "optimering", element: <OptimizePanel /> },
           { path: "resultat", element: <ResultsPanel /> },
-          { path: "planer", element: <SavedPlansPanel /> },
+          {
+            path: "planer",
+            element: (
+              <AdvancedRouteGate tabLabel={sv.plan.tabs.savedPlans}>
+                <SavedPlansPanel />
+              </AdvancedRouteGate>
+            ),
+          },
           { path: "export", element: <ExportPanel /> },
         ],
       },

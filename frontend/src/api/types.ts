@@ -5,6 +5,7 @@
  * spells out `components["schemas"][...]` inline.
  */
 import type { components } from "./schema";
+import type { UiMode } from "../lib/uiMode/uiMode";
 
 // springdoc marks every Java record component as an optional schema property (no @NotNull/
 // @Schema(required=true) annotations in the M1 backend), so openapi-typescript generates every
@@ -630,3 +631,15 @@ export type ParticipantSuggestionCount = WithRequired<
   components["schemas"]["ParticipantSuggestionCount"],
   "participantId" | "suggestionCount"
 >;
+
+// --- v0.6.0 F1: UI mode (docs/plan.md) ---
+
+/** Body/response shape of the parallel backend milestone's `GET/PUT /api/app-settings`
+ *  (`{ "uiMode": "SIMPLE" | "ADVANCED" }`, 400 with a Swedish message on an invalid value). That
+ *  backend milestone is NOT merged yet, so this is hand-written rather than derived from
+ *  `components["schemas"]` in schema.d.ts (unlike every other type in this file) - do NOT run
+ *  `npm run typegen` until it lands, then replace this with a schema-derived alias per the
+ *  `WithRequired` pattern used elsewhere in this file. */
+export interface AppSettings {
+  uiMode: UiMode;
+}

@@ -4,6 +4,8 @@ import { Notifications } from "@mantine/notifications";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { render } from "@testing-library/react";
+import { setUiModeForTests } from "../lib/uiMode/uiModeStore";
+import type { UiMode } from "../lib/uiMode/uiMode";
 
 /** Fresh QueryClient per render call: no retries/caching noise across assertions. */
 function createTestQueryClient() {
@@ -26,6 +28,16 @@ function Providers({ children }: { children: ReactNode }) {
   );
 }
 
-export function renderWithProviders(ui: ReactElement) {
+interface RenderWithProvidersOptions {
+  /** Overrides the global UI mode for this render. Defaults to ADVANCED - deliberately NOT the
+   *  product default (SIMPLE, see src/lib/uiMode/uiMode.ts's DEFAULT_UI_MODE) - so every spec
+   *  written before v0.6.0's SIMPLE/ADVANCED split (i.e. against "all panels/tabs always visible")
+   *  keeps passing unchanged; only specs that actually exercise mode-gated behavior need to pass
+   *  `uiMode: "SIMPLE"` explicitly. */
+  uiMode?: UiMode;
+}
+
+export function renderWithProviders(ui: ReactElement, options: RenderWithProvidersOptions = {}) {
+  setUiModeForTests(options.uiMode ?? "ADVANCED");
   return render(ui, { wrapper: Providers });
 }

@@ -288,10 +288,29 @@ export const sv = {
     cancelConfirmMessage: "Den påbörjade importen kastas. Inget har sparats än.",
     steps: {
       file: "Välj fil",
+      review: "Granska",
       sheet: "Blad & granskning",
       map: "Mappa kolumner",
       validate: "Validera",
       commit: "Importera",
+    },
+    review: {
+      heading: "Granska och importera",
+      intro:
+        "Appen har valt blad, mappat kolumner och räknat rader automatiskt. Kontrollera sammanfattningen och importera med ett klick — eller justera manuellt.",
+      templateBannerTitle: "Samma filformat som senast",
+      templateBanner: (name: string) => `Mallen "${name}" används för kolumnmappningen.`,
+      sheetCardLabel: "Blad",
+      mappingCardLabel: "Kolumner",
+      mappingSummary: (mapped: number, ignored: number) =>
+        `${mapped} mappade, ${ignored} ignoreras`,
+      rowsCardLabel: "Rader",
+      rowsSummary: (players: number, warnings: number, skipped: number) =>
+        `${players} spelare (${warnings} med varning), ${skipped} hoppas över`,
+      warningsHeading: "Varningar",
+      reasonHeader: "Varför",
+      importButton: "Importera",
+      adjustButton: "Justera",
     },
     sessionExpired: {
       title: "Sessionen har gått ut",
@@ -1439,6 +1458,25 @@ export const sv = {
     nothingFound: "Inga deltagare hittades.",
     levelBadge: (level: number) => `Nivå ${level}`,
     resultsWaitlistBadge: "Kölista",
+  },
+  uiMode: {
+    navLabel: "Avancerat läge",
+    switchAriaLabel: "Växla avancerat läge",
+    advancedBadge: "Avancerat läge",
+    backToSimpleTooltip: "Tillbaka till enkelt läge",
+    enableConfirm: {
+      title: "Aktivera avancerat läge?",
+      body: "Avancerat läge visar alla inställningar — vikter, tränare, fältbyggare och exportval. Du kan alltid gå tillbaka.",
+      cancel: "Avbryt",
+      confirm: "Aktivera",
+    },
+    routeGate: {
+      title: "Den här fliken finns i avancerat läge",
+      body: (tabLabel: string) => `Fliken ${tabLabel} visas i avancerat läge, som öppnar alla inställningar.`,
+      openAdvancedButton: "Öppna avancerat läge",
+    },
+    saveFailedNoticeTitle: "Kunde inte spara centralt",
+    saveFailedNotice: "Läget gäller den här datorn, men kunde inte sparas centralt.",
   },
 } as const;
 
