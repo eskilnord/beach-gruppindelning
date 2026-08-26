@@ -43,11 +43,30 @@ test.beforeEach(async ({ page }) => {
  * Avancerat läge specifically to dodge this cost - SIMPLE mode never exposes that picker at all, see
  * OptimizePanelSimple.tsx's own doc comment, so this spec has to actually wait it out).
  */
-test.setTimeout(150_000);
+// CI runners are far slower than a dev laptop AND the suggested solve duration scales with
+// measured hardware speed (SolveBenchmarkService), so the solve itself can legitimately take
+// several minutes there - the 420s budget and the 300s outcome wait below are sized for that,
+// not for local runs (locally the whole spec finishes in ~2 min).
+test.setTimeout(420_000);
 
 test("SIMPLE mode, start to finish: season/plan → import → 6-step flow → save & export", async ({ page }) => {
   const seasonName = `E2E-simple-happy-säsong-${Date.now()}`;
   const planName = `E2E-simple-happy-plan-${Date.now()}`;
+  // Person matching is GLOBAL (not per-plan), so a Playwright retry re-importing the same fixture
+  // names into the shared backend DB would turn every row into a "possible duplicate" WARN and
+  // break the exact rowsSummary assertion. Suffixing every surname per attempt makes the spec
+  // retry-idempotent (and parallel-safe against future specs reusing the fixture).
+  const runSuffix = `${Date.now().toString(36)}`;
+  const uniqueFixtureCsv = readFileSync(FIXTURE_PATH, "utf8")
+    .split("\n")
+    .map((line, i) => {
+      if (i === 0 || line.trim() === "") return line;
+      const cols = line.split(",");
+      cols[1] = `${cols[1]}-${runSuffix}`;
+      return cols.join(",");
+    })
+    .join("\n");
+  const surname = (base: string) => `${base}-${runSuffix}`;
 
   await page.goto("/");
 
@@ -99,7 +118,7 @@ test("SIMPLE mode, start to finish: season/plan → import → 6-step flow → s
   await page.locator('input[type="file"]').setInputFiles({
     name: "simple-happy-fixture.csv",
     mimeType: "text/csv",
-    buffer: readFileSync(FIXTURE_PATH),
+    buffer: Buffer.from(uniqueFixtureCsv, "utf8"),
   });
   await finishImportAfterUpload(page, { ok: 10, warn: 0, skip: 0 });
   await expect(page).toHaveURL(/\/deltagare$/);
@@ -111,11 +130,11 @@ test("SIMPLE mode, start to finish: season/plan → import → 6-step flow → s
   // --- Link a friend pair (Tuva Berglind <-> Noel Kvist) via the standard "Vill spela med" field,
   //     the same seeded structured field field-builder.spec.ts's own worked example uses. ---
   const gridRow = (name: string) => page.locator('[role="row"]').filter({ hasText: name });
-  await gridRow("Tuva Berglind").click();
-  const tuvaDrawer = page.getByRole("dialog").filter({ hasText: "Tuva Berglind" });
+  await gridRow(`Tuva ${surname("Berglind")}`).click();
+  const tuvaDrawer = page.getByRole("dialog").filter({ hasText: `Tuva ${surname("Berglind")}` });
   await expect(tuvaDrawer).toBeVisible();
   await tuvaDrawer.getByRole("textbox", { name: "Vill spela med" }).click();
-  await page.getByRole("option", { name: "Noel Kvist" }).click();
+  await page.getByRole("option", { name: `Noel ${surname("Kvist")}` }).click();
   await tuvaDrawer.getByRole("button", { name: sv.participants.drawer.saveButton, exact: true }).click();
   await expect(page.getByText(sv.participants.drawer.saveSuccess).first()).toBeVisible();
   await tuvaDrawer.getByRole("button", { name: sv.participants.drawer.closeButton }).click();
@@ -168,7 +187,7 @@ test("SIMPLE mode, start to finish: season/plan → import → 6-step flow → s
   await page.getByTestId("simple-optimize-button").click();
   // The CUSTOM solve's own duration (useSuggestDuration's formula, clamped [15, 600]s) - generous
   // window, this is the one genuinely slow step in the whole flow.
-  await expect(page.getByTestId("simple-optimize-outcome")).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByTestId("simple-optimize-outcome")).toBeVisible({ timeout: 300_000 });
   await expect(page.getByTestId("simple-optimize-view-groups-button")).toBeVisible();
   // v0.6.0 F6 review fix (FIX 2, MAJOR): the coach-string sweep, extended to the Optimera step too.
   await expect(page.getByText(/tränar/i)).toHaveCount(0);
