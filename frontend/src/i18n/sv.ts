@@ -1278,6 +1278,12 @@ export const sv = {
       subtitle: "Små ändringar i data som styrelsen kan göra för att förbättra resultatet.",
       loadFailed: "Kunde inte hämta förbättringsförslag",
       empty: "Inga uppenbara förbättringar hittades – kölistan och tränartäckningen ser bra ut.",
+      // v0.6.0 F6 review fix (FIX 1, BLOCKER): SIMPLE's own coach filter (filterSuggestionsForUiMode
+      // in ImprovementSuggestions.tsx) can itself produce the "nothing left to show" empty case out
+      // of a response that held ONLY coach-touching suggestions - the ADVANCED `empty` copy above
+      // ("...tränartäckningen ser bra ut") would then be the one coach-identifying leak left on this
+      // card in SIMPLE. This variant never mentions coach coverage at all.
+      emptySimple: "Inga uppenbara förbättringar hittades – kölistan ser bra ut.",
       // Same truthfulness nuance as results.explain.staleBanner: the list is RE-COMPUTED from the
       // plan's current state, not replayed from the old run - what's outdated is the RUN.
       staleBanner:
@@ -1516,6 +1522,69 @@ export const sv = {
         ],
       },
     ],
+    // v0.6.0 F6 (M-S6): the SIMPLE-mode kom-igång-guiden - six steps mirroring
+    // PlanSimpleStepper.tsx's six-step IA (planSimpleSteps.ts's SIMPLE_STEPS) exactly, instead of
+    // the 10-step ADVANCED walkthrough above (which names tabs - Fält, Tränare, Kapacitet, Planer,
+    // Export - that don't exist in SIMPLE's navigation at all). Icon + "Ta mig dit" target live in
+    // tutorialSteps.ts's parallel TUTORIAL_STEP_CONFIG_SIMPLE array, same split as `steps` above.
+    simpleSteps: [
+      {
+        title: "Säsong & plan",
+        body: "Allt börjar med en säsong – till exempel \"VT27\" – och en aktivitetsplan i den. Aktivitetsplanen är arbetsytan där du importerar deltagare, kontrollerar tider, ordnar prioriteringar och skapar grupperna – sex steg, ett i taget.",
+        bullets: [
+          "Klicka på \"Skapa ny säsong\" på Startsidan.",
+          "Öppna säsongen och skapa en aktivitetsplan.",
+          "Du hittar alltid tillbaka via brödsmulorna högst upp på sidan.",
+        ],
+      },
+      {
+        title: "Importera",
+        body: "Ladda upp anmälningsfilen (Excel eller CSV) på steget Deltagare. Appen läser filen automatiskt och visar en tydlig sammanställning innan något sparas i planen. Kommentarer från anmälningsformuläret påverkar ALDRIG optimeringen av sig själva – bara det du fyller i strukturerade fält gör det.",
+        bullets: [
+          "Gå till steget Deltagare och klicka \"Importera\".",
+          "Granska sammanställningen och bekräfta importen.",
+          "Kommentarer påverkar aldrig optimeringen – bara strukturerade fält gör det.",
+        ],
+      },
+      {
+        title: "Tider",
+        body: "På steget Tider kontrollerar du träningstiderna. Appen har redan lagt in klubbens vanliga tider – ändra dem om det behövs, eller lägg till fler. Under listan ser du en kapacitetskoll: hur många deltagare det finns plats för jämfört med hur många som är anmälda.",
+        bullets: [
+          "Kontrollera att dag, starttid och sluttid stämmer.",
+          "Ändra antal banor om det behövs.",
+          "Se kapacitetskollen längst ner för att fånga en risk för kölista i tid.",
+        ],
+      },
+      {
+        title: "Prioriteringar",
+        body: "På steget Prioriteringar ordnar du vad som är viktigast när grupperna sätts – till exempel att träna tillsammans, fortsätta i samma grupp, önskad tid eller jämn nivå. Det som står högst upp väger tyngst.",
+        bullets: [
+          "Dra eller använd pilarna för att ordna prioriteringarna.",
+          "Ordningen sparas automatiskt när du ändrar den.",
+        ],
+      },
+      {
+        title: "Skapa grupper",
+        body: "När allt är klart klickar du \"Skapa grupper\" på steget Skapa grupper. Optimeringen fördelar deltagarna enligt dina prioriteringar, och du ser resultatet så fort det är klart.",
+        bullets: [
+          "Kontrollera att checklistan är grön innan du klickar.",
+          "Klicka \"Skapa grupper\" och vänta på resultatet.",
+        ],
+      },
+      {
+        title: "Resultat & export",
+        body: "På steget Resultat ser du grupperna. Gå sedan vidare till steget Spara & exportera för att spara en version av planen och exportera resultatet till Excel.",
+        bullets: [
+          "Granska grupperna under Resultat.",
+          // v0.6.0 F6 review fix (FIX 5, MINOR): this step's "Ta mig dit" target is Resultat (its
+          // primary surface, TUTORIAL_STEP_CONFIG_SIMPLE's own doc comment) - the bullet now names the
+          // "Spara & exportera" step explicitly rather than just describing the action, so a reader
+          // knows to move on to the next step in the stepper for it.
+          "Gå vidare till steget Spara & exportera för att spara en version och exportera till Excel.",
+          "Behöver du fler inställningar finns Avancerat läge längst ner till vänster.",
+        ],
+      },
+    ],
   },
   playerSearch: {
     actionIconTooltip: "Sök deltagare (Ctrl/Cmd+F)",
@@ -1537,14 +1606,17 @@ export const sv = {
       prioriteringar: "Prioriteringar",
       optimera: "Optimera",
       resultat: "Resultat",
-      // v0.6.0 F2 review fix (FIX 3): was "Spara & exportera" - saving isn't reachable from this
-      // step yet (no SimpleSaveExportCard on the export route this milestone). F6 adds that card and
-      // renames this back to "Spara & exportera".
-      exportera: "Exportera",
+      // v0.6.0 F6 (M-S6): SimpleSaveExportCard now lands on the export route, so this reverts to
+      // the original "Spara & exportera" label the F2 review fix had temporarily shortened.
+      exportera: "Spara & exportera",
     },
     // v0.6.0 F2 review fix (FIX 8): static fallback descriptions for the steps completionFor
     // (planSimpleSteps.ts) has no cheap live-number signal for, so every step in the stepper still
-    // renders a description line (even heights) instead of three of the six looking randomly blank.
+    // renders a description line (even heights) instead of looking randomly blank.
+    //
+    // v0.6.0 F6 (M-S6): "exportera" no longer lives here - SimpleSaveExportCard landing on the
+    // export route gives that step a real cheap signal (saved-plans count), so it now behaves like
+    // deltagare/tider/optimera (countCompletion) instead of needing a static fallback.
     stepDescriptions: {
       // v0.6.0 F3 (M-S3): "prioriteringar" is now only the fallback shown while the real
       // priority-order query hasn't resolved yet (loading/erroring) - PlanSimpleStepper.tsx switches
@@ -1554,7 +1626,6 @@ export const sv = {
       prioritiesTopPriority: (topPriorityLabelSv: string) => `Viktigast: ${topPriorityLabelSv}`,
       prioritiesCustomWeights: "Anpassade vikter",
       resultat: "Granska grupperna",
-      exportera: "Exportera resultatet",
     },
     nav: {
       back: "Tillbaka",
@@ -1685,6 +1756,21 @@ export const sv = {
         withoutLevel: (n: number) => `${n} utan nivå`,
       },
     },
+    // v0.6.0 F6 (M-S6): SimpleSaveExportCard.tsx - the reduced "Spara & exportera" step 6 surface
+    // that replaces ExportPanel's full advanced surface (format/layout pickers, comments checkbox,
+    // anonymiserat testdata card) in SIMPLE mode. One name field + "Spara plan", one big "Exportera
+    // till Excel" button pinned to xlsx/grouped/no-comments (comments can never leak through this
+    // path - see SimpleSaveExportCard.test.tsx's own pinned request-body test - v0.6.0 F6 review fix
+    // (FIX 6, MINOR): this comment used to point at exportForm.test.ts, which doesn't have that test).
+    saveExport: {
+      nameLabel: "Namn på den sparade versionen",
+      saveButton: "Spara plan",
+      saving: "Sparar…",
+      savedSuccess: (time: string) => `Sparad ✓ ${time}`,
+      saveFailed: "Det gick inte att spara planen.",
+      exportButton: "Exportera till Excel",
+      advancedHint: "Fler format och exportval finns i avancerat läge.",
+    },
   },
   uiMode: {
     navLabel: "Avancerat läge",
@@ -1709,6 +1795,18 @@ export const sv = {
     // ParticipantDrawer's coach wish MultiSelects (the same CustomFieldEditor case, rendered there),
     // and MappingStep's auto-suggested coach-target row.
     handledInAdvanced: "Hanteras i avancerat läge",
+    // v0.6.0 F6 (M-S6): UiModeIntroBanner.tsx - StartPage's one-time (localStorage-gated, mirrors
+    // TutorialBanner's `gp.tutorial.seen` pattern) "the app now has a simpler mode" notice, shown
+    // only to a SIMPLE-mode user (an already-advanced user needs no introduction to a mode they're
+    // not in). "Behåll avancerat läge" is a deliberate, explicit opt-out - it flips the mode
+    // straight to ADVANCED WITHOUT UiModeSwitch's confirm modal, since choosing it from this banner
+    // already IS the confirmation.
+    intro: {
+      title: "Appen har fått ett enklare läge",
+      body: "Appen har fått ett enklare läge — alla avancerade inställningar finns kvar under Avancerat läge längst ner till vänster.",
+      okButton: "Okej",
+      keepAdvancedButton: "Behåll avancerat läge",
+    },
   },
 } as const;
 

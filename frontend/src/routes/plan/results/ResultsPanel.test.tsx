@@ -266,3 +266,89 @@ describe("ResultsPanel SIMPLE mode - misplaced-hint search button", () => {
     openSpy.mockRestore();
   });
 });
+
+// v0.6.0 F6 (M-S6) loose-ends fix, regression net: the v0.2.0 coach-less "note" (RunResultSummary
+// .note, e.g. "Inga tränare registrerade — grupperna optimerades utan tränartilldelning") is a coach
+// string - it must never render in SIMPLE mode (same rule as GroupCard's coach chip/rows,
+// ImprovementSuggestions' COACH_ rows, ResultsSummary's coachCoverage - uiModeCoachHiding.test.tsx's
+// own doc comment), but WAS unguarded here before this fix.
+const NOTE_RUN: OptimizationRun = {
+  ...RUN,
+  resultSummaryJson: JSON.stringify({
+    hard: 0,
+    medium: 0,
+    soft: -10,
+    feasible: true,
+    unassignedCount: 0,
+    note: "Inga tränare registrerade — grupperna optimerades utan tränartilldelning",
+  }),
+};
+
+function mockEndpointsWithNote() {
+  mockEndpoints();
+  server.use(http.get(`/api/plans/${PLAN_ID}/runs`, () => HttpResponse.json([NOTE_RUN])));
+}
+
+describe("ResultsPanel coach-less note (RunResultSummary.note) - SIMPLE/ADVANCED gating", () => {
+  it("SIMPLE mode: never renders the coach-less note", async () => {
+    mockEndpointsWithNote();
+    renderAtRoute(`/plans/${PLAN_ID}/resultat`);
+
+    await screen.findByRole("heading", { name: sv.results.heading });
+    expect(screen.queryByTestId("results-note")).not.toBeInTheDocument();
+    // v0.6.0 F6 review fix (FIX 2, MAJOR): widened from /tränare/i to /tränar/i - the reviewer
+    // verified no non-coach /tränar/i string can render on this screen once FIX 1 lands ("{name}
+    // tränar i" is spotlight-only; "Tränar själv" is the drawer), so the narrower /tränare/i regex
+    // was leaving a gap (e.g. "tränar" without a trailing "e" would have slipped through unnoticed).
+    expect(screen.queryByText(/tränar/i)).not.toBeInTheDocument();
+  });
+
+  it("ADVANCED mode: renders the coach-less note unchanged", async () => {
+    mockEndpointsWithNote();
+    setUiModeForTests("ADVANCED");
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    render(
+      <MantineProvider>
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={[`/plans/${PLAN_ID}/resultat`]}>
+            <Routes>
+              <Route path="/plans/:planId/resultat" element={<ResultsPanel />} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </MantineProvider>,
+    );
+
+    expect(await screen.findByTestId("results-note")).toHaveTextContent(
+      "Inga tränare registrerade — grupperna optimerades utan tränartilldelning",
+    );
+  });
+});
+
+// v0.6.0 F6 review fix (FIX 4, MAJOR): the coach-less note's SIMPLE gate must only hide notes that
+// actually mention a coach - a generic diagnostic note (e.g. the backend's "avbruten innan lösaren
+// hann starta", written when a run is cancelled before the solver even starts) has nothing to do with
+// coaches and must stay visible in SIMPLE too. See OptimizationRunService.java for both known
+// RunResultSummary.note values this checkout can produce.
+const GENERIC_NOTE_RUN: OptimizationRun = {
+  ...RUN,
+  resultSummaryJson: JSON.stringify({
+    hard: 0,
+    medium: 0,
+    soft: -10,
+    feasible: true,
+    unassignedCount: 0,
+    note: "avbruten innan lösaren hann starta",
+  }),
+};
+
+describe("ResultsPanel generic (non-coach) note - stays visible in SIMPLE", () => {
+  it("SIMPLE mode: still renders a non-coach note", async () => {
+    mockEndpoints();
+    server.use(http.get(`/api/plans/${PLAN_ID}/runs`, () => HttpResponse.json([GENERIC_NOTE_RUN])));
+    renderAtRoute(`/plans/${PLAN_ID}/resultat`);
+
+    await screen.findByRole("heading", { name: sv.results.heading });
+    expect(await screen.findByTestId("results-note")).toHaveTextContent("avbruten innan lösaren hann starta");
+  });
+});

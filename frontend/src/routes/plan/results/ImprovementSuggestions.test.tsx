@@ -77,6 +77,34 @@ describe("ImprovementSuggestions", () => {
     expect(screen.queryByTestId("improvement-suggestions-toggle")).not.toBeInTheDocument();
   });
 
+  // v0.6.0 F6 review fix (FIX 1, BLOCKER): SIMPLE's own coach filter can itself produce the empty
+  // case (a response holding ONLY coach-touching suggestions) - the ADVANCED empty copy names
+  // "tränartäckningen" and must never render in that case.
+  it("renders the SIMPLE-specific empty copy (no coach wording) when the coach filter empties the list", async () => {
+    const response: ImprovementSuggestionsResponse = {
+      ...BASE_RESPONSE,
+      suggestions: [
+        {
+          kind: "COACH_TIME",
+          titleSv: "Om Lisa Larsson kunde ta Torsdag 18.00-19.30 skulle Grupp A få en tränare.",
+          detailSv: undefined,
+          impactSv: "1 grupp utan tränare åtgärdas",
+          groupId: "group-1",
+          participantProfileId: undefined,
+          coachProfileId: "coach-1",
+          timeSlotId: "slot-1",
+        },
+      ],
+    };
+    server.use(http.get(SUGGESTIONS_URL, () => HttpResponse.json(response)));
+
+    renderWithProviders(<ImprovementSuggestions planId="plan-1" runId="run-1" />, { uiMode: "SIMPLE" });
+
+    const empty = await screen.findByTestId("improvement-suggestions-empty");
+    expect(empty).toHaveTextContent(sv.results.suggestions.emptySimple);
+    expect(empty.textContent ?? "").not.toMatch(/tränar/i);
+  });
+
   it("shows the stale banner when the response is stale, alongside its content", async () => {
     const response: ImprovementSuggestionsResponse = {
       ...BASE_RESPONSE,

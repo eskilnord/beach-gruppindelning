@@ -121,7 +121,12 @@ export function ImprovementSuggestions({ planId, runId }: ImprovementSuggestions
               a plan with only limitations (GROUP_MAX*) must never claim no improvements exist. */}
           {all.length === 0 ? (
             <Text size="sm" c="dimmed" data-testid="improvement-suggestions-empty">
-              {sv.results.suggestions.empty}
+              {/* v0.6.0 F6 review fix (FIX 1, BLOCKER): the ADVANCED empty copy names "tränartäckningen"
+                  (coach coverage) - SIMPLE's own coach filter above can itself be the reason this list
+                  ended up empty (a response that held only COACH_TIME/COACH_MAX suggestions), so the
+                  ADVANCED copy would leak a coach-identifying word here even though every coach row was
+                  otherwise correctly hidden. */}
+              {isSimple ? sv.results.suggestions.emptySimple : sv.results.suggestions.empty}
             </Text>
           ) : (
             <Collapse in={opened}>

@@ -311,7 +311,20 @@ export function ResultsPanel() {
             { label: sv.results.viewToggle.schedule, value: "schedule" },
           ]}
         />
-        {latestRunNote && (
+        {/* v0.6.0 F6 (M-S6) loose-ends fix: this backend-supplied note (RunResultSummary.note) is
+            free text - two possible values exist in this checkout today (OptimizationRunService.java):
+            NOTE_NO_COACHES ("Inga tränare registrerade — grupperna optimerades utan
+            tränartilldelning") is a coach string and must stay ADVANCED-only, same as every other
+            coach surface on this screen (GroupCard's coach chip/rows, ImprovementSuggestions'
+            COACH_ rows, ResultsSummary's coachCoverage); the OTHER note ("avbruten innan lösaren hann
+            starta", a generic solve-was-cancelled diagnostic) has nothing to do with coaches and must
+            stay visible in SIMPLE too.
+            v0.6.0 F6 review fix (FIX 4, MAJOR): the previous version of this gate was `!isSimple &&
+            latestRunNote`, which hid ANY note (coach or not) in SIMPLE - suppressing that second,
+            genuinely useful diagnostic for no reason. There's no structured discriminator on
+            RunResultSummary.note (it's a plain string from the backend), so this narrows the gate to
+            the one substring both known coach-note values share instead of blanket-hiding every note. */}
+        {latestRunNote && (!isSimple || !/tränar/i.test(latestRunNote)) && (
           <Alert color="blue" mt="sm" data-testid="results-note">
             {latestRunNote}
           </Alert>

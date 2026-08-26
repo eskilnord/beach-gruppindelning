@@ -95,6 +95,13 @@ export interface StepCompletionInput {
    *  yet (same "no signal" treatment as the other three inputs above). See PlanSimpleStepper.tsx for
    *  how this is derived from `usePriorityOrder`'s full response. */
   priorityOrder: PriorityOrderCompletionInput | undefined;
+  /** v0.6.0 F6 (M-S6): `useSavedPlans(planId).data?.length` - restored now that SimpleSaveExportCard
+   *  actually lands on the export route (F2 review fix FIX 3's own TODO). Saving a version is a real
+   *  user action (unlike Prioriteringar's seeded-default-order trap, priorityCompletion's own doc
+   *  comment) - `count > 0` is honest evidence of "the admin has saved at least once", so this step
+   *  reuses the same countCompletion helper as deltagare/tider/optimera below, not a static
+   *  fallback. */
+  savedPlansCount: number | undefined;
 }
 
 /** See {@link StepCompletionInput.priorityOrder}'s doc comment. */
@@ -163,10 +170,9 @@ export function completionFor(input: StepCompletionInput): StepCompletion[] {
     // without an extra backend call (e.g. "does the latest run have assigned groups") - left
     // un-checked rather than duplicating Optimera's completion or adding load.
     { completed: undefined, description: sv.simple.stepDescriptions.resultat },
-    // Exportera (v0.6.0 F2 review fix, FIX 3): used to show a saved-plan count here, which promised a
-    // "saving" step this milestone can't actually deliver (no SimpleSaveExportCard on the export
-    // route yet). Left un-checked with a static description instead of a live count that doesn't
-    // mean anything on this step yet. F6 adds the real save/export UI and can restore a live signal.
-    { completed: undefined, description: sv.simple.stepDescriptions.exportera },
+    // Exportera (v0.6.0 F6, M-S6): restored - SimpleSaveExportCard now lands on the export route, so
+    // "has the admin saved at least one version" is real, cheap evidence again (see
+    // StepCompletionInput.savedPlansCount's own doc comment for why F2's review fix dropped this).
+    countCompletion(input.savedPlansCount, "sparad plan", "sparade planer"),
   ];
 }

@@ -17,6 +17,16 @@ interface UiModeStoreState {
    *  longer matches the store's current one and that stale response's cache write / failure
    *  notification is suppressed (B4: PUT race). */
   requestToken: number;
+  /** v0.6.0 F6 review fix (FIX 3, MAJOR): true once UiModeSync's ONE backend reconcile attempt has
+   *  settled this session - either it applied (or declined to apply) a differing backend value, or
+   *  the `GET /api/app-settings` itself failed. Set by {@link markUiModeReconciled}, exclusively from
+   *  UiModeSync.tsx. UiModeIntroBanner.tsx defers BOTH showing itself and burning the
+   *  `gp.uiMode.introSeen` flag until this is true - otherwise a user who boots into SIMPLE only
+   *  because the backend hasn't answered yet could be shown (and have the intro permanently marked
+   *  "seen" for) a banner that a moment later gets contradicted by a backend reconcile flipping the
+   *  mode to ADVANCED. Deliberately still flips true on a GET *error* too (see
+   *  {@link markUiModeReconciled}) - an unreachable backend must not suppress the banner forever. */
+  reconciled: boolean;
   setMode: (mode: UiMode) => number;
 }
 
@@ -39,6 +49,7 @@ export const useUiModeStore = create<UiModeStoreState>((set, get) => ({
   mode: resolveInitialUiMode(typeof window !== "undefined" ? window.location.search : ""),
   userChangedThisSession: false,
   requestToken: 0,
+  reconciled: false,
   setMode: (mode) => {
     writeUiModeToStorage(mode);
     const token = get().requestToken + 1;
@@ -58,14 +69,29 @@ export function applyReconciledUiMode(mode: UiMode): void {
   useUiModeStore.setState({ mode });
 }
 
+/** v0.6.0 F6 review fix (FIX 3, MAJOR): marks the ONE-PER-SESSION backend reconcile as settled -
+ *  called by UiModeSync.tsx once its `GET /api/app-settings` has either resolved (and any differing
+ *  value been applied or deliberately declined per the B3 precedence) or failed outright. See
+ *  {@link UiModeStoreState.reconciled}'s own doc comment for why callers (UiModeIntroBanner.tsx) gate
+ *  on this rather than just on `mode === "SIMPLE"`. */
+export function markUiModeReconciled(): void {
+  useUiModeStore.setState({ reconciled: true });
+}
+
 /** Test-only escape hatch (mirrors resetTutorialSeenForTests / resetBackendInfoCacheForTests):
  *  forces the store's mode directly, bypassing localStorage entirely, and resets
  *  `userChangedThisSession` back to false so a test that called setMode()/toggled the switch never
  *  leaks that flag into the next test. Used by src/test/renderWithProviders.tsx (per-test override)
  *  and src/test/setup.ts (before/afterEach reset to the ADVANCED test default) so specs never depend
- *  on whatever `resolveInitialUiMode()` happened to resolve to at module-load time in jsdom. */
-export function setUiModeForTests(mode: UiMode): void {
-  useUiModeStore.setState({ mode, userChangedThisSession: false });
+ *  on whatever `resolveInitialUiMode()` happened to resolve to at module-load time in jsdom.
+ *
+ *  `reconciled` defaults to true here (v0.6.0 F6 review fix, FIX 3): almost no spec mounts
+ *  `<UiModeSync/>` (it's the app-wide singleton, AppShellLayout.tsx), so without this default
+ *  anything gated on `reconciled` (UiModeIntroBanner.tsx) would be permanently blocked in every
+ *  other spec, waiting on a reconcile that will never happen. Pass `{ reconciled: false }` for a
+ *  spec that deliberately mounts `<UiModeSync/>` itself and wants to observe pre-reconcile state. */
+export function setUiModeForTests(mode: UiMode, options: { reconciled?: boolean } = {}): void {
+  useUiModeStore.setState({ mode, userChangedThisSession: false, reconciled: options.reconciled ?? true });
 }
 
 /** Test-only: resets just `userChangedThisSession` to false without touching `mode` - for specs

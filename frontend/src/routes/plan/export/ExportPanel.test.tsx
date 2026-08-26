@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { server } from "../../../test/server";
+import { setUiModeForTests } from "../../../lib/uiMode/uiModeStore";
 import { ExportPanel } from "./ExportPanel";
 
 /** ExportPanel reads planId via useParams - needs a matched route, same pattern as
@@ -42,5 +43,35 @@ describe("ExportPanel help tips", () => {
 
     const helpTips = screen.getAllByRole("button", { name: /^Förklaring:/ });
     expect(helpTips.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// v0.6.0 F6 (M-S6): ExportPanel now renders SimpleSaveExportCard (SIMPLE) or the full advanced
+// surface tested above (ADVANCED) via a <SimpleOnly>/<AdvancedOnly> split - same pattern
+// ResourcesPanel.tsx already uses.
+describe("ExportPanel SIMPLE/ADVANCED split", () => {
+  it("renders SimpleSaveExportCard, not the advanced export/anonymized cards, in SIMPLE mode", async () => {
+    setUiModeForTests("SIMPLE");
+    server.use(
+      http.get("/api/plans/plan-1", () => HttpResponse.json({ id: "plan-1", name: "Herr A" })),
+      http.get("/api/plans/plan-1/runs", () => HttpResponse.json([])),
+    );
+
+    renderExportPanel();
+
+    expect(await screen.findByTestId("simple-save-export-card")).toBeInTheDocument();
+    expect(screen.queryByTestId("export-card")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("anonymized-export-card")).not.toBeInTheDocument();
+  });
+
+  it("renders the full advanced surface, not SimpleSaveExportCard, in ADVANCED mode", async () => {
+    setUiModeForTests("ADVANCED");
+    server.use(http.get("/api/plans/plan-1/runs", () => HttpResponse.json([])));
+
+    renderExportPanel();
+
+    expect(await screen.findByTestId("export-card")).toBeInTheDocument();
+    expect(screen.getByTestId("anonymized-export-card")).toBeInTheDocument();
+    expect(screen.queryByTestId("simple-save-export-card")).not.toBeInTheDocument();
   });
 });

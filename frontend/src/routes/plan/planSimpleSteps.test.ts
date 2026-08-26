@@ -50,6 +50,7 @@ describe("completionFor", () => {
     timeSlotsCount: undefined,
     optimizationRunsCount: undefined,
     priorityOrder: undefined,
+    savedPlansCount: undefined,
   };
 
   it("leaves the three live-count steps un-checked with no description when nothing has loaded yet", () => {
@@ -90,7 +91,7 @@ describe("completionFor", () => {
   // from, but they DO get a static fallback description (sv.simple.stepDescriptions) so every step
   // in the stepper renders a description line - not just the ones with a cheap signal.
   it("Prioriteringar: no signal (query not loaded) - un-checked, static fallback description", () => {
-    const result = completionFor({ participantsCount: 260, timeSlotsCount: 3, optimizationRunsCount: 2, priorityOrder: undefined });
+    const result = completionFor({ participantsCount: 260, timeSlotsCount: 3, optimizationRunsCount: 2, priorityOrder: undefined, savedPlansCount: undefined });
     expect(result[2]).toEqual({ completed: undefined, description: sv.simple.stepDescriptions.prioriteringar });
   });
 
@@ -106,6 +107,7 @@ describe("completionFor", () => {
         timeSlotsCount: 3,
         optimizationRunsCount: 2,
         priorityOrder: { customWeightsActive: false, topPriorityLabelSv: "Träna tillsammans", updatedAt: "2026-01-01T00:00:00Z" },
+        savedPlansCount: undefined,
       });
       expect(result[2]).toEqual({ completed: true, description: "Viktigast: Träna tillsammans" });
     });
@@ -116,6 +118,7 @@ describe("completionFor", () => {
         timeSlotsCount: 3,
         optimizationRunsCount: 2,
         priorityOrder: { customWeightsActive: false, topPriorityLabelSv: "Träna tillsammans", updatedAt: null },
+        savedPlansCount: undefined,
       });
       expect(result[2]).toEqual({ completed: false, description: "Viktigast: Träna tillsammans" });
     });
@@ -126,6 +129,7 @@ describe("completionFor", () => {
         timeSlotsCount: 3,
         optimizationRunsCount: 2,
         priorityOrder: { customWeightsActive: true, topPriorityLabelSv: "Träna tillsammans", updatedAt: "2026-01-01T00:00:00Z" },
+        savedPlansCount: undefined,
       });
       expect(result[2]).toEqual({ completed: true, description: sv.simple.stepDescriptions.prioritiesCustomWeights });
     });
@@ -151,12 +155,28 @@ describe("completionFor", () => {
     expect(result[4]).toEqual({ completed: undefined, description: sv.simple.stepDescriptions.resultat });
   });
 
-  // v0.6.0 F2 review fix (FIX 3): used to derive completion/description from a saved-plan count -
-  // dropped, since saving isn't actually reachable from this step yet (no SimpleSaveExportCard on
-  // the export route this milestone). Now behaves like Prioriteringar/Resultat: always un-checked,
-  // static fallback description, regardless of input.
-  it("Exportera: always un-checked, static fallback description (saving not reachable from this step yet)", () => {
-    const result = completionFor({ ...EMPTY, participantsCount: 260, timeSlotsCount: 3, optimizationRunsCount: 2 });
-    expect(result[5]).toEqual({ completed: undefined, description: sv.simple.stepDescriptions.exportera });
+  // v0.6.0 F6 (M-S6): restored (F2 review fix FIX 3's own TODO) - SimpleSaveExportCard now lands on
+  // the export route, so a saved-plans count is real, cheap evidence again. Same singular/plural +
+  // "loaded but zero is not completed" shape as Deltagare/Tider/Optimera above.
+  it("Exportera: completed + saved-plans count once loaded", () => {
+    expect(completionFor({ ...EMPTY, savedPlansCount: 1 })[5]).toEqual({
+      completed: true,
+      description: "1 sparad plan",
+    });
+    expect(completionFor({ ...EMPTY, savedPlansCount: 3 })[5]).toEqual({
+      completed: true,
+      description: "3 sparade planer",
+    });
+  });
+
+  it("Exportera: loaded but empty is NOT completed, still shows the zero count", () => {
+    expect(completionFor({ ...EMPTY, savedPlansCount: 0 })[5]).toEqual({
+      completed: false,
+      description: "0 sparade planer",
+    });
+  });
+
+  it("Exportera: no signal (query not loaded) - un-checked, no description", () => {
+    expect(completionFor(EMPTY)[5]).toEqual({ completed: undefined, description: undefined });
   });
 });

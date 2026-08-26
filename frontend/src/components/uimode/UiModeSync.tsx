@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useIsMutating } from "@tanstack/react-query";
 import { SET_UI_MODE_MUTATION_KEY, useAppSettings } from "../../api/appSettings";
 import { UI_MODE_QUERY_OVERRIDE_ACTIVE } from "../../lib/uiMode/uiMode";
-import { applyReconciledUiMode, useUiModeStore } from "../../lib/uiMode/uiModeStore";
+import { applyReconciledUiMode, markUiModeReconciled, useUiModeStore } from "../../lib/uiMode/uiModeStore";
 
 /**
  * The ONLY place in the app that runs the `GET /api/app-settings` query. This is a deliberate
@@ -21,21 +21,32 @@ import { applyReconciledUiMode, useUiModeStore } from "../../lib/uiMode/uiModeSt
  * once for the whole app session, so "once per mount" is "once per session" in practice; a later GET
  * refetch (e.g. window refocus) must not re-trigger a second silent overwrite. And it waits out any
  * set-mode PUT that's currently in flight (`useIsMutating`) rather than racing it, retrying once that
- * PUT settles. If the backend is unreachable (or the endpoint doesn't exist yet in this checkout),
- * `data` simply never arrives and the local value is silently kept - this component never renders
- * any loading/error UI of its own.
+ * PUT settles.
+ *
+ * v0.6.0 F6 review fix (FIX 3, MAJOR): also marks uiModeStore's `reconciled` flag
+ * (markUiModeReconciled) the moment this ONE reconcile attempt settles - on a successful GET (whether
+ * or not it actually changed anything) AND on a GET *error* (an unreachable backend, or the endpoint
+ * 404ing in an older checkout, must not suppress UiModeIntroBanner.tsx's one-time notice forever).
+ * The override/userChangedThisSession short-circuit is checked FIRST, independent of whether the GET
+ * has even resolved yet - neither case needs the backend's answer to already be a settled reconcile
+ * (the user's own choice already outranks it), so that path doesn't wait on `data`/`isError` either.
  */
 export function UiModeSync() {
-  const { data } = useAppSettings();
+  const { data, isError } = useAppSettings();
   const isSettingMode = useIsMutating({ mutationKey: SET_UI_MODE_MUTATION_KEY }) > 0;
   const reconciledRef = useRef(false);
 
   useEffect(() => {
-    if (reconciledRef.current || !data) {
+    if (reconciledRef.current) {
       return;
     }
     if (UI_MODE_QUERY_OVERRIDE_ACTIVE || useUiModeStore.getState().userChangedThisSession) {
       reconciledRef.current = true;
+      markUiModeReconciled();
+      return;
+    }
+    if (!data && !isError) {
+      // The GET hasn't settled yet (still loading) - wait.
       return;
     }
     if (isSettingMode) {
@@ -44,10 +55,11 @@ export function UiModeSync() {
       return;
     }
     reconciledRef.current = true;
-    if (data.uiMode !== useUiModeStore.getState().mode) {
+    if (data && data.uiMode !== useUiModeStore.getState().mode) {
       applyReconciledUiMode(data.uiMode);
     }
-  }, [data, isSettingMode]);
+    markUiModeReconciled();
+  }, [data, isError, isSettingMode]);
 
   return null;
 }

@@ -6,9 +6,11 @@ import { ApiError } from "../../../api/client";
 import { useExportAnonymized, useExportPlan } from "../../../api/export";
 import { useOptimizationRuns } from "../../../api/runs";
 import type { ExportFormat, ExportLayout } from "../../../api/types";
+import { AdvancedOnly, SimpleOnly } from "../../../components/uimode/AdvancedOnly";
 import { HelpTip } from "../../../components/HelpTip";
 import { sv } from "../../../i18n/sv";
 import { isGroupedLayoutDisabled, normalizeLayoutForFormat, showCommentsWarning } from "./exportForm";
+import { SimpleSaveExportCard } from "./SimpleSaveExportCard";
 
 function showError(error: unknown, fallback: string) {
   notifications.show({ color: "red", title: sv.common.error, message: error instanceof ApiError ? error.message : fallback });
@@ -26,6 +28,27 @@ function showError(error: unknown, fallback: string) {
  * there is nothing meaningful to export before a solve has ever produced groups/assignments).
  */
 export function ExportPanel() {
+  return (
+    <>
+      {/* v0.6.0 F6 (M-S6): SIMPLE mode gets the reduced SimpleSaveExportCard instead of the full
+          advanced surface below - same <SimpleOnly>/<AdvancedOnly> split ResourcesPanel.tsx already
+          uses. ExportPanelAdvanced's hooks (useOptimizationRuns/useExportPlan/useExportAnonymized)
+          only run while it's actually mounted (AdvancedOnly renders nothing in SIMPLE mode), so
+          switching mode doesn't fire any advanced-only request. */}
+      <SimpleOnly>
+        <SimpleSaveExportCard />
+      </SimpleOnly>
+      <AdvancedOnly>
+        <ExportPanelAdvanced />
+      </AdvancedOnly>
+    </>
+  );
+}
+
+/** The pre-F6 advanced export surface, unchanged - split out so `<AdvancedOnly>` above can gate it
+ *  without re-running its hooks (useOptimizationRuns/useExportAnonymized/useExportPlan) while in
+ *  SIMPLE mode. */
+function ExportPanelAdvanced() {
   const { planId } = useParams<{ planId: string }>();
   const runs = useOptimizationRuns(planId);
   const hasRun = (runs.data?.length ?? 0) > 0;

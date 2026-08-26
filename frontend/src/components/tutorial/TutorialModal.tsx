@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Group, List, Modal, Stepper, Text, Title, Tooltip } from "@mantine/core";
 import { sv } from "../../i18n/sv";
-import { resolveTutorialTargetPath, TUTORIAL_STEP_CONFIG } from "./tutorialSteps";
+import { useIsSimpleMode } from "../../lib/uiMode/useUiMode";
+import { resolveTutorialTargetPath, TUTORIAL_STEP_CONFIG, TUTORIAL_STEP_CONFIG_SIMPLE } from "./tutorialSteps";
 
 interface TutorialModalProps {
   opened: boolean;
@@ -22,11 +23,25 @@ interface TutorialModalProps {
  *
  * Each step's "Ta mig dit" button closes the modal and navigates straight to the tab it describes;
  * disabled with a tooltip when no plan is active yet (every step except the first one needs one).
+ *
+ * v0.6.0 F6 (M-S6): SIMPLE mode gets its own 6-step walkthrough (`sv.tutorial.simpleSteps` +
+ * tutorialSteps.ts's `TUTORIAL_STEP_CONFIG_SIMPLE`, mirroring PlanSimpleStepper.tsx's IA) instead
+ * of the 10-step ADVANCED one - this is the app-wide singleton mount (AppShellLayout.tsx), so the
+ * "?" header button always offers the walkthrough matching whatever mode is currently active.
  */
 export function TutorialModal({ opened, planId, onClose }: TutorialModalProps) {
-  const [active, setActive] = useState(0);
+  const [rawActive, setActive] = useState(0);
   const navigate = useNavigate();
-  const totalSteps = sv.tutorial.steps.length;
+  const isSimple = useIsSimpleMode();
+  const steps = isSimple ? sv.tutorial.simpleSteps : sv.tutorial.steps;
+  const stepConfig = isSimple ? TUTORIAL_STEP_CONFIG_SIMPLE : TUTORIAL_STEP_CONFIG;
+  const totalSteps = steps.length;
+  // v0.6.0 F6 review fix (FIX 6, MINOR): `steps`/`stepConfig` change LENGTH when `isSimple` flips
+  // (10 ADVANCED steps vs. 6 SIMPLE ones) while this modal can stay open across that flip (the
+  // header's mode switch/badge are reachable independently of this modal). Without clamping, an
+  // `active` index left over from the longer ADVANCED list (e.g. 8) would index past the end of the
+  // 6-entry SIMPLE arrays below and crash the render (`step.title` on `undefined`).
+  const active = Math.min(rawActive, totalSteps - 1);
 
   const handleClose = () => {
     onClose();
@@ -48,8 +63,8 @@ export function TutorialModal({ opened, planId, onClose }: TutorialModalProps) {
       data-testid="tutorial-modal"
     >
       <Stepper active={active} onStepClick={setActive} size="sm">
-        {sv.tutorial.steps.map((step, index) => {
-          const config = TUTORIAL_STEP_CONFIG[index];
+        {steps.map((step, index) => {
+          const config = stepConfig[index];
           const targetPath = resolveTutorialTargetPath(config.target, planId);
           return (
             <Stepper.Step key={step.title} label={step.title}>

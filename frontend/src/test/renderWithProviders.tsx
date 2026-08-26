@@ -35,9 +35,14 @@ interface RenderWithProvidersOptions {
    *  keeps passing unchanged; only specs that actually exercise mode-gated behavior need to pass
    *  `uiMode: "SIMPLE"` explicitly. */
   uiMode?: UiMode;
+  /** v0.6.0 F6 review fix (FIX 3, MAJOR): overrides uiModeStore's `reconciled` flag for this render.
+   *  Defaults to true (see setUiModeForTests's own doc comment) - pass `false` only for a spec that
+   *  deliberately mounts `<UiModeSync/>` itself and wants to observe pre-reconcile state (e.g.
+   *  UiModeIntroBanner.test.tsx's own reconciliation-timing tests). */
+  reconciled?: boolean;
 }
 
 export function renderWithProviders(ui: ReactElement, options: RenderWithProvidersOptions = {}) {
-  setUiModeForTests(options.uiMode ?? "ADVANCED");
+  setUiModeForTests(options.uiMode ?? "ADVANCED", { reconciled: options.reconciled });
   return render(ui, { wrapper: Providers });
 }

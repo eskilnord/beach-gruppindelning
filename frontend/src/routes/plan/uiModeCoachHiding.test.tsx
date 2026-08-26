@@ -811,9 +811,16 @@ describe("ImprovementSuggestions COACH_TIME/COACH_MAX kinds", () => {
   it("drops the COACH_TIME suggestion entirely in SIMPLE", async () => {
     server.use(http.get(SUGGESTIONS_URL, () => HttpResponse.json(RESPONSE)));
     renderWithProviders(<ImprovementSuggestions planId="plan-1" runId="run-1" />, { uiMode: "SIMPLE" });
-    await screen.findByTestId("improvement-suggestions-empty");
+    const empty = await screen.findByTestId("improvement-suggestions-empty");
     expect(screen.queryByText(RESPONSE.suggestions[0].titleSv)).not.toBeInTheDocument();
     expect(screen.queryByText(COACH_NAME)).not.toBeInTheDocument();
+    // v0.6.0 F6 review fix (FIX 1, BLOCKER): this fixture's only suggestion is COACH_TIME, so SIMPLE's
+    // own coach filter is what emptied the list - the empty-state copy itself must not leak a
+    // "tränar..." word either (the ADVANCED `sv.results.suggestions.empty` string names
+    // "tränartäckningen"; SIMPLE must render `emptySimple` instead). Asserted against the whole
+    // rendered node's text, not a specific string, so this would catch ANY coach wording, not just
+    // the one variant this test happens to know about today.
+    expect(empty.textContent ?? "").not.toMatch(/tränar/i);
   });
 });
 

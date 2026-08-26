@@ -22,6 +22,7 @@ import { ApiError } from "../../api/client";
 import { sv } from "../../i18n/sv";
 import { EmptyState } from "../../components/EmptyState";
 import { TutorialBanner } from "../../components/tutorial/TutorialBanner";
+import { UiModeIntroBanner } from "../../components/uimode/UiModeIntroBanner";
 import { CreateSeasonModal } from "./CreateSeasonModal";
 import { ImportEntryModal } from "./ImportEntryModal";
 
@@ -55,6 +56,7 @@ export function StartPage() {
       </Box>
 
       <TutorialBanner />
+      <UiModeIntroBanner />
 
       <Group>
         <Button onClick={() => setCreateModalOpen(true)}>{sv.start.createSeasonButton}</Button>

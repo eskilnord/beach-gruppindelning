@@ -6,6 +6,7 @@ import { useParticipants } from "../../api/participants";
 import { usePriorityOrder } from "../../api/priorityOrder";
 import { useTimeSlots } from "../../api/timeSlots";
 import { useOptimizationRuns } from "../../api/runs";
+import { useSavedPlans } from "../../api/savedPlans";
 import { sv } from "../../i18n/sv";
 import { completionFor, resolveSimpleStepIndex, SIMPLE_STEPS } from "./planSimpleSteps";
 
@@ -40,6 +41,10 @@ export function PlanSimpleStepper({ planId }: PlanSimpleStepperProps) {
   const timeSlots = useTimeSlots(planId);
   const runs = useOptimizationRuns(planId);
   const priorityOrder = usePriorityOrder(planId);
+  // v0.6.0 F6 (M-S6): restored (F2 review fix FIX 3's own TODO) now that SimpleSaveExportCard
+  // actually renders on the export route - same already-warm cache entry SimpleSaveExportCard and
+  // SavedPlansPanel both key on, not a second query.
+  const savedPlans = useSavedPlans(planId);
 
   // v0.6.0 F2 review fix (FIX 9): a failed query renders exactly like a still-loading one here
   // (`.data` stays undefined either way, so completionFor sees the same "no signal") - by design.
@@ -63,6 +68,7 @@ export function PlanSimpleStepper({ planId }: PlanSimpleStepperProps) {
           updatedAt: priorityOrder.data.updatedAt,
         }
       : undefined,
+    savedPlansCount: savedPlans.data?.length,
   });
 
   const active = resolveSimpleStepIndex(location.pathname);

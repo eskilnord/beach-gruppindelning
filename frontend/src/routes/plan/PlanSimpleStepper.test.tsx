@@ -62,16 +62,18 @@ const DEFAULT_PRIORITY_ORDER: PriorityOrderView = {
   ],
 };
 
-/** `participants`/`timeSlots`/`runs` default to a "fully loaded, non-empty" plan (260/3/0 - matches
- *  the pre-existing live-number description assertions below). saved-plans is deliberately NOT
- *  mocked here any more (v0.6.0 F2 review fix, FIX 3): PlanSimpleStepper no longer queries it.
- *  `priorityOrder` (v0.6.0 F3) defaults to {@link DEFAULT_PRIORITY_ORDER} - pass `null` to instead
- *  make that endpoint error, for tests that need Prioriteringar's completion signal to stay
- *  unresolved (`undefined`, same as a still-loading query). */
+/** `participants`/`timeSlots`/`runs`/`savedPlans` default to a "fully loaded, non-empty-except-
+ *  savedPlans" plan (260/3/0/0 - matches the pre-existing live-number description assertions
+ *  below). `priorityOrder` (v0.6.0 F3) defaults to {@link DEFAULT_PRIORITY_ORDER} - pass `null` to
+ *  instead make that endpoint error, for tests that need Prioriteringar's completion signal to stay
+ *  unresolved (`undefined`, same as a still-loading query). `savedPlans` (v0.6.0 F6, restored -
+ *  F2 review fix FIX 3's own TODO) drives Exportera's live count the same way `runs` drives
+ *  Optimera's. */
 function mockPlanData({
   participants = 260,
   timeSlots = 3,
   runs = 0,
+  savedPlans = 0,
   priorityOrder = DEFAULT_PRIORITY_ORDER as PriorityOrderView | null,
 } = {}) {
   server.use(
@@ -84,6 +86,9 @@ function mockPlanData({
     http.get(`/api/plans/${PLAN_ID}/runs`, () => HttpResponse.json(Array.from({ length: runs }, (_, i) => ({ id: `r${i}` })))),
     http.get(`/api/plans/${PLAN_ID}/priority-order`, () =>
       priorityOrder ? HttpResponse.json(priorityOrder) : HttpResponse.json({ error: "not found" }, { status: 404 }),
+    ),
+    http.get(`/api/plans/${PLAN_ID}/saved-plans`, () =>
+      HttpResponse.json(Array.from({ length: savedPlans }, (_, i) => ({ id: `sp${i}` }))),
     ),
   );
 }
@@ -118,15 +123,20 @@ describe("PlanSimpleStepper", () => {
     expect(screen.getByTestId("plan-simple-step-optimera")).not.toHaveAttribute("aria-current");
   });
 
-  it("shows live-number descriptions once participants/time-slots load", async () => {
-    mockPlanData();
+  it("shows live-number descriptions once participants/time-slots/saved-plans load", async () => {
+    mockPlanData({ savedPlans: 2 });
     renderStepper(`/plans/${PLAN_ID}/deltagare`);
 
     expect(await within(screen.getByTestId("plan-simple-step-deltagare")).findByText("260 deltagare")).toBeInTheDocument();
     expect(await within(screen.getByTestId("plan-simple-step-tider")).findByText("3 tider")).toBeInTheDocument();
+    // v0.6.0 F6 (M-S6): restored - SimpleSaveExportCard now lands on the export route, so Exportera
+    // behaves like Deltagare/Tider/Optimera (a real live count), not a static fallback.
+    expect(
+      await within(screen.getByTestId("plan-simple-step-exportera")).findByText("2 sparade planer"),
+    ).toBeInTheDocument();
   });
 
-  it("Resultat/Exportera fall back to a static description; Prioriteringar (F3) shows its live top priority - all six steps render one (FIX 8)", async () => {
+  it("Resultat falls back to a static description; Prioriteringar (F3) shows its live top priority - every step renders one (FIX 8)", async () => {
     mockPlanData();
     renderStepper(`/plans/${PLAN_ID}/deltagare`);
 
@@ -138,9 +148,6 @@ describe("PlanSimpleStepper", () => {
     ).toBeInTheDocument();
     expect(
       await within(screen.getByTestId("plan-simple-step-resultat")).findByText(sv.simple.stepDescriptions.resultat),
-    ).toBeInTheDocument();
-    expect(
-      await within(screen.getByTestId("plan-simple-step-exportera")).findByText(sv.simple.stepDescriptions.exportera),
     ).toBeInTheDocument();
   });
 

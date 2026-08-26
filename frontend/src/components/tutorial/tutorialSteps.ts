@@ -4,6 +4,7 @@ export type TutorialTabPath =
   | "deltagare"
   | "falt"
   | "resurser"
+  | "prioriteringar"
   | "tranare"
   | "kapacitet"
   | "optimering"
@@ -53,6 +54,30 @@ if (TUTORIAL_STEP_CONFIG.length !== sv.tutorial.steps.length) {
   // Defensive - a mismatch here would silently desync icons/targets from copy (module-load-time
   // check, so it fails fast in dev/tests rather than rendering a mismatched step).
   throw new Error("tutorialSteps: TUTORIAL_STEP_CONFIG and sv.tutorial.steps must have the same length");
+}
+
+/**
+ * v0.6.0 F6 (M-S6): the SIMPLE-mode kom-igång-guiden's icon/target table - one entry per
+ * `sv.tutorial.simpleSteps[i]`, in the same order (same parallel-array split as
+ * {@link TUTORIAL_STEP_CONFIG} above). Targets mirror PlanSimpleStepper.tsx's six-step IA
+ * (planSimpleSteps.ts's SIMPLE_STEPS) exactly - every target is one of the six SIMPLE steps
+ * (deltagare/resurser/prioriteringar/optimering/resultat), never one of the four gated
+ * ADVANCED-only tabs (falt/tranare/kapacitet/planer) or the standalone "export" tab, none of which
+ * are reachable from the SIMPLE stepper at all (see tutorialSteps.test.ts's own assertion of this).
+ */
+export const TUTORIAL_STEP_CONFIG_SIMPLE: TutorialStepConfig[] = [
+  { icon: "📅", target: { kind: "home" } },
+  { icon: "📥", target: { kind: "tab", tab: "deltagare" } },
+  { icon: "⏰", target: { kind: "tab", tab: "resurser" } },
+  { icon: "🎯", target: { kind: "tab", tab: "prioriteringar" } },
+  { icon: "⚙️", target: { kind: "tab", tab: "optimering" } },
+  { icon: "🔍", target: { kind: "tab", tab: "resultat" } },
+];
+
+if (TUTORIAL_STEP_CONFIG_SIMPLE.length !== sv.tutorial.simpleSteps.length) {
+  throw new Error(
+    "tutorialSteps: TUTORIAL_STEP_CONFIG_SIMPLE and sv.tutorial.simpleSteps must have the same length",
+  );
 }
 
 /**
