@@ -427,3 +427,67 @@ describe("ResultsPanel generic (non-coach) note - stays visible in SIMPLE", () =
     expect(await screen.findByTestId("results-note")).toHaveTextContent("avbruten innan lösaren hann starta");
   });
 });
+
+// v0.6.0 final pre-release fix round (FIX 2, MAJOR): the no-groups-yet empty state used to render
+// the ADVANCED-worded "Gå till fliken Optimering" copy + a tab-labeled button even in SIMPLE mode,
+// where there is no "flik Optimering" (SIMPLE navigates via the step-based PlanSimpleStepper).
+function mockEmptyEndpoints() {
+  server.use(
+    http.get(`/api/plans/${PLAN_ID}`, () => HttpResponse.json(PLAN)),
+    http.get(`/api/plans/${PLAN_ID}/groups`, () => HttpResponse.json([])),
+    http.get(`/api/plans/${PLAN_ID}/assignments`, () => HttpResponse.json({ players: [], coaches: [] })),
+    http.get(`/api/plans/${PLAN_ID}/participants`, () => HttpResponse.json([])),
+    http.get("/api/persons", () => HttpResponse.json([])),
+    http.get(`/api/plans/${PLAN_ID}/coaches`, () => HttpResponse.json<CoachProfile[]>([])),
+    http.get(`/api/plans/${PLAN_ID}/training-blocks`, () => HttpResponse.json([])),
+    http.get(`/api/plans/${PLAN_ID}/field-definitions`, () => HttpResponse.json([])),
+    http.get(`/api/plans/${PLAN_ID}/runs`, () => HttpResponse.json([])),
+  );
+}
+
+function renderResultsPanelAtOptimeringRoute(uiMode: "SIMPLE" | "ADVANCED") {
+  setUiModeForTests(uiMode);
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  return render(
+    <MantineProvider>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={[`/plans/${PLAN_ID}/resultat`]}>
+          <Routes>
+            <Route path="/plans/:planId/resultat" element={<ResultsPanel />} />
+            <Route path="/plans/:planId/optimering" element={<div data-testid="optimering-route" />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </MantineProvider>,
+  );
+}
+
+describe("ResultsPanel empty state (no groups yet) - SIMPLE vs ADVANCED copy (FIX 2)", () => {
+  it("SIMPLE mode: shows the step-worded 'Skapa grupperna först' copy and 'Gå till Optimera' button, which navigates to /optimering", async () => {
+    mockEmptyEndpoints();
+    const user = userEvent.setup();
+    renderResultsPanelAtOptimeringRoute("SIMPLE");
+
+    await screen.findByRole("heading", { name: sv.results.heading });
+    expect(screen.getByText(sv.simple.results.noRun.message)).toBeInTheDocument();
+    expect(screen.queryByText(sv.results.empty)).not.toBeInTheDocument();
+
+    const button = screen.getByRole("button", { name: sv.simple.results.noRun.button });
+    await user.click(button);
+    expect(await screen.findByTestId("optimering-route")).toBeInTheDocument();
+  });
+
+  it("ADVANCED mode: keeps the original 'Gå till fliken Optimering' copy and tab-labeled button unchanged", async () => {
+    mockEmptyEndpoints();
+    const user = userEvent.setup();
+    renderResultsPanelAtOptimeringRoute("ADVANCED");
+
+    await screen.findByRole("heading", { name: sv.results.heading });
+    expect(screen.getByText(sv.results.empty)).toBeInTheDocument();
+    expect(screen.queryByText(sv.simple.results.noRun.message)).not.toBeInTheDocument();
+
+    const button = screen.getByRole("button", { name: sv.plan.tabs.optimize });
+    await user.click(button);
+    expect(await screen.findByTestId("optimering-route")).toBeInTheDocument();
+  });
+});

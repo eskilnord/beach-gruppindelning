@@ -137,7 +137,13 @@ export function OptimizePanelSimple() {
   useEffect(() => {
     if (settledRunId && scrolledRunIdRef.current !== settledRunId) {
       scrolledRunIdRef.current = settledRunId;
-      outcomeCardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      // v0.6.0 final pre-release fix round (FIX 3, MAJOR): was `block: "nearest"`, which - once the
+      // card is already close to the bottom of the viewport (the common case, since it renders near
+      // the end of the page) - bottom-aligns the card EXACTLY behind PlanSimpleStepFooter's 60px
+      // sticky footer, hiding the very outcome text this scroll exists to surface. `block: "center"`
+      // plus the Card's own `scrollMarginBottom` below (belt and braces - covers browsers/cases where
+      // "center" alone still lands the bottom edge under the footer for a short card near the page end).
+      outcomeCardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [settledRunId]);
 
@@ -446,7 +452,19 @@ export function OptimizePanelSimple() {
           scroll-into-view effect above (`outcomeCardRef`/`settledRunId`) mean a settled result is
           actually noticed, not silently rendered off-screen below a still-visible progress card. */}
       {!running && latestRun && outcomeColor && (
-        <Card withBorder padding="md" data-testid="simple-optimize-result" ref={outcomeCardRef} aria-live="polite">
+        <Card
+          withBorder
+          padding="md"
+          data-testid="simple-optimize-result"
+          ref={outcomeCardRef}
+          aria-live="polite"
+          // v0.6.0 final pre-release fix round (FIX 3, MAJOR): belt-and-braces alongside the
+          // `block: "center"` scroll-into-view above - reserves 84px (the 60px sticky footer plus a
+          // small margin) below the card so even a `scrollIntoView` that lands the card's bottom edge
+          // right at the viewport edge still clears the footer instead of tucking the outcome text
+          // behind it.
+          style={{ scrollMarginBottom: 84 }}
+        >
           {!startedThisSessionRef.current && (
             <Text size="sm" c="dimmed" mb="xs" data-testid="simple-optimize-lastrun-lead">
               {lastRunWhenText}

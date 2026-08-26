@@ -13,10 +13,11 @@ import { sv } from "../../i18n/sv";
  *   never reaches a server at all, e.g. the desktop backend isn't up) is treated as a NETWORK failure,
  *   distinct from a request the backend actually received and rejected.
  *
- * NAME/SIGNATURE deliberately matches what a shared `frontend/src/lib/errorText.ts` helper (owned by
- * a parallel v0.6.0 audit-fix batch, not yet landed as of this writing) is expected to look like, so
- * a later merge can dedupe this against that one rather than the two permanently diverging. Kept
- * local to `routes/import/` per this batch's territory rather than creating that shared path directly.
+ * `frontend/src/lib/errorText.ts` DID land as a parallel v0.6.0 batch, but as
+ * `fallbackErrorText(error: unknown, fallbackSv: string): string` - a DIFFERENT name/signature/
+ * behavior (v0.6.0 final pre-release fix round, FIX 7: renamed from its original `userErrorText`
+ * specifically to stop THIS local helper's name from colliding with it) - so this stays local to
+ * `routes/import/` rather than being repointed at it.
  */
 export function userErrorText(error: unknown): string {
   if (error instanceof ApiError) {

@@ -4,7 +4,7 @@ import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import dayjs from "dayjs";
 import { useCreateSeason } from "../../api/seasons";
-import { userErrorText, technicalErrorDetail } from "../../lib/errorText";
+import { fallbackErrorText, technicalErrorDetail } from "../../lib/errorText";
 import { AdvancedOnly } from "../../components/uimode/AdvancedOnly";
 import { sv } from "../../i18n/sv";
 
@@ -54,7 +54,7 @@ export function CreateSeasonModal({ opened, onClose, onCreated }: CreateSeasonMo
         title: sv.common.error,
         message: (
           <Stack gap={2}>
-            <Text size="sm">{userErrorText(error, sv.createSeasonModal.createFailed)}</Text>
+            <Text size="sm">{fallbackErrorText(error, sv.createSeasonModal.createFailed)}</Text>
             {technical && (
               <Text size="xs" c="dimmed">
                 {sv.common.technicalInfo(technical)}

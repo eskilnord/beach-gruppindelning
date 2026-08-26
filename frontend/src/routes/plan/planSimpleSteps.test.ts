@@ -50,7 +50,8 @@ describe("completionFor", () => {
     timeSlotsCount: undefined,
     activeCourtsCount: undefined,
     optimizationRunsCount: undefined,
-    latestRunFinished: undefined,
+    hasUsableResult: undefined,
+    resultatAllPlaced: undefined,
     priorityOrder: undefined,
     savedPlansCount: undefined,
   };
@@ -62,7 +63,7 @@ describe("completionFor", () => {
       expect(result[index].completed).toBeUndefined();
       expect(result[index].description).toBeUndefined();
     });
-    // Resultat has no description signal of its own even once `latestRunFinished` resolves - see
+    // Resultat has no description signal of its own even once `hasUsableResult` resolves - see
     // its own describe block below - but with NOTHING loaded it's un-checked too.
     expect(result[4].completed).toBeUndefined();
   });
@@ -113,7 +114,7 @@ describe("completionFor", () => {
   // from, but they DO get a static fallback description (sv.simple.stepDescriptions) so every step
   // in the stepper renders a description line - not just the ones with a cheap signal.
   it("Prioriteringar: no signal (query not loaded) - un-checked, static fallback description", () => {
-    const result = completionFor({ ...EMPTY, participantsCount: 260, timeSlotsCount: 3, activeCourtsCount: 2, optimizationRunsCount: 2, latestRunFinished: true });
+    const result = completionFor({ ...EMPTY, participantsCount: 260, timeSlotsCount: 3, activeCourtsCount: 2, optimizationRunsCount: 2, hasUsableResult: true, resultatAllPlaced: true });
     expect(result[2]).toEqual({ completed: undefined, description: sv.simple.stepDescriptions.prioriteringar });
   });
 
@@ -160,37 +161,49 @@ describe("completionFor", () => {
     });
   });
 
-  // v0.6.0 audit-fix A8: the checkmark now gates on the LATEST run's status, not merely on
-  // `runs.length > 0` - a run that's still solving (or was cancelled/failed) isn't "done".
+  // v0.6.0 final pre-release fix round (FIX 1, MAJOR): the checkmark now gates on `hasUsableResult`
+  // (runStatus.ts) - a run that's still solving, failed outright, or was cancelled with nothing to
+  // show isn't "done". Replaces audit-fix A8's stricter "the LATEST run's status" check - a run
+  // history with an EARLIER usable result now also counts, matching the same shared predicate every
+  // other "is there anything to view/export yet?" consumer uses.
   describe("Optimera", () => {
-    it("description shows the total run count regardless of whether the latest one finished", () => {
-      expect(completionFor({ ...EMPTY, optimizationRunsCount: 1, latestRunFinished: false })[3].description).toBe("1 körning");
-      expect(completionFor({ ...EMPTY, optimizationRunsCount: 2, latestRunFinished: true })[3].description).toBe("2 körningar");
+    it("description shows the total run count regardless of whether there's a usable result", () => {
+      expect(completionFor({ ...EMPTY, optimizationRunsCount: 1, hasUsableResult: false })[3].description).toBe("1 körning");
+      expect(completionFor({ ...EMPTY, optimizationRunsCount: 2, hasUsableResult: true })[3].description).toBe("2 körningar");
     });
 
-    it("checked once the latest run has actually finished", () => {
-      expect(completionFor({ ...EMPTY, optimizationRunsCount: 2, latestRunFinished: true })[3].completed).toBe(true);
+    it("checked once the run history has a usable result", () => {
+      expect(completionFor({ ...EMPTY, optimizationRunsCount: 2, hasUsableResult: true })[3].completed).toBe(true);
     });
 
-    it("NOT checked while the latest run is still solving (or failed/cancelled)", () => {
-      expect(completionFor({ ...EMPTY, optimizationRunsCount: 1, latestRunFinished: false })[3].completed).toBe(false);
+    it("NOT checked while no run has a usable result (still solving, or every run failed/cancelled-empty)", () => {
+      expect(completionFor({ ...EMPTY, optimizationRunsCount: 1, hasUsableResult: false })[3].completed).toBe(false);
     });
 
     it("un-checked, no description while the run count itself hasn't loaded", () => {
-      expect(completionFor({ ...EMPTY, latestRunFinished: true })[3]).toEqual({ completed: undefined, description: undefined });
+      expect(completionFor({ ...EMPTY, hasUsableResult: true })[3]).toEqual({ completed: undefined, description: undefined });
     });
   });
 
   // v0.6.0 audit-fix A8: Resultat used to be permanently un-checked (a "cheap distinct signal"
-  // objection that no longer holds - it reuses Optimera's own `latestRunFinished`, no extra call).
+  // objection that no longer holds - it reuses Optimera's own `hasUsableResult`, no extra call).
+  //
+  // v0.6.0 final pre-release fix round (FIX 1, MAJOR, Opus m5): ADDITIONALLY requires
+  // `resultatAllPlaced` (the latest usable run's own `unassignedCount === 0`) - a green Resultat
+  // check must never contradict a plan whose latest solve still shows a non-empty waitlist.
   describe("Resultat", () => {
-    it("checked once the latest run has finished - same signal as Optimera, no extra call", () => {
-      const result = completionFor({ ...EMPTY, participantsCount: 260, timeSlotsCount: 3, activeCourtsCount: 2, optimizationRunsCount: 2, latestRunFinished: true });
+    it("checked once there's a usable result AND every participant was placed", () => {
+      const result = completionFor({ ...EMPTY, participantsCount: 260, timeSlotsCount: 3, activeCourtsCount: 2, optimizationRunsCount: 2, hasUsableResult: true, resultatAllPlaced: true });
       expect(result[4]).toEqual({ completed: true, description: sv.simple.stepDescriptions.resultat });
     });
 
-    it("NOT checked while the latest run hasn't finished", () => {
-      const result = completionFor({ ...EMPTY, participantsCount: 260, timeSlotsCount: 3, activeCourtsCount: 2, optimizationRunsCount: 1, latestRunFinished: false });
+    it("NOT checked while there's no usable result yet", () => {
+      const result = completionFor({ ...EMPTY, participantsCount: 260, timeSlotsCount: 3, activeCourtsCount: 2, optimizationRunsCount: 1, hasUsableResult: false, resultatAllPlaced: undefined });
+      expect(result[4]).toEqual({ completed: false, description: sv.simple.stepDescriptions.resultat });
+    });
+
+    it("NOT checked when there IS a usable result but participants are still waitlisted (unassignedCount > 0) - never contradicts the yellow waitlist outcome", () => {
+      const result = completionFor({ ...EMPTY, participantsCount: 260, timeSlotsCount: 3, activeCourtsCount: 2, optimizationRunsCount: 1, hasUsableResult: true, resultatAllPlaced: false });
       expect(result[4]).toEqual({ completed: false, description: sv.simple.stepDescriptions.resultat });
     });
   });

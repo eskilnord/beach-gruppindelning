@@ -247,6 +247,25 @@ describe("SimpleSaveExportCard", () => {
     expect(screen.getByTestId("simple-export-button")).toBeDisabled();
   });
 
+  // v0.6.0 final pre-release fix round (FIX 1, MAJOR): a run existing is not enough - it must have
+  // actually produced a usable result. A FAILED run (or one still solving) must still show the
+  // no-run gate and keep the export button disabled, same as zero runs at all.
+  it("still shows the no-run gate when the only run is FAILED (a run exists but has nothing to export)", async () => {
+    mockPlan();
+    mockNoSavedPlans();
+    server.use(
+      http.get(`/api/plans/${PLAN_ID}/runs`, () =>
+        HttpResponse.json([{ id: "run-1", activityPlanId: PLAN_ID, status: "FAILED", startedAt: "2026-01-01T00:00:00Z" }]),
+      ),
+    );
+
+    renderCard();
+
+    const hint = await screen.findByTestId("export-empty-hint");
+    expect(hint).toHaveTextContent(sv.simple.saveExport.noRun.message);
+    expect(screen.getByTestId("simple-export-button")).toBeDisabled();
+  });
+
   it("shows the 'Fler format finns i avancerat läge' hint last", async () => {
     mockPlan();
     mockNoSavedPlans();
@@ -274,7 +293,13 @@ describe("SimpleSaveExportCard", () => {
   it("exports with the pinned request body {format:'xlsx', layout:'grouped', includeComments:false}", async () => {
     mockPlan();
     mockNoSavedPlans();
-    server.use(http.get(`/api/plans/${PLAN_ID}/runs`, () => HttpResponse.json([{ id: "run-1" }])));
+    // v0.6.0 final pre-release fix round (FIX 1): the export gate now checks hasUsableResult (FINISHED/
+    // CANCELLED-with-summary), not merely `runs.length > 0` - the fixture needs a real usable status.
+    server.use(
+      http.get(`/api/plans/${PLAN_ID}/runs`, () =>
+        HttpResponse.json([{ id: "run-1", activityPlanId: PLAN_ID, status: "FINISHED", startedAt: "2026-01-01T00:00:00Z" }]),
+      ),
+    );
 
     let capturedUrl: URL | null = null;
     server.use(
@@ -311,7 +336,10 @@ describe("SimpleSaveExportCard", () => {
     mockPlan();
     mockNoSavedPlans();
     server.use(
-      http.get(`/api/plans/${PLAN_ID}/runs`, () => HttpResponse.json([{ id: "run-1" }])),
+      // v0.6.0 final pre-release fix round (FIX 1): see the pinned-request-body test above.
+      http.get(`/api/plans/${PLAN_ID}/runs`, () =>
+        HttpResponse.json([{ id: "run-1", activityPlanId: PLAN_ID, status: "FINISHED", startedAt: "2026-01-01T00:00:00Z" }]),
+      ),
       http.get(`/api/plans/${PLAN_ID}/export`, () =>
         new HttpResponse("fake xlsx binary content", {
           headers: {

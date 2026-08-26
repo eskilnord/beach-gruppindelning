@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Alert, Button, Group, Modal, Select, Stack, Text } from "@mantine/core";
 import { useSeasons } from "../../api/seasons";
 import { usePlansForSeason } from "../../api/plans";
-import { userErrorText, technicalErrorDetail } from "../../lib/errorText";
+import { fallbackErrorText, technicalErrorDetail } from "../../lib/errorText";
 import { sv } from "../../i18n/sv";
 import { CreatePlanModal } from "../season/CreatePlanModal";
 import { CreateSeasonModal } from "./CreateSeasonModal";
@@ -46,7 +46,7 @@ export function ImportEntryModal({ opened, onClose, onContinue }: ImportEntryMod
         <Stack gap="sm">
           {seasons.isError && (
             <Alert color="red">
-              <Text size="sm">{userErrorText(seasons.error, sv.common.unknownError)}</Text>
+              <Text size="sm">{fallbackErrorText(seasons.error, sv.common.unknownError)}</Text>
               {technicalErrorDetail(seasons.error) && (
                 <Text size="xs" c="dimmed" mt={4}>
                   {sv.common.technicalInfo(technicalErrorDetail(seasons.error)!)}

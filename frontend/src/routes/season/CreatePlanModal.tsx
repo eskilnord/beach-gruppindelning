@@ -2,7 +2,7 @@ import { Button, Group, Modal, NumberInput, Stack, Text, TextInput } from "@mant
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { useCreatePlan } from "../../api/plans";
-import { userErrorText, technicalErrorDetail } from "../../lib/errorText";
+import { fallbackErrorText, technicalErrorDetail } from "../../lib/errorText";
 import { HelpTip } from "../../components/HelpTip";
 import { AdvancedOnly } from "../../components/uimode/AdvancedOnly";
 import { useIsSimpleMode } from "../../lib/uiMode/useUiMode";
@@ -60,7 +60,7 @@ export function CreatePlanModal({ opened, seasonId, onClose, onCreated }: Create
         title: sv.common.error,
         message: (
           <Stack gap={2}>
-            <Text size="sm">{userErrorText(error, sv.createPlanModal.createFailed)}</Text>
+            <Text size="sm">{fallbackErrorText(error, sv.createPlanModal.createFailed)}</Text>
             {technical && (
               <Text size="xs" c="dimmed">
                 {sv.common.technicalInfo(technical)}

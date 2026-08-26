@@ -301,6 +301,12 @@ export function PrioritiesPanel() {
   // case has its own, different reset button/modal - see handleResetConfirm above).
   const showResetToDefaultButton = !!data && !data.customWeightsActive && !arraysEqual(displayOrder, data.defaultOrder);
 
+  // v0.6.0 final pre-release fix round (FIX 5, MINOR): while an optimistic reorder is still pending
+  // (dirty) OR actively saving, `orderedPriorities`'s per-row `summarySv` sentences in the accordion
+  // below are stale relative to the row the admin just visibly dragged/moved - suppressed in favor of
+  // a plain "Uppdateras…" line until the save either lands (dirty clears) or reverts.
+  const accordionUpdating = dirty || saveStatus.kind === "saving";
+
   return (
     <Stack gap="md">
       <Card withBorder padding="lg">
@@ -422,18 +428,28 @@ export function PrioritiesPanel() {
                 <Accordion.Item value="interpretation">
                   <Accordion.Control>{sv.simple.priorities.interpretationHeading}</Accordion.Control>
                   <Accordion.Panel>
-                    <Stack gap="sm">
-                      {orderedPriorities.map((row) => (
-                        <div key={row.key} data-testid="priority-summary-row">
-                          <Text fw={600} size="sm">
-                            {row.labelSv}
-                          </Text>
-                          <Text size="sm" c="dimmed">
-                            {row.summarySv}
-                          </Text>
-                        </div>
-                      ))}
-                    </Stack>
+                    {/* v0.6.0 final pre-release fix round (FIX 5, MINOR): a stale per-row summary
+                        sentence under a row the admin just visibly reordered would contradict what
+                        they just saw happen - a dimmed "Uppdateras…" line instead, while the save is
+                        still pending. */}
+                    {accordionUpdating ? (
+                      <Text size="sm" c="dimmed" data-testid="priority-accordion-updating">
+                        {sv.simple.priorities.accordionUpdating}
+                      </Text>
+                    ) : (
+                      <Stack gap="sm">
+                        {orderedPriorities.map((row) => (
+                          <div key={row.key} data-testid="priority-summary-row">
+                            <Text fw={600} size="sm">
+                              {row.labelSv}
+                            </Text>
+                            <Text size="sm" c="dimmed">
+                              {row.summarySv}
+                            </Text>
+                          </div>
+                        ))}
+                      </Stack>
+                    )}
                   </Accordion.Panel>
                 </Accordion.Item>
               </Accordion>

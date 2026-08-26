@@ -455,6 +455,27 @@ describe("OptimizePanelSimple: outcome card visibility (C2)", () => {
     await waitFor(() => expect(scrollIntoViewMock).toHaveBeenCalledTimes(1));
   });
 
+  // v0.6.0 final pre-release fix round (FIX 3, MAJOR): `block: "nearest"` used to bottom-align the
+  // outcome card exactly behind PlanSimpleStepFooter's 60px sticky footer, hiding the very text the
+  // scroll exists to surface - `block: "center"` fixes the common case; `scrollMarginBottom` on the
+  // Card itself is the belt-and-braces second layer. Both are pinned here so a regression back to
+  // "nearest" (or a dropped scrollMarginBottom) fails a test, not just a walkthrough.
+  it("scrolls with block:'center' (not 'nearest'), and the outcome Card reserves scrollMarginBottom for the sticky footer", async () => {
+    const scrollIntoViewMock = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoViewMock;
+    server.use(
+      ...baseHandlers({
+        runs: [run({ status: "FINISHED", resultSummaryJson: JSON.stringify({ hard: 0, medium: 0, soft: 0, feasible: true, unassignedCount: 0 }) })],
+      }),
+    );
+
+    renderOptimizePanelSimple();
+
+    const card = await screen.findByTestId("simple-optimize-result");
+    await waitFor(() => expect(scrollIntoViewMock).toHaveBeenCalledWith(expect.objectContaining({ block: "center" })));
+    expect(card).toHaveStyle({ scrollMarginBottom: "84px" });
+  });
+
   it("FAILED run shows a persistent retry button (not just a transient toast) that re-triggers handleCreateGroups", async () => {
     let generateCalled = false;
     server.use(...baseHandlers({ groups: [], runs: [run({ status: "FAILED", resultSummaryJson: null })] }));

@@ -92,19 +92,23 @@ function trainingBlocksFixture(timeSlots: number, activeCourts: number): SlotBlo
   }));
 }
 
-/** `participants`/`timeSlots`(+`activeCourts`)/`runs`(+`latestRunFinished`)/`savedPlans` default to
- *  a "fully loaded, non-empty-except-savedPlans, latest run finished" plan (260/3 slots with 2
- *  active courts/1 finished run/0 saved plans - matches the pre-existing live-number description
- *  assertions below, while also giving Tider/Optimera/Resultat a real "done" signal by default -
- *  v0.6.0 audit-fix A8). `priorityOrder` (v0.6.0 F3) defaults to {@link DEFAULT_PRIORITY_ORDER} -
- *  pass `null` to instead make that endpoint error, for tests that need Prioriteringar's completion
- *  signal to stay unresolved (`undefined`, same as a still-loading query). */
+/** `participants`/`timeSlots`(+`activeCourts`)/`runs`(+`latestRunFinished`+`latestRunUnassignedCount`)/
+ *  `savedPlans` default to a "fully loaded, non-empty-except-savedPlans, latest run finished with
+ *  everyone placed" plan (260/3 slots with 2 active courts/1 finished run/0 unassigned/0 saved plans -
+ *  matches the pre-existing live-number description assertions below, while also giving
+ *  Tider/Optimera/Resultat a real "done" signal by default - v0.6.0 audit-fix A8, threaded through
+ *  `resultSummaryJson` since v0.6.0 final pre-release fix round FIX 1's `hasUsableResult`/
+ *  `resultatAllPlaced` read that, not just `status`). `priorityOrder` (v0.6.0 F3) defaults to
+ *  {@link DEFAULT_PRIORITY_ORDER} - pass `null` to instead make that endpoint error, for tests that
+ *  need Prioriteringar's completion signal to stay unresolved (`undefined`, same as a still-loading
+ *  query). */
 function mockPlanData({
   participants = 260,
   timeSlots = 3,
   activeCourts = 2,
   runs = 1,
   latestRunFinished = true,
+  latestRunUnassignedCount = 0,
   savedPlans = 0,
   priorityOrder = DEFAULT_PRIORITY_ORDER as PriorityOrderView | null,
 } = {}) {
@@ -118,10 +122,24 @@ function mockPlanData({
     http.get(`/api/plans/${PLAN_ID}/runs`, () =>
       HttpResponse.json(
         // Most-recent-first (useOptimizationRuns's own doc comment) - `data[0]` is the latest run.
-        Array.from({ length: runs }, (_, i) => ({
-          id: `r${i}`,
-          status: i === 0 ? (latestRunFinished ? "FINISHED" : "SOLVING_ACTIVE") : "FINISHED",
-        })),
+        Array.from({ length: runs }, (_, i) => {
+          const status = i === 0 ? (latestRunFinished ? "FINISHED" : "SOLVING_ACTIVE") : "FINISHED";
+          return {
+            id: `r${i}`,
+            status,
+            startedAt: "2026-01-01T00:00:00Z",
+            resultSummaryJson:
+              status === "FINISHED"
+                ? JSON.stringify({
+                    hard: 0,
+                    medium: 0,
+                    soft: 0,
+                    feasible: true,
+                    unassignedCount: i === 0 ? latestRunUnassignedCount : 0,
+                  })
+                : null,
+          };
+        }),
       ),
     ),
     http.get(`/api/plans/${PLAN_ID}/priority-order`, () =>
@@ -231,6 +249,18 @@ describe("PlanSimpleStepper", () => {
 
     await within(screen.getByTestId("plan-simple-step-optimera")).findByText("1 körning");
     expect(screen.getByTestId("plan-simple-step-optimera").querySelector(CHECK_ICON_SELECTOR)).toBeNull();
+    expect(screen.getByTestId("plan-simple-step-resultat").querySelector(CHECK_ICON_SELECTOR)).toBeNull();
+  });
+
+  // v0.6.0 final pre-release fix round (FIX 1, MAJOR, Opus m5): Resultat's checkmark must never
+  // contradict a plan whose latest solve still shows a non-empty waitlist - Optimera CAN check (a
+  // usable result exists), but Resultat must not, once `unassignedCount > 0`.
+  it("Optimera checks but Resultat does NOT when the latest finished run still has waitlisted participants", async () => {
+    mockPlanData({ runs: 1, latestRunFinished: true, latestRunUnassignedCount: 3 });
+    renderStepper(`/plans/${PLAN_ID}/export`);
+
+    await within(screen.getByTestId("plan-simple-step-optimera")).findByText("1 körning");
+    expect(screen.getByTestId("plan-simple-step-optimera").querySelector(CHECK_ICON_SELECTOR)).not.toBeNull();
     expect(screen.getByTestId("plan-simple-step-resultat").querySelector(CHECK_ICON_SELECTOR)).toBeNull();
   });
 

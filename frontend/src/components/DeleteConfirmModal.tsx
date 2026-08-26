@@ -1,4 +1,4 @@
-import { Alert, Button, Group, Modal, Text } from "@mantine/core";
+import { Button, Group, Modal, Text } from "@mantine/core";
 import { sv } from "../i18n/sv";
 
 interface DeleteConfirmModalProps {
@@ -9,12 +9,6 @@ interface DeleteConfirmModalProps {
   loading: boolean;
   onConfirm: () => void;
   onClose: () => void;
-  /** v0.6.0 F3 review fix (FIX 10, MINOR): a failed confirm's error, rendered as its own red Alert
-   *  ABOVE `message` - previously PrioritiesPanel's reset flow swapped this straight into `message`
-   *  (`message={resetError ?? sv.simple.priorities.resetConfirm.message}`), which silently replaced
-   *  the "here's what this action does" explanation with the error text instead of showing both.
-   *  Optional/omittable so every other caller (season/plan delete, WhatIfDialog, etc.) is unaffected. */
-  errorMessage?: string | null;
   /** v0.6.0 audit-fix A11 (additive): an optional extra line naming what actually gets deleted
    *  along with the record itself - e.g. "12 deltagare, 3 grupper och 2 sparade versioner tas
    *  bort." (PlanLayout.tsx) or the static "Alla planer i säsongen tas bort." (SeasonPage.tsx).
@@ -36,17 +30,11 @@ export function DeleteConfirmModal({
   loading,
   onConfirm,
   onClose,
-  errorMessage,
   detailsSv,
   cancelLabel,
 }: DeleteConfirmModalProps) {
   return (
     <Modal opened={opened} onClose={onClose} title={title} centered>
-      {errorMessage && (
-        <Alert color="red" mb="sm">
-          {errorMessage}
-        </Alert>
-      )}
       <Text mb={detailsSv ? 4 : "lg"}>{message}</Text>
       {detailsSv && (
         <Text size="sm" c="dimmed" mb="lg">

@@ -98,18 +98,30 @@ export interface StepCompletionInput {
    */
   activeCourtsCount: number | undefined;
   /** Count of optimization runs ever started - drives the Optimera step's description text only
-   *  (e.g. "2 körningar"). See {@link latestRunFinished} for what actually gates the checkmark. */
+   *  (e.g. "2 körningar"). See {@link hasUsableResult} for what actually gates the checkmark. */
   optimizationRunsCount: number | undefined;
   /**
-   * v0.6.0 audit-fix A8: whether the MOST RECENT optimization run has actually finished
-   * (`status === "FINISHED"`, from `useOptimizationRuns`'s most-recent-first list - `data[0]`).
-   * `runs.length > 0` alone used to check both Optimera AND (via a permanently-grey "static
-   * fallback") never checked Resultat at all - a run that's 1 second into solving, or one that
-   * crashed/was cancelled, isn't "done", and a plan that finished solving 20 minutes ago had a
-   * permanently grey Resultat "5" reading as an unexplained accusation. Both
-   * {@link optimeraCompletion} and {@link resultatCompletion} now gate on this SAME signal instead.
+   * v0.6.0 final pre-release fix round (FIX 1, MAJOR): whether the plan's run history contains a run
+   * with an actual persisted, viewable/exportable result - see `runStatus.ts#hasUsableResult`
+   * (FINISHED, or CANCELLED with a parseable resultSummaryJson). Replaces the previous
+   * `latestRunFinished` signal (`data[0]?.status === "FINISHED"`, audit-fix A8), which painted a
+   * genuinely-usable CANCELLED-with-partial-progress run as "not done" even though
+   * OptimizePanelSimple's own cancelled-outcome copy tells the admin their best-so-far groups were
+   * saved. `undefined` while `useOptimizationRuns` hasn't resolved yet (same "no signal yet"
+   * treatment as every other input here). Both {@link optimeraCompletion} and
+   * {@link resultatCompletion} gate on this SAME signal.
    */
-  latestRunFinished: boolean | undefined;
+  hasUsableResult: boolean | undefined;
+  /**
+   * v0.6.0 final pre-release fix round (FIX 1, MAJOR): whether the most recent USABLE run (see
+   * {@link hasUsableResult}) left every participant placed (`unassignedCount === 0`, from that run's
+   * parsed `resultSummaryJson`) - gates Resultat's checkmark IN ADDITION TO `hasUsableResult`, so a
+   * green Resultat check never contradicts a plan whose latest solve still shows a non-empty
+   * waitlist (the same "no green lie about waitlisted kids" rule OptimizePanelSimple's own outcome
+   * card already follows). `undefined` when there's no usable run yet, or its summary couldn't be
+   * parsed - never assumed to be `true` in either case.
+   */
+  resultatAllPlaced: boolean | undefined;
   /** v0.6.0 F3 (M-S3): the loaded `GET /api/plans/{planId}/priority-order` view, reduced to just
    *  the two fields {@link priorityCompletion} needs - `undefined` while that query hasn't resolved
    *  yet (same "no signal" treatment as the other inputs above). See PlanSimpleStepper.tsx for
@@ -161,20 +173,22 @@ function tiderCompletion(timeSlotsCount: number | undefined, activeCourtsCount: 
 }
 
 /**
- * v0.6.0 audit-fix A8: completion now gates on {@link StepCompletionInput.latestRunFinished} - a run
- * that's still solving (or one that was cancelled/failed) isn't "done" just because it exists. The
- * DESCRIPTION still shows the total run count ("2 körningar") - that's still honest, useful
- * information; only the checkmark's meaning changed.
+ * v0.6.0 final pre-release fix round (FIX 1, MAJOR): completion now gates on
+ * {@link StepCompletionInput.hasUsableResult} - a run that's still solving, failed outright, or was
+ * cancelled with nothing to show isn't "done" just because it exists (replaces audit-fix A8's
+ * stricter `latestRunFinished`, which also painted a usable CANCELLED-with-partial-progress run as
+ * incomplete - see runStatus.ts). The DESCRIPTION still shows the total run count ("2 körningar") -
+ * that's still honest, useful information; only the checkmark's meaning changed.
  */
 function optimeraCompletion(
   optimizationRunsCount: number | undefined,
-  latestRunFinished: boolean | undefined,
+  hasUsableResult: boolean | undefined,
 ): StepCompletion {
   if (optimizationRunsCount === undefined) {
     return { completed: undefined, description: undefined };
   }
   return {
-    completed: latestRunFinished === true,
+    completed: hasUsableResult === true,
     description: pluralize(optimizationRunsCount, "körning", "körningar"),
   };
 }
@@ -182,14 +196,21 @@ function optimeraCompletion(
 /**
  * v0.6.0 audit-fix A8: Resultat used to be permanently un-checked ("no cheap distinct-from-Optimera
  * signal without an extra backend call") - the audit called out that a permanently grey "5" reads as
- * an unexplained accusation to a non-technical admin. It CAN now check: it reuses the exact same
- * `latestRunFinished` signal Optimera does (no extra backend call - Optimera's own
- * `useOptimizationRuns` query already carries this). The description stays the static fallback
+ * an unexplained accusation to a non-technical admin. It CAN now check: it reuses the same
+ * `hasUsableResult` signal Optimera does (no extra backend call - Optimera's own
+ * `useOptimizationRuns` query already carries the `resultSummaryJson` this reads too).
+ *
+ * v0.6.0 final pre-release fix round (FIX 1, MAJOR, Opus m5 - "a green check must not contradict the
+ * yellow waitlist outcome"): ADDITIONALLY requires {@link StepCompletionInput.resultatAllPlaced} -
+ * `hasUsableResult` alone would happily checkmark Resultat for a run that left participants on the
+ * waitlist, directly contradicting OptimizePanelSimple's own yellow "N deltagare kunde inte
+ * placeras" outcome for that exact same run. The description stays the static fallback
  * (sv.simple.stepDescriptions.resultat) - there's no cheap distinct live number to show here, only
- * the checkmark gained a real signal.
+ * the checkmark's gate changed.
  */
-function resultatCompletion(latestRunFinished: boolean | undefined): StepCompletion {
-  return { completed: latestRunFinished, description: sv.simple.stepDescriptions.resultat };
+function resultatCompletion(hasUsableResult: boolean | undefined, resultatAllPlaced: boolean | undefined): StepCompletion {
+  const completed = hasUsableResult === undefined ? undefined : hasUsableResult && resultatAllPlaced === true;
+  return { completed, description: sv.simple.stepDescriptions.resultat };
 }
 
 /**
@@ -231,8 +252,8 @@ export function completionFor(input: StepCompletionInput): StepCompletion[] {
     countCompletion(input.participantsCount, "deltagare", "deltagare"),
     tiderCompletion(input.timeSlotsCount, input.activeCourtsCount),
     priorityCompletion(input.priorityOrder),
-    optimeraCompletion(input.optimizationRunsCount, input.latestRunFinished),
-    resultatCompletion(input.latestRunFinished),
+    optimeraCompletion(input.optimizationRunsCount, input.hasUsableResult),
+    resultatCompletion(input.hasUsableResult, input.resultatAllPlaced),
     countCompletion(input.savedPlansCount, "sparad plan", "sparade planer"),
   ];
 }

@@ -24,7 +24,7 @@ import { useSeason } from "../../api/seasons";
 import { useParticipants } from "../../api/participants";
 import { useGroups } from "../../api/groups";
 import { useSavedPlans } from "../../api/savedPlans";
-import { userErrorText, technicalErrorDetail } from "../../lib/errorText";
+import { fallbackErrorText, technicalErrorDetail } from "../../lib/errorText";
 import { pluralize } from "../../lib/pluralizeSv";
 import { sv } from "../../i18n/sv";
 import { AdvancedOnly, SimpleOnly } from "../../components/uimode/AdvancedOnly";
@@ -102,7 +102,7 @@ export function PlanLayout() {
     const technical = plan.isError ? technicalErrorDetail(plan.error) : undefined;
     return (
       <Alert color="red">
-        <Text size="sm">{userErrorText(plan.error, sv.plan.notFound)}</Text>
+        <Text size="sm">{fallbackErrorText(plan.error, sv.plan.notFound)}</Text>
         {technical && (
           <Text size="xs" c="dimmed" mt={4}>
             {sv.common.technicalInfo(technical)}

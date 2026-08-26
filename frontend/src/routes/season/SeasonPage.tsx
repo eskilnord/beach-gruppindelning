@@ -21,7 +21,7 @@ import { IconDots, IconListDetails } from "@tabler/icons-react";
 import { useSeasonConflicts } from "../../api/conflicts";
 import { useDeleteSeason, useSeason } from "../../api/seasons";
 import { usePlanCounts, usePlansForSeason } from "../../api/plans";
-import { userErrorText, technicalErrorDetail } from "../../lib/errorText";
+import { fallbackErrorText, technicalErrorDetail } from "../../lib/errorText";
 import { ConflictList } from "../../components/ConflictList";
 import { EmptyState } from "../../components/EmptyState";
 import { AdvancedOnly } from "../../components/uimode/AdvancedOnly";
@@ -61,7 +61,7 @@ export function SeasonPage() {
           <Anchor onClick={() => navigate("/")}>{sv.nav.home}</Anchor>
         </Breadcrumbs>
         <Alert color="red">
-          <Text size="sm">{userErrorText(season.error, sv.season.notFound)}</Text>
+          <Text size="sm">{fallbackErrorText(season.error, sv.season.notFound)}</Text>
           {technical && (
             <Text size="xs" c="dimmed" mt={4}>
               {sv.common.technicalInfo(technical)}
@@ -143,7 +143,7 @@ export function SeasonPage() {
         {plans.isLoading && <Loader size="sm" />}
         {plans.isError && (
           <Alert color="red">
-            <Text size="sm">{userErrorText(plans.error, sv.season.loadFailed)}</Text>
+            <Text size="sm">{fallbackErrorText(plans.error, sv.season.loadFailed)}</Text>
             {technicalErrorDetail(plans.error) && (
               <Text size="xs" c="dimmed" mt={4}>
                 {sv.common.technicalInfo(technicalErrorDetail(plans.error)!)}
@@ -204,7 +204,7 @@ export function SeasonPage() {
           {conflicts.isLoading && <Loader size="sm" />}
           {conflicts.isError && (
             <Alert color="red">
-              <Text size="sm">{userErrorText(conflicts.error, sv.season.conflicts.loadFailed)}</Text>
+              <Text size="sm">{fallbackErrorText(conflicts.error, sv.season.conflicts.loadFailed)}</Text>
               {technicalErrorDetail(conflicts.error) && (
                 <Text size="xs" c="dimmed" mt={4}>
                   {sv.common.technicalInfo(technicalErrorDetail(conflicts.error)!)}

@@ -28,7 +28,7 @@ export const sv = {
     category: "Kategori",
     nameRequired: "Namn krävs",
     unknownError: "Ett okänt fel inträffade",
-    // v0.6.0 audit-fix A4: pairs with lib/errorText.ts's userErrorText/technicalErrorDetail -
+    // v0.6.0 audit-fix A4: pairs with lib/errorText.ts's fallbackErrorText/technicalErrorDetail -
     // a small dimmed line under a Swedish fallback error message, showing the raw backend/network
     // text for anyone who needs to report the issue.
     technicalInfo: (detail: string) => `Teknisk information: ${detail}`,
@@ -1862,10 +1862,14 @@ export const sv = {
       // these describe what a given RANK means, not what a specific priority does, so PriorityRankList
       // .tsx renders `rankMeaning[index]` (the row's current position), not anything keyed by the
       // priority itself - honest by construction, since they move WITH the row across a reorder.
+      // v0.6.0 final pre-release fix round (FIX 4, MINOR, rank-3 wording unification): matches the
+      // backend's own suffix verbatim (PriorityOrderService#describeAction, case 3 - "uppfylls om
+      // det inte krockar med viktigare önskemål.") - was "när" instead of "om", a wording drift from
+      // the backend-owned sentence this row is meant to echo.
       rankMeaning: [
         "Väger tyngst av allt.",
         "Uppfylls när det går.",
-        "Uppfylls när det inte krockar med viktigare önskemål.",
+        "Uppfylls om det inte krockar med viktigare önskemål.",
         "Vägs in sist.",
       ] as readonly string[],
       moveUpAriaLabel: (labelSv: string) => `Flytta ${labelSv} uppåt`,
@@ -1883,6 +1887,12 @@ export const sv = {
       // tolkas ordningen" implied it was the only place to find that meaning, which duplicated the
       // per-row sentences once those were added.
       interpretationHeading: "Detaljer",
+      // v0.6.0 final pre-release fix round (FIX 5, MINOR): the "Detaljer" accordion body while a
+      // reorder is still being saved (`dirty || saving`) - a stale rank-N summary sentence sitting
+      // under a row the admin just visibly moved would otherwise contradict what they just saw
+      // happen (PrioritiesPanel.tsx's own `orderedPriorities`, sorted by `displayOrder`, hasn't
+      // re-settled from the server's confirmation yet).
+      accordionUpdating: "Uppdateras…",
       // v0.6.0 audit batch D (D4): rendered as its own inline line directly above the dimmed rank list
       // (PrioritiesPanel.tsx) - a proximate reminder right at the point the admin's eye lands, distinct
       // from the overrides alert further up which explains WHY, not just that the list is locked.
@@ -2034,6 +2044,17 @@ export const sv = {
       // waitlistLabel(n), which visibly ticks up/down mid-solve (exactly the kind of alarming-looking
       // number this persona audit flagged, alongside "Förbättring #N").
       liveWaitlistHeading: "Kölista",
+    },
+    // v0.6.0 final pre-release fix round (FIX 2, MAJOR): ResultsPanel.tsx's no-groups-yet empty
+    // state used to fall through to the ADVANCED-worded `sv.results.empty` ("Gå till fliken
+    // Optimering") + a tab-labeled button, even in SIMPLE mode - where there is no "flik Optimering"
+    // (SIMPLE navigates via the step-based PlanSimpleStepper instead). This is SIMPLE's own copy for
+    // that same empty state.
+    results: {
+      noRun: {
+        message: "Skapa grupperna först – gå till steget Optimera.",
+        button: "Gå till Optimera",
+      },
     },
     // v0.6.0 F4 (M-S4): ResourcesPanel's simple-mode heading/subheading + the per-slot "N (av M)
     // banor" summary replacing the advanced per-court Switch chips.

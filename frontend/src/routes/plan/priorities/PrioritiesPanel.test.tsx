@@ -195,23 +195,61 @@ describe("PrioritiesPanel", () => {
 
   // v0.6.0 F3 review fix (FIX 10, MINOR): the accordion previously always followed `priorities`'
   // server (rank) order - here it must follow the currently DISPLAYED order instead.
-  it("sorts the interpretation accordion by the displayed order, not the server's raw priorities array order", async () => {
+  //
+  // v0.6.0 final pre-release fix round (FIX 5, MINOR): now split into two tests - while the reorder
+  // is still PENDING save, the accordion shows the dimmed "Uppdateras…" line (not a stale per-row
+  // summary, which used to render against the just-moved row immediately, contradicting the row the
+  // admin just watched jump to the top); the sorted-summary assertion moves to a second test, once
+  // the save has actually settled.
+  it("shows the dimmed 'Uppdateras…' line in the accordion (not per-row summaries) while a reorder is still pending save", async () => {
     mockGet(NORMAL_ORDER);
+    // Never resolves within this test - keeps the reorder `dirty` for the whole assertion window,
+    // same helper the FIX 2/FIX 3 tests below already use for this exact purpose.
+    mockHangingPut();
     renderPanel();
     const rows = await screen.findAllByTestId("priority-row");
 
     const user = userEvent.setup();
-    // Move the last row (LEVEL) to the top via its up-arrow, 3 times - no debounce advance needed,
-    // the accordion should already reflect the OPTIMISTIC local order immediately.
     const lastRow = rows[3];
     await user.click(within(lastRow).getByRole("button", { name: sv.simple.priorities.moveUpAriaLabel("Jämn nivå") }));
-    await user.click(within(lastRow).getByRole("button", { name: sv.simple.priorities.moveUpAriaLabel("Jämn nivå") }));
-    await user.click(within(lastRow).getByRole("button", { name: sv.simple.priorities.moveUpAriaLabel("Jämn nivå") }));
+
+    expect(rowKeys()).toEqual(["TRAIN_TOGETHER", "PREVIOUS_GROUP", "LEVEL", "PREFERRED_TIME"]);
+    expect(screen.getByTestId("priority-save-status")).toHaveTextContent(sv.simple.priorities.saving);
+
+    await user.click(screen.getByText(sv.simple.priorities.interpretationHeading));
+    expect(await screen.findByTestId("priority-accordion-updating")).toHaveTextContent(sv.simple.priorities.accordionUpdating);
+    expect(screen.queryByTestId("priority-summary-row")).not.toBeInTheDocument();
+  });
+
+  it("sorts the interpretation accordion by the displayed order, not the server's raw priorities array order, once the reorder has settled", async () => {
+    mockGet(NORMAL_ORDER);
+    server.use(
+      http.put(`/api/plans/${PLAN_ID}/priority-order`, async ({ request }) => {
+        const body = (await request.json()) as { order: string[] };
+        return HttpResponse.json({ ...NORMAL_ORDER, order: body.order, matchesOrder: true, customWeightsActive: false });
+      }),
+    );
+    renderPanel();
+    const rows = await screen.findAllByTestId("priority-row");
+
+    vi.useFakeTimers();
+    // Move the last row (LEVEL) to the top via its up-arrow, 3 times.
+    const lastRow = rows[3];
+    fireEvent.click(within(lastRow).getByRole("button", { name: sv.simple.priorities.moveUpAriaLabel("Jämn nivå") }));
+    fireEvent.click(within(lastRow).getByRole("button", { name: sv.simple.priorities.moveUpAriaLabel("Jämn nivå") }));
+    fireEvent.click(within(lastRow).getByRole("button", { name: sv.simple.priorities.moveUpAriaLabel("Jämn nivå") }));
 
     expect(rowKeys()).toEqual(["LEVEL", "TRAIN_TOGETHER", "PREVIOUS_GROUP", "PREFERRED_TIME"]);
 
+    act(() => {
+      vi.advanceTimersByTime(600);
+    });
+    vi.useRealTimers();
+    await screen.findByText(sv.simple.priorities.saved);
+
+    const user = userEvent.setup();
     await user.click(screen.getByText(sv.simple.priorities.interpretationHeading));
-    const summaryRows = screen.getAllByTestId("priority-summary-row");
+    const summaryRows = await screen.findAllByTestId("priority-summary-row");
     expect(within(summaryRows[0]).getByText("Jämn nivå")).toBeInTheDocument();
     expect(within(summaryRows[1]).getByText("Träna tillsammans")).toBeInTheDocument();
   });

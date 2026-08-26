@@ -13,7 +13,7 @@ const FACTOR: IndirectFactorView = {
   coachWishType: "MUST",
   groupName: "Grupp A",
   messageSv:
-    "Kalle Karlsson:s placering kan delvis bero på att Lisa Larsson (önskad medspelare) behöver tränaren Anna Andersson, som är knuten till Grupp A",
+    "Kalle Karlssons placering kan delvis bero på att Lisa Larsson (önskad medspelare) behöver tränaren Anna Andersson, som är knuten till Grupp A",
 };
 
 describe("IndirectFactorsSection", () => {
@@ -40,7 +40,7 @@ describe("IndirectFactorsSection", () => {
       otherParticipantProfileId: "participant-erik",
       otherPersonName: "Erik Eriksson",
       coachWishType: "WANT",
-      messageSv: "Kalle Karlsson:s placering kan delvis bero på att Erik Eriksson (önskad medspelare) önskar tränaren Anna Andersson, som är knuten till Grupp A",
+      messageSv: "Kalle Karlssons placering kan delvis bero på att Erik Eriksson (önskad medspelare) önskar tränaren Anna Andersson, som är knuten till Grupp A",
     };
     renderWithProviders(<IndirectFactorsSection indirectFactors={[FACTOR, second]} onNavigateToParticipant={() => {}} />);
 

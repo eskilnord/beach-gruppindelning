@@ -9,6 +9,7 @@ import type { ExportFormat, ExportLayout } from "../../../api/types";
 import { AdvancedOnly, SimpleOnly } from "../../../components/uimode/AdvancedOnly";
 import { HelpTip } from "../../../components/HelpTip";
 import { sv } from "../../../i18n/sv";
+import { hasUsableResult } from "../runStatus";
 import { describeExportResult, isGroupedLayoutDisabled, normalizeLayoutForFormat, showCommentsWarning } from "./exportForm";
 import { SimpleSaveExportCard } from "./SimpleSaveExportCard";
 
@@ -51,7 +52,9 @@ export function ExportPanel() {
 function ExportPanelAdvanced() {
   const { planId } = useParams<{ planId: string }>();
   const runs = useOptimizationRuns(planId);
-  const hasRun = (runs.data?.length ?? 0) > 0;
+  // v0.6.0 final pre-release fix round (FIX 1, MAJOR): was `runs.data?.length > 0` - see
+  // SimpleSaveExportCard.tsx's own comment on this same change / runStatus.ts's doc comment for why.
+  const hasRun = hasUsableResult(runs.data);
 
   const [format, setFormat] = useState<ExportFormat>("xlsx");
   const [layout, setLayout] = useState<ExportLayout>("grouped");

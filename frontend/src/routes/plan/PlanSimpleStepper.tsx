@@ -8,7 +8,9 @@ import { useTrainingBlocksForPlan } from "../../api/trainingBlocks";
 import { useOptimizationRuns } from "../../api/runs";
 import { useSavedPlans } from "../../api/savedPlans";
 import { sv } from "../../i18n/sv";
+import { parseResultSummary } from "./optimize/runSummary";
 import { completionFor, resolveSimpleStepIndex, SIMPLE_STEPS } from "./planSimpleSteps";
+import { hasUsableResult, latestUsableRun } from "./runStatus";
 
 interface PlanSimpleStepperProps {
   planId: string;
@@ -29,10 +31,11 @@ interface PlanSimpleStepperProps {
  * v0.6.0 audit-fix A8: switched from `useTimeSlots` to `useTrainingBlocksForPlan` - the Tider step's
  * checkmark needs the ACTIVE COURT count (real training capacity), not just how many time slots are
  * configured (see planSimpleSteps.ts's `tiderCompletion`), and the grouped training-blocks view is
- * the cheapest source that carries both numbers at once. `latestRunFinished` (derived from
- * `useOptimizationRuns`'s already-most-recent-first list, `data[0]`) now also drives BOTH Optimera's
- * and Resultat's checkmarks - see planSimpleSteps.ts's doc comments on why "a run exists" isn't the
- * same as "the run finished".
+ * the cheapest source that carries both numbers at once. v0.6.0 final pre-release fix round (FIX 1):
+ * `hasUsableResult` (runStatus.ts, derived from `useOptimizationRuns`'s already-most-recent-first
+ * list) now drives Optimera's checkmark, and Resultat's additionally requires the latest USABLE
+ * run's own `unassignedCount === 0` - see planSimpleSteps.ts's doc comments on why "a run exists"
+ * isn't the same as "the run has a usable result", and why Resultat needs the extra check.
  *
  * `allowNextStepsSelect` (Mantine default: true, set explicitly for clarity) - an admin may jump
  * straight to any step regardless of what's "completed"; the checkmarks are guidance, never a gate.
@@ -59,10 +62,20 @@ export function PlanSimpleStepper({ planId }: PlanSimpleStepperProps) {
     (sum, entry) => sum + entry.blocks.filter((block) => block.active).length,
     0,
   );
-  // v0.6.0 audit-fix A8: `runs` is most-recent-first (useOptimizationRuns's own doc comment), so
-  // `data[0]` is the latest run. `data` resolved but empty (`[]`) correctly yields `false` here
-  // (loaded, nothing has finished) - distinct from `undefined` (still loading/erroring).
-  const latestRunFinished = runs.data ? runs.data[0]?.status === "FINISHED" : undefined;
+  // v0.6.0 final pre-release fix round (FIX 1, MAJOR): `runs` is most-recent-first
+  // (useOptimizationRuns's own doc comment), so `hasUsableResult`/`latestUsableRun` walk it from the
+  // front. `data` resolved but with no usable run (`[]`, or every run FAILED/still solving) correctly
+  // yields `false` here (loaded, nothing usable) - distinct from `undefined` (still loading/erroring).
+  // Replaces audit-fix A8's stricter `latestRunFinished` (`data[0]?.status === "FINISHED"`) - see
+  // runStatus.ts's own doc comment for why a CANCELLED-with-partial-progress run now also counts.
+  const runsHaveUsableResult = runs.data ? hasUsableResult(runs.data) : undefined;
+  // v0.6.0 final pre-release fix round (FIX 1, MAJOR, Opus m5): the latest USABLE run's own parsed
+  // `unassignedCount === 0` - threaded through so Resultat's checkmark can never contradict a run
+  // that still left participants on the waitlist (see planSimpleSteps.ts's resultatCompletion doc
+  // comment). `undefined` (never assumed `true`) when there's no usable run yet, or its summary
+  // couldn't be parsed.
+  const latestUsableSummary = runs.data ? parseResultSummary(latestUsableRun(runs.data)) : null;
+  const resultatAllPlaced = latestUsableSummary ? latestUsableSummary.unassignedCount === 0 : undefined;
 
   // v0.6.0 F2 review fix (FIX 9): a failed query renders exactly like a still-loading one here
   // (`.data` stays undefined either way, so completionFor sees the same "no signal") - by design.
@@ -73,7 +86,8 @@ export function PlanSimpleStepper({ planId }: PlanSimpleStepperProps) {
     timeSlotsCount,
     activeCourtsCount,
     optimizationRunsCount: runs.data?.length,
-    latestRunFinished,
+    hasUsableResult: runsHaveUsableResult,
+    resultatAllPlaced,
     // v0.6.0 F3 (M-S3): reduced to just what completionFor needs - the top-ranked priority's
     // backend-supplied labelSv (rank 1 in the `priorities` array, which is index-aligned with
     // `order`) plus customWeightsActive. `order[0]` (not a `.find(rank === 1)`) since that's the

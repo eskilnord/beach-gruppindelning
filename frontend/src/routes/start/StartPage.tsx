@@ -18,7 +18,7 @@ import { notifications } from "@mantine/notifications";
 import { useSeasons } from "../../api/seasons";
 import { useRecentPlans } from "../../api/plans";
 import { useCreateDemoData } from "../../api/demo";
-import { userErrorText, technicalErrorDetail } from "../../lib/errorText";
+import { fallbackErrorText, technicalErrorDetail } from "../../lib/errorText";
 import { sv } from "../../i18n/sv";
 import { EmptyState } from "../../components/EmptyState";
 import { TutorialBanner } from "../../components/tutorial/TutorialBanner";
@@ -56,7 +56,7 @@ export function StartPage() {
         title: sv.common.error,
         message: (
           <Stack gap={2}>
-            <Text size="sm">{userErrorText(error, sv.start.demoDataFailed)}</Text>
+            <Text size="sm">{fallbackErrorText(error, sv.start.demoDataFailed)}</Text>
             {technical && (
               <Text size="xs" c="dimmed">
                 {sv.common.technicalInfo(technical)}
@@ -111,7 +111,7 @@ export function StartPage() {
         {seasons.isLoading && <Loader size="sm" />}
         {seasons.isError && (
           <Alert color="red" mb="md">
-            <Text size="sm">{userErrorText(seasons.error, sv.start.loadFailed)}</Text>
+            <Text size="sm">{fallbackErrorText(seasons.error, sv.start.loadFailed)}</Text>
             {seasonsLoadFailedTechnical && (
               <Text size="xs" c="dimmed" mt={4}>
                 {sv.common.technicalInfo(seasonsLoadFailedTechnical)}

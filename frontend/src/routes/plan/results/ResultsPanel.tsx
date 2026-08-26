@@ -258,6 +258,11 @@ export function ResultsPanel() {
   }
 
   if (model.sortedGroups.length === 0) {
+    // v0.6.0 final pre-release fix round (FIX 2, MAJOR): the ADVANCED-worded copy below ("Gå till
+    // fliken Optimering" + a tab-labeled button, `sv.plan.tabs.optimize`) used to render unconditionally
+    // - including in SIMPLE mode, where there is no "flik Optimering" at all (SIMPLE navigates via the
+    // step-based PlanSimpleStepper, not a tab bar). SIMPLE gets its own step-worded copy + button;
+    // ADVANCED is unchanged.
     return (
       <Card withBorder padding="xl">
         <Title order={4} mb="xs">
@@ -265,10 +270,10 @@ export function ResultsPanel() {
         </Title>
         <EmptyState
           icon={<IconTrophy size={22} stroke={1.75} />}
-          message={sv.results.empty}
+          message={isSimple ? sv.simple.results.noRun.message : sv.results.empty}
           action={
             <Button variant="default" onClick={() => navigate(`/plans/${planId}/optimering`)}>
-              {sv.plan.tabs.optimize}
+              {isSimple ? sv.simple.results.noRun.button : sv.plan.tabs.optimize}
             </Button>
           }
         />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -43,6 +43,40 @@ describe("ExportPanel help tips", () => {
 
     const helpTips = screen.getAllByRole("button", { name: /^Förklaring:/ });
     expect(helpTips.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// v0.6.0 final pre-release fix round (FIX 1, MAJOR): the advanced export gate now checks
+// hasUsableResult (FINISHED, or CANCELLED with a parseable summary) rather than `runs.length > 0` -
+// a run existing isn't enough on its own.
+describe("ExportPanel export gate - hasUsableResult (FIX 1)", () => {
+  it("stays gated (empty hint, export disabled) when the only run FAILED", async () => {
+    server.use(
+      http.get("/api/plans/plan-1/runs", () =>
+        HttpResponse.json([{ id: "run-1", activityPlanId: "plan-1", status: "FAILED", startedAt: "2026-01-01T00:00:00Z" }]),
+      ),
+    );
+
+    renderExportPanel();
+
+    await screen.findByTestId("export-empty-hint");
+    expect(screen.getByRole("button", { name: "Exportera" })).toBeDisabled();
+  });
+
+  it("un-gates (export enabled) once a run has actually FINISHED", async () => {
+    server.use(
+      http.get("/api/plans/plan-1/runs", () =>
+        HttpResponse.json([{ id: "run-1", activityPlanId: "plan-1", status: "FINISHED", startedAt: "2026-01-01T00:00:00Z" }]),
+      ),
+    );
+
+    renderExportPanel();
+
+    await screen.findByTestId("export-card");
+    // The runs query itself is still async at this point (the Card renders regardless of loading
+    // state) - waitFor lets it actually resolve before asserting the gate has lifted.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Exportera" })).toBeEnabled());
+    expect(screen.queryByTestId("export-empty-hint")).not.toBeInTheDocument();
   });
 });
 

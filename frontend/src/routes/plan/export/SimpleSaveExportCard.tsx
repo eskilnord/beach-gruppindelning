@@ -9,6 +9,7 @@ import { useCreateSavedPlan, useSavedPlans } from "../../../api/savedPlans";
 import { useOptimizationRuns } from "../../../api/runs";
 import { sv } from "../../../i18n/sv";
 import { formatDateTime } from "../../../lib/formatDateTime";
+import { hasUsableResult } from "../runStatus";
 import { describeExportResult } from "./exportForm";
 
 /** "sv-SE" `YYYY-MM-DD` for the prefilled save name - deliberately NOT `formatDateTime` (that's a
@@ -58,7 +59,11 @@ export function SimpleSaveExportCard() {
   const plan = usePlan(planId);
   const runs = useOptimizationRuns(planId);
   const savedPlans = useSavedPlans(planId);
-  const hasRun = (runs.data?.length ?? 0) > 0;
+  // v0.6.0 final pre-release fix round (FIX 1, MAJOR): was `runs.data?.length > 0`, which accepted
+  // ANY run - including one still SOLVING or one that FAILED outright, neither of which has anything
+  // to export. See runStatus.ts's own doc comment for the exact FINISHED/CANCELLED-with-summary
+  // discriminator.
+  const hasRun = hasUsableResult(runs.data);
 
   const createSavedPlan = useCreateSavedPlan(planId ?? "");
   const exportPlan = useExportPlan(planId ?? "");

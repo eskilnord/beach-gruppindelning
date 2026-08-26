@@ -1,4 +1,4 @@
--- v0.6.0 audit-fix B8: the V2-seeded "mustNotPlayWith" field's Swedish label read as a double
+-- v0.6.0 audit-fix B8: the V5-seeded "mustNotPlayWith" field's Swedish label read as a double
 -- negative ("Måste inte spela med" == "Must not play with" but easy to misread as its opposite).
 -- Trivial, targeted UPDATE by id + old label so a club that has already renamed this field
 -- themselves is left untouched.
