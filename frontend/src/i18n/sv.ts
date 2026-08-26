@@ -118,12 +118,24 @@ export const sv = {
       export: "Export",
     },
     comingSoon: "Den här vyn kommer i en senare milstolpe.",
+    // v0.6.0 F2 (M-S2): the header's edit/delete buttons collapse into one Menu behind an
+    // IconDots ActionIcon in SIMPLE mode (PlanLayout.tsx) - ADVANCED keeps the two separate
+    // buttons (plan.editButton/deleteButton above) unchanged.
+    menu: {
+      ariaLabel: "Fler alternativ",
+      edit: "Redigera plan…",
+      delete: "Ta bort plan",
+    },
   },
   editPlanModal: {
     title: "Redigera aktivitetsplan",
     statusLabel: "Status",
     submit: "Spara",
     updateFailed: "Kunde inte spara aktivitetsplanen",
+    // v0.6.0 F2 (M-S2): SIMPLE mode shows just this one size field (bound to the same
+    // defaultGroupTargetSize as planDefaults.targetLabel below) with plainer wording - min/max/
+    // level-min/status stay ADVANCED-only.
+    targetLabelSimple: "Standard gruppstorlek",
   },
   planDefaults: {
     heading: "Standardvärden för grupper",
@@ -141,6 +153,11 @@ export const sv = {
     effectiveSizeError: (min: number, target: number, max: number) =>
       `Storlekarna motsäger varandra: med standardvärden för tomma fält blir minsta ${min}, mål ${target} och max ${max} – minsta ≤ mål ≤ max måste gälla`,
     levelMinRangeError: "Min-nivå måste vara mellan 0 och 1000",
+    // v0.6.0 F2 review fix (FIX 2): SIMPLE mode's plain-language equivalent of effectiveSizeError -
+    // shown ONLY on the visible target field, never naming "minsta"/"målstorlek"/"max" as separate
+    // fields the admin can't see or edit from here.
+    simpleTargetRangeError: (min: number, max: number) =>
+      `Målstorleken måste ligga mellan minsta (${min}) och största (${max}) gruppstorlek – öppna avancerat läge för att ändra dem.`,
   },
   deletePlanModal: {
     title: "Ta bort aktivitetsplan",
@@ -1464,6 +1481,40 @@ export const sv = {
     nothingFound: "Inga deltagare hittades.",
     levelBadge: (level: number) => `Nivå ${level}`,
     resultsWaitlistBadge: "Kölista",
+  },
+  // v0.6.0 F2 (M-S2): the simple-mode information architecture - PlanSimpleStepper.tsx's 6-step
+  // Stepper (replacing the 9-tab bar) and PlanSimpleStepFooter.tsx's sticky "Tillbaka"/"Nästa: …"
+  // nav, both SIMPLE-only (see src/routes/plan/planSimpleSteps.ts for the step list itself).
+  simple: {
+    // v0.6.0 F2 review fix (FIX 4): landmark label for the <nav> wrapping PlanSimpleStepper.tsx's
+    // Stepper, so assistive tech announces it as a distinct navigation region.
+    stepperNavLabel: "Planeringssteg",
+    steps: {
+      deltagare: "Deltagare",
+      tider: "Tider",
+      prioriteringar: "Prioriteringar",
+      optimera: "Optimera",
+      resultat: "Resultat",
+      // v0.6.0 F2 review fix (FIX 3): was "Spara & exportera" - saving isn't reachable from this
+      // step yet (no SimpleSaveExportCard on the export route this milestone). F6 adds that card and
+      // renames this back to "Spara & exportera".
+      exportera: "Exportera",
+    },
+    // v0.6.0 F2 review fix (FIX 8): static fallback descriptions for the steps completionFor
+    // (planSimpleSteps.ts) has no cheap live-number signal for, so every step in the stepper still
+    // renders a description line (even heights) instead of three of the six looking randomly blank.
+    stepDescriptions: {
+      prioriteringar: "Ordna vad som är viktigast",
+      resultat: "Granska grupperna",
+      exportera: "Exportera resultatet",
+    },
+    nav: {
+      back: "Tillbaka",
+      next: (label: string) => `Nästa: ${label} →`,
+    },
+    priorities: {
+      placeholder: "Prioriteringar kommer i nästa steg av ombyggnaden.",
+    },
   },
   uiMode: {
     navLabel: "Avancerat läge",

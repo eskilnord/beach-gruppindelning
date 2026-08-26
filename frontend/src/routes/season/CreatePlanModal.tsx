@@ -4,6 +4,7 @@ import { notifications } from "@mantine/notifications";
 import { useCreatePlan } from "../../api/plans";
 import { ApiError } from "../../api/client";
 import { HelpTip } from "../../components/HelpTip";
+import { AdvancedOnly } from "../../components/uimode/AdvancedOnly";
 import { sv } from "../../i18n/sv";
 import {
   PLAN_DEFAULTS_EMPTY_VALUES,
@@ -77,46 +78,52 @@ export function CreatePlanModal({ opened, seasonId, onClose, onCreated }: Create
             {...form.getInputProps("category")}
           />
 
-          <Text fw={500} size="sm" mt="xs">
-            {sv.planDefaults.heading}
-          </Text>
-          <Text size="xs" c="dimmed" mt={-8}>
-            {sv.planDefaults.subheading}
-          </Text>
-          <Group grow>
-            <NumberInput
-              label={sv.planDefaults.targetLabel}
-              description={sv.planDefaults.targetDescription}
-              placeholder="10"
-              min={1}
-              {...form.getInputProps("defaultGroupTargetSize")}
-            />
-            <NumberInput
-              label={sv.planDefaults.minLabel}
-              description={sv.planDefaults.minDescription}
-              placeholder="8"
-              min={1}
-              {...form.getInputProps("defaultGroupMinSize")}
-            />
-          </Group>
-          <Group grow>
-            <NumberInput
-              label={sv.planDefaults.maxLabel}
-              description={sv.planDefaults.maxDescription}
-              placeholder="12"
-              min={1}
-              {...form.getInputProps("defaultGroupMaxSize")}
-            />
-            <NumberInput
-              label={sv.planDefaults.levelMinLabel}
-              description={sv.planDefaults.levelMinDescription}
-              placeholder={sv.planDefaults.levelMinPlaceholder}
-              min={0}
-              max={1000}
-              clampBehavior="none"
-              {...form.getInputProps("defaultLevelMin")}
-            />
-          </Group>
+          {/* v0.6.0 F2 (M-S2): SIMPLE mode creates a plan with just name+kategori - the backend's
+              own defaults cover group sizing, so these four optional overrides are ADVANCED-only.
+              AdvancedOnly renders `children` unchanged in ADVANCED, so this stays pixel-identical
+              there. */}
+          <AdvancedOnly>
+            <Text fw={500} size="sm" mt="xs">
+              {sv.planDefaults.heading}
+            </Text>
+            <Text size="xs" c="dimmed" mt={-8}>
+              {sv.planDefaults.subheading}
+            </Text>
+            <Group grow>
+              <NumberInput
+                label={sv.planDefaults.targetLabel}
+                description={sv.planDefaults.targetDescription}
+                placeholder="10"
+                min={1}
+                {...form.getInputProps("defaultGroupTargetSize")}
+              />
+              <NumberInput
+                label={sv.planDefaults.minLabel}
+                description={sv.planDefaults.minDescription}
+                placeholder="8"
+                min={1}
+                {...form.getInputProps("defaultGroupMinSize")}
+              />
+            </Group>
+            <Group grow>
+              <NumberInput
+                label={sv.planDefaults.maxLabel}
+                description={sv.planDefaults.maxDescription}
+                placeholder="12"
+                min={1}
+                {...form.getInputProps("defaultGroupMaxSize")}
+              />
+              <NumberInput
+                label={sv.planDefaults.levelMinLabel}
+                description={sv.planDefaults.levelMinDescription}
+                placeholder={sv.planDefaults.levelMinPlaceholder}
+                min={0}
+                max={1000}
+                clampBehavior="none"
+                {...form.getInputProps("defaultLevelMin")}
+              />
+            </Group>
+          </AdvancedOnly>
 
           <Group justify="flex-end" mt="md">
             <Button variant="default" onClick={handleClose}>

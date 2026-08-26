@@ -12,6 +12,7 @@ import { CapacityPanel } from "./routes/plan/capacity/CapacityPanel";
 import { OptimizePanel } from "./routes/plan/optimize/OptimizePanel";
 import { ResultsPanel } from "./routes/plan/results/ResultsPanel";
 import { SavedPlansPanel } from "./routes/plan/savedplans/SavedPlansPanel";
+import { PrioritiesPanel } from "./routes/plan/priorities/PrioritiesPanel";
 import { ExportPanel } from "./routes/plan/export/ExportPanel";
 import { ImportWizardPage } from "./routes/import/ImportWizardPage";
 import { sv } from "./i18n/sv";
@@ -46,6 +47,9 @@ export const router = createBrowserRouter([
             ),
           },
           { path: "resurser", element: <ResourcesPanel /> },
+          // v0.6.0 F2 (M-S2): simple-mode-first step, no <AdvancedRouteGate> - see
+          // PrioritiesPanel.tsx's doc comment. F3 replaces the placeholder with the real panel.
+          { path: "prioriteringar", element: <PrioritiesPanel /> },
           {
             path: "tranare",
             element: (

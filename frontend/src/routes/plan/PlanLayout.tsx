@@ -10,6 +10,7 @@ import {
   Button,
   Group,
   Loader,
+  Menu,
   Stack,
   Tabs,
   Text,
@@ -17,13 +18,18 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { spotlight } from "@mantine/spotlight";
+import { IconDots } from "@tabler/icons-react";
 import { useDeletePlan, usePlan } from "../../api/plans";
 import { useSeason } from "../../api/seasons";
 import { ApiError } from "../../api/client";
 import { sv } from "../../i18n/sv";
+import { AdvancedOnly, SimpleOnly } from "../../components/uimode/AdvancedOnly";
+import { useIsSimpleMode } from "../../lib/uiMode/useUiMode";
 import { EditPlanModal } from "./EditPlanModal";
 import { useEditPlanModalStore } from "./editPlanModalStore";
 import { DeleteConfirmModal } from "../../components/DeleteConfirmModal";
+import { PlanSimpleStepper } from "./PlanSimpleStepper";
+import { PlanSimpleStepFooter } from "./PlanSimpleStepFooter";
 
 const TABS = [
   { path: "deltagare", label: sv.plan.tabs.participants },
@@ -44,6 +50,7 @@ export function PlanLayout() {
   const plan = usePlan(planId);
   const season = useSeason(plan.data?.seasonPlanId);
   const deletePlan = useDeletePlan(plan.data?.seasonPlanId ?? "");
+  const isSimple = useIsSimpleMode();
 
   const editOpen = useEditPlanModalStore((state) => state.opened);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -80,7 +87,11 @@ export function PlanLayout() {
         <Box>
           <Group gap="sm">
             <Title order={2}>{data.name}</Title>
-            <Badge>{data.status}</Badge>
+            {/* v0.6.0 F2 (M-S2): raw status badge is ADVANCED-only - AdvancedOnly renders `children`
+                unchanged (a Fragment, no extra DOM node) in ADVANCED, so this stays pixel-identical. */}
+            <AdvancedOnly>
+              <Badge>{data.status}</Badge>
+            </AdvancedOnly>
           </Group>
           {data.category && (
             <Text c="dimmed" size="sm">
@@ -100,33 +111,66 @@ export function PlanLayout() {
               🔍
             </ActionIcon>
           </Tooltip>
-          <Button variant="default" onClick={() => useEditPlanModalStore.getState().open()}>
-            {sv.plan.editButton}
-          </Button>
-          <Button variant="default" color="red" onClick={() => setDeleteOpen(true)}>
-            {sv.plan.deleteButton}
-          </Button>
+          {/* v0.6.0 F2 (M-S2): ADVANCED keeps the two separate buttons unchanged (AdvancedOnly ==
+              Fragment, no extra DOM); SIMPLE collapses them into one Menu behind an IconDots
+              ActionIcon (sv.plan.menu). */}
+          <AdvancedOnly>
+            <Button variant="default" onClick={() => useEditPlanModalStore.getState().open()}>
+              {sv.plan.editButton}
+            </Button>
+            <Button variant="default" color="red" onClick={() => setDeleteOpen(true)}>
+              {sv.plan.deleteButton}
+            </Button>
+          </AdvancedOnly>
+          <SimpleOnly>
+            <Menu withinPortal position="bottom-end">
+              <Menu.Target>
+                <ActionIcon
+                  variant="default"
+                  size="lg"
+                  aria-label={sv.plan.menu.ariaLabel}
+                  data-testid="plan-header-menu-button"
+                >
+                  <IconDots size={18} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item onClick={() => useEditPlanModalStore.getState().open()}>
+                  {sv.plan.menu.edit}
+                </Menu.Item>
+                <Menu.Item color="red" onClick={() => setDeleteOpen(true)}>
+                  {sv.plan.menu.delete}
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          </SimpleOnly>
         </Group>
       </Group>
 
-      <Tabs
-        value={activeTab}
-        onChange={(value) => {
-          if (value) {
-            navigate(`/plans/${data.id}/${value}`);
-          }
-        }}
-      >
-        <Tabs.List>
-          {TABS.map((tab) => (
-            <Tabs.Tab key={tab.path} value={tab.path}>
-              {tab.label}
-            </Tabs.Tab>
-          ))}
-        </Tabs.List>
-      </Tabs>
+      {isSimple ? (
+        <PlanSimpleStepper planId={data.id} />
+      ) : (
+        <Tabs
+          value={activeTab}
+          onChange={(value) => {
+            if (value) {
+              navigate(`/plans/${data.id}/${value}`);
+            }
+          }}
+        >
+          <Tabs.List>
+            {TABS.map((tab) => (
+              <Tabs.Tab key={tab.path} value={tab.path}>
+                {tab.label}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs>
+      )}
 
       <Outlet />
+
+      {isSimple && <PlanSimpleStepFooter planId={data.id} />}
 
       <EditPlanModal opened={editOpen} plan={data} onClose={() => useEditPlanModalStore.getState().close()} />
 

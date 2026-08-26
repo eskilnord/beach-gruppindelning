@@ -22,6 +22,7 @@ import { usePlanCounts, usePlansForSeason } from "../../api/plans";
 import { ApiError } from "../../api/client";
 import { ConflictList } from "../../components/ConflictList";
 import { EmptyState } from "../../components/EmptyState";
+import { useIsSimpleMode } from "../../lib/uiMode/useUiMode";
 import { sv } from "../../i18n/sv";
 import { CreatePlanModal } from "./CreatePlanModal";
 import { EditSeasonModal } from "./EditSeasonModal";
@@ -30,6 +31,7 @@ import { DeleteConfirmModal } from "../../components/DeleteConfirmModal";
 export function SeasonPage() {
   const { seasonId } = useParams<{ seasonId: string }>();
   const navigate = useNavigate();
+  const isSimple = useIsSimpleMode();
   const season = useSeason(seasonId);
   const plans = usePlansForSeason(seasonId);
   const deleteSeason = useDeleteSeason();
@@ -102,7 +104,9 @@ export function SeasonPage() {
                 <Table.Th>{sv.season.columns.status}</Table.Th>
                 <Table.Th>{sv.season.columns.participants}</Table.Th>
                 <Table.Th>{sv.season.columns.groups}</Table.Th>
-                <Table.Th>{sv.season.columns.coaches}</Table.Th>
+                {/* v0.6.0 F2 (M-S2): render-filter only, never gate the usePlanCounts query above -
+                    same data is fetched in both modes, just not shown here in SIMPLE. */}
+                {!isSimple && <Table.Th>{sv.season.columns.coaches}</Table.Th>}
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -117,7 +121,9 @@ export function SeasonPage() {
                     <Table.Td>{plan.status}</Table.Td>
                     <Table.Td>{planCounts ? planCounts.participants : sv.season.participantsPlaceholder}</Table.Td>
                     <Table.Td>{planCounts ? planCounts.groups : sv.season.participantsPlaceholder}</Table.Td>
-                    <Table.Td>{planCounts ? planCounts.coaches : sv.season.participantsPlaceholder}</Table.Td>
+                    {!isSimple && (
+                      <Table.Td>{planCounts ? planCounts.coaches : sv.season.participantsPlaceholder}</Table.Td>
+                    )}
                   </Table.Tr>
                 );
               })}

@@ -78,6 +78,39 @@ export const planDefaultsValidation = {
     value !== "" && (value < 0 || value > 1000) ? sv.planDefaults.levelMinRangeError : null,
 };
 
+/**
+ * SIMPLE-mode variant (v0.6.0 F2 review fix, FIX 2): validates ONLY the visible target field.
+ * EditPlanModal's SIMPLE layout renders just the target NumberInput - min/max/level-min stay
+ * unmounted (AdvancedOnly) while their stored values still ride along in `values` for the PATCH
+ * mapping. Spreading the full {@link planDefaultsValidation} into the form in that mode could attach
+ * its error to one of those invisible fields: either a silent dead-end (submit blocked, no error
+ * ever rendered anywhere) or, when the error lands on target too, a message naming min/max values
+ * the admin can't see or edit here. This variant only ever reports on the field that's actually on
+ * screen, in plain language, and points the admin at ADVANCED mode to change the underlying min/max
+ * instead of guessing why "15" won't save.
+ */
+export const simplePlanDefaultsValidation = {
+  defaultGroupTargetSize: (value: number | "", values: PlanDefaultsFormValues) => {
+    if (value === "") {
+      return null;
+    }
+    const eff = effectiveOf(values);
+    return eff.min > eff.target || eff.target > eff.max
+      ? sv.planDefaults.simpleTargetRangeError(eff.min, eff.max)
+      : null;
+  },
+};
+
+/** Picks the right validator set for {@link EditPlanModal}'s form - the full per-field
+ *  {@link planDefaultsValidation} in ADVANCED mode (min/max/level-min are all visible and each can
+ *  carry its own error), or {@link simplePlanDefaultsValidation} in SIMPLE mode (see its doc comment
+ *  for why min/max/level-min must never receive a validator there). CreatePlanModal never calls this
+ *  - its SIMPLE layout hides the whole "Standardvärden för grupper" section (target included), so the
+ *  fields stay blank and the full validators never fire in the first place. */
+export function planDefaultsValidationFor(simpleMode: boolean) {
+  return simpleMode ? simplePlanDefaultsValidation : planDefaultsValidation;
+}
+
 export function planDefaultsFromPlan(plan: {
   defaultGroupTargetSize?: number;
   defaultGroupMinSize?: number;

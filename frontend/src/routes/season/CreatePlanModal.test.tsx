@@ -156,4 +156,23 @@ describe("CreatePlanModal", () => {
     expect(await screen.findByText(sv.planDefaults.levelMinRangeError)).toBeInTheDocument();
     expect(requestReceived).toBe(false);
   });
+
+  // v0.6.0 F2 (M-S2): SIMPLE mode creates a plan with just name+kategori - the backend's own
+  // defaults cover group sizing, so the "Standardvärden för grupper" section is hidden entirely.
+  it("hides the 'Standardvärden för grupper' section in SIMPLE mode, keeping name+kategori", () => {
+    renderWithProviders(
+      <CreatePlanModal opened seasonId={SEASON_ID} onClose={() => {}} onCreated={() => {}} />,
+      { uiMode: "SIMPLE" },
+    );
+
+    expect(screen.getByLabelText(sv.createPlanModal.nameLabel, { exact: false })).toBeInTheDocument();
+    // exact (not exact: false): the Kategori HelpTip's ActionIcon has aria-label "Förklaring:
+    // Kategori", which substring-matches "Kategori" too.
+    expect(screen.getByLabelText(sv.createPlanModal.categoryLabel)).toBeInTheDocument();
+    expect(screen.queryByText(sv.planDefaults.heading)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(sv.planDefaults.targetLabel)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(sv.planDefaults.minLabel)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(sv.planDefaults.maxLabel)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(sv.planDefaults.levelMinLabel)).not.toBeInTheDocument();
+  });
 });

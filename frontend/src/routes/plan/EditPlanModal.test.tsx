@@ -122,4 +122,108 @@ describe("EditPlanModal", () => {
       defaultGroupMaxSize: 12,
     });
   });
+
+  // v0.6.0 F2 (M-S2): SIMPLE mode shows name+kategori+target(plainer "Standard gruppstorlek"
+  // wording) only - min/max/level-min and the status free-text field are ADVANCED-only.
+  it("SIMPLE mode shows only the target size (as 'Standard gruppstorlek'), hides status/min/max/level-min", () => {
+    renderWithProviders(<EditPlanModal opened plan={PLAN} onClose={() => {}} />, { uiMode: "SIMPLE" });
+
+    // exact: false on name only - withAsterisk appends a " *" to the accessible label text.
+    expect(screen.getByLabelText(sv.common.name, { exact: false })).toBeInTheDocument();
+    expect(screen.getByLabelText(sv.common.category)).toBeInTheDocument();
+    expect(screen.getByLabelText(sv.editPlanModal.targetLabelSimple)).toHaveValue("10");
+
+    expect(screen.queryByLabelText(sv.editPlanModal.statusLabel, { exact: false })).not.toBeInTheDocument();
+    expect(screen.queryByText(sv.planDefaults.heading)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(sv.planDefaults.targetLabel)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(sv.planDefaults.minLabel)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(sv.planDefaults.maxLabel)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(sv.planDefaults.levelMinLabel)).not.toBeInTheDocument();
+  });
+
+  it("SIMPLE mode's target field submits to the same defaultGroupTargetSize field", async () => {
+    const user = userEvent.setup();
+    let requestBody: unknown;
+    server.use(
+      http.patch(`/api/plans/${PLAN.id}`, async ({ request }) => {
+        requestBody = await request.json();
+        return HttpResponse.json(PLAN);
+      }),
+    );
+
+    renderWithProviders(<EditPlanModal opened plan={PLAN} onClose={() => {}} />, { uiMode: "SIMPLE" });
+
+    // 9: within the plan's stored min(8)/max(12) - min/max stay in the form's state even though the
+    // ADVANCED-only min/max inputs aren't rendered in SIMPLE (simplePlanDefaultsValidation still
+    // checks the effective triple against them - see the target=15 test below for the conflicting
+    // case, which this test deliberately used to dodge before the F2 review fix).
+    const targetInput = screen.getByLabelText(sv.editPlanModal.targetLabelSimple);
+    await user.clear(targetInput);
+    await user.type(targetInput, "9");
+    await user.click(screen.getByRole("button", { name: sv.editPlanModal.submit }));
+
+    await waitFor(() => expect(requestBody).toMatchObject({ defaultGroupTargetSize: 9 }));
+  });
+
+  // v0.6.0 F2 review fix (FIX 2): both reviewers flagged that the full planDefaultsValidation set,
+  // spread unchanged into SIMPLE mode's form, can attach an error to the unmounted min/max inputs -
+  // the two tests below cover the resulting dead-ends and pin the fix (simplePlanDefaultsValidation,
+  // planDefaults.ts).
+  it("SIMPLE mode: a target above the stored (hidden) max shows ONE plain-language error on the visible field, not a silent dead-end or an error naming invisible fields", async () => {
+    const user = userEvent.setup();
+    let requestReceived = false;
+    server.use(
+      http.patch(`/api/plans/${PLAN.id}`, () => {
+        requestReceived = true;
+        return HttpResponse.json(PLAN);
+      }),
+    );
+
+    renderWithProviders(<EditPlanModal opened plan={PLAN} onClose={() => {}} />, { uiMode: "SIMPLE" });
+
+    // 15: above the plan's stored max of 12 - the exact value the pre-fix test above dodged by using
+    // 9 instead, because the old shared planDefaultsValidation would have attached
+    // effectiveSizeError(8, 15, 12) to this same target input, naming "minsta 8"/"max 12" as if they
+    // were separately-editable fields the admin could see (they're both hidden in SIMPLE mode).
+    const targetInput = screen.getByLabelText(sv.editPlanModal.targetLabelSimple);
+    await user.clear(targetInput);
+    await user.type(targetInput, "15");
+    await user.click(screen.getByRole("button", { name: sv.editPlanModal.submit }));
+
+    expect(await screen.findByText(sv.planDefaults.simpleTargetRangeError(8, 12))).toBeInTheDocument();
+    expect(requestReceived).toBe(false);
+  });
+
+  it("SIMPLE mode: clearing the target field submits even when the stored (hidden) min/max would otherwise conflict with the fallback target - no silent dead-end", async () => {
+    // Before the fix: planDefaultsValidation's defaultGroupMinSize/defaultGroupMaxSize validators
+    // still ran against the effective triple (blank target falls back to 10, which conflicts with a
+    // stored min of 20) and attached their error to those unmounted fields - form.onSubmit blocked
+    // the submit, but since neither field is rendered in SIMPLE mode nothing ever appeared on
+    // screen: a silent dead end. simplePlanDefaultsValidation never validates min/max at all, so this
+    // now submits like any other three-state PATCH clear.
+    const user = userEvent.setup();
+    const conflictingPlan: ActivityPlan = {
+      ...PLAN,
+      defaultGroupTargetSize: 20,
+      defaultGroupMinSize: 20,
+      defaultGroupMaxSize: 25,
+    };
+    let requestBody: unknown;
+    server.use(
+      http.patch(`/api/plans/${PLAN.id}`, async ({ request }) => {
+        requestBody = await request.json();
+        return HttpResponse.json(conflictingPlan);
+      }),
+    );
+
+    renderWithProviders(<EditPlanModal opened plan={conflictingPlan} onClose={() => {}} />, { uiMode: "SIMPLE" });
+
+    await user.clear(screen.getByLabelText(sv.editPlanModal.targetLabelSimple));
+    await user.click(screen.getByRole("button", { name: sv.editPlanModal.submit }));
+
+    await waitFor(() => expect(requestBody).toBeDefined());
+    const body = requestBody as Record<string, unknown>;
+    expect("defaultGroupTargetSize" in body).toBe(true);
+    expect(body.defaultGroupTargetSize).toBeNull();
+  });
 });
